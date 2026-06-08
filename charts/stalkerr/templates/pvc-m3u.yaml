@@ -1,0 +1,22 @@
+{{- if and .Values.storage.m3u.enabled (not .Values.storage.m3u.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "stalkerr.fullname" . }}-m3u
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - {{ .Values.storage.m3u.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.m3u.size }}
+  {{- if .Values.storage.m3u.storageClass }}
+  {{- if (eq "-" .Values.storage.m3u.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.storage.m3u.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}

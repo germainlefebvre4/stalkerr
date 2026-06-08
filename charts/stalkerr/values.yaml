@@ -1,0 +1,311 @@
+# Default values for stalkerr
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Image configuration
+image:
+  repository: ghcr.io/yourusername/stalkeer
+  pullPolicy: IfNotPresent
+  tag: ""  # Defaults to chart appVersion
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Server configuration
+server:
+  enabled: true
+  replicaCount: 1
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    adminPort: 8081
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  
+  # Health check configuration
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Application configuration (non-sensitive)
+# This structure mirrors the Go Config struct exactly for 1:1 Docker Compose compatibility
+config:
+  # Database configuration (auto-populated from postgresql subchart or external)
+  database:
+    host: ""  # Auto-generated from postgresql service or external value
+    port: 5432
+    user: stalkerr
+    name: stalkerr  # Note: 'dbname' not 'name' to match config.yaml
+    sslmode: disable
+  
+  # M3U playlist configuration
+  m3u:
+    file_path: /data/m3u/playlist.m3u  # Note: snake_case to match config.yaml
+    update_interval: 3600
+    download:
+      enabled: true
+      url: ""  # Required: URL to download M3U playlist
+      archive_dir: /data/m3u
+      retention_count: 5
+      max_file_size_mb: 1024
+      timeout_seconds: 300
+      retry_attempts: 3
+      auth_username: ""
+      auth_password: ""
+      schedule_enabled: true
+      interval_hours: 24
+  
+  # Filter configuration (include/exclude patterns for content classification)
+  filter:
+    group_title:
+      include_patterns:
+        - ".*"  # Match all by default
+      exclude_patterns: []
+    tvg_name:
+      include_patterns:
+        - ".*"  # Match all by default
+      exclude_patterns:
+        - "Trailer$"
+        - "Sample$"
+  
+  # Logging configuration
+  logging:
+    format: json
+    level: info  # Legacy field for backward compatibility
+    app:
+      level: info
+    database:
+      level: error
+  
+  # API server configuration
+  api:
+    port: 8080
+  
+  # TMDB integration
+  tmdb:
+    enabled: true
+    language: "fr-FR,fr;q=0.9,en-US;q=0.5,en;q=0.5"
+    requests_per_second: 10
+    # api_key: injected from secrets
+  
+  # Radarr integration
+  radarr:
+    enabled: false
+    url: http://radarr.jellyfin.svc.cluster.local
+    sync_interval: 3600
+    quality_profile_id: 1
+    # api_key: injected from secrets
+  
+  # Sonarr integration
+  sonarr:
+    enabled: true
+    url: http://sonarr.jellyfin.svc.cluster.local
+    sync_interval: 3600
+    quality_profile_id: 1
+    # api_key: injected from secrets
+  
+  # Download configuration
+  downloads:
+    movies_path: /media/jellyfin/radarr/movies
+    tvshows_path: /media/jellyfin/sonarr/tv
+    temp_dir: /tmp/stalkerr
+    max_parallel: 1
+    timeout: 3600
+    retry_attempts: 3
+    resume_enabled: true
+    progress_interval_mb: 500
+    progress_interval_seconds: 60
+    lock_timeout_minutes: 5
+    max_retry_attempts: 5
+
+# Secrets configuration (sensitive values)
+secrets:
+  # Use existing secret (recommended for production)
+  existingSecret: ""
+  
+  # Create new secret with these values (if existingSecret is empty)
+  # These should be set via --set or values file, not hardcoded
+  databasePassword: ""  # Required
+  tmdbApiKey: ""        # Required
+  radarrApiKey: ""      # Required
+  sonarrApiKey: ""      # Required
+
+# CronJob configurations
+jobs:
+  # M3U playlist download job
+  m3uDownload:
+    enabled: true
+    schedule: "30 23 * * *"  # Daily at 23:30
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    restartPolicy: OnFailure
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  # M3U processing job (TMDB enrichment)
+  process:
+    enabled: true
+    schedule: "0 0 * * *"  # Daily at midnight
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    restartPolicy: OnFailure
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+  
+  # Sonarr sync job
+  sonarrSync:
+    enabled: true
+    schedule: "0 */2 * * *"  # Every 2 hours
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    restartPolicy: OnFailure
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+    
+    # Force sync variant
+    forceSync:
+      enabled: true
+      schedule: "30 2 * * *"  # Daily at 02:30
+  
+  # Radarr sync job
+  radarrSync:
+    enabled: true
+    schedule: "0 1-23/2 * * *"  # Odd hours (1, 3, 5, ...)
+    concurrencyPolicy: Forbid
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+    restartPolicy: OnFailure
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 200m
+        memory: 256Mi
+    
+    # Force sync variant
+    forceSync:
+      enabled: true
+      schedule: "30 5 * * *"  # Daily at 05:30
+
+# Storage configuration
+storage:
+  # M3U playlist storage
+  m3u:
+    enabled: true
+    existingClaim: ""  # Use existing PVC if provided
+    size: 1Gi
+    accessMode: ReadWriteMany
+    storageClass: ""  # Use cluster default if empty
+  
+  # Media storage (shared with Jellyfin/Sonarr/Radarr)
+  media:
+    enabled: true
+    existingClaim: ""  # Recommended: reference existing Jellyfin media PVC
+    size: 100Gi
+    accessMode: ReadWriteMany
+    storageClass: ""
+
+# PostgreSQL configuration (Bitnami subchart)
+postgresql:
+  enabled: true
+  auth:
+    username: stalkerr
+    password: ""  # Auto-generated if empty
+    database: stalkerr
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: traefik
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # traefik.ingress.kubernetes.io/router.middlewares: authentik-ak-outpost-proxy-outpost@kubernetescrd
+  hosts:
+    - host: stalkerr.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          port: 8080
+  tls: []
+  #  - secretName: stalkerr-tls
+  #    hosts:
+  #      - stalkerr.example.com
+
+# Service Account configuration
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+# Pod Security Context
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Container Security Context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Node selection
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

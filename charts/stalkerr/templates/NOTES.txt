@@ -1,0 +1,180 @@
+{{- $secretName := include "stalkerr.secretName" . -}}
+{{- $releaseName := .Release.Name -}}
+{{- $namespace := .Release.Namespace -}}
+
+🎬 Stalkerr has been installed!
+
+Release Name: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+================================================================================
+📋 POST-INSTALLATION CHECKLIST
+================================================================================
+
+{{- if not .Values.secrets.existingSecret }}
+{{- if or (not .Values.secrets.tmdbApiKey) (not .Values.secrets.radarrApiKey) (not .Values.secrets.sonarrApiKey) }}
+
+⚠️  WARNING: Required API keys are missing!
+
+You must provide the following secrets:
+  - TMDB API key
+  - Radarr API key
+  - Sonarr API key
+
+Update the secret:
+  kubectl edit secret {{ $secretName }} -n {{ $namespace }}
+
+Or upgrade the release with values:
+  helm upgrade {{ $releaseName }} . \
+    --set secrets.tmdbApiKey="YOUR_KEY" \
+    --set secrets.radarrApiKey="YOUR_KEY" \
+    --set secrets.sonarrApiKey="YOUR_KEY"
+{{- end }}
+{{- end }}
+
+{{- if not .Values.config.m3u.downloadUrl }}
+
+⚠️  WARNING: M3U download URL is not configured!
+
+Set the M3U playlist URL:
+  helm upgrade {{ $releaseName }} . \
+    --set config.m3u.downloadUrl="https://example.com/playlist.m3u"
+{{- end }}
+
+================================================================================
+🚀 GETTING STARTED
+================================================================================
+
+1. Check deployment status:
+
+   kubectl get pods -n {{ $namespace }} -l app.kubernetes.io/instance={{ $releaseName }}
+
+2. View API server logs:
+
+   kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=server --tail=50 -f
+
+3. Check CronJob schedules:
+
+   kubectl get cronjobs -n {{ $namespace }}
+
+4. View recent job executions:
+
+   kubectl get jobs -n {{ $namespace }}
+
+{{- if .Values.server.enabled }}
+
+5. Access the API server:
+
+   {{- if .Values.ingress.enabled }}
+   {{- range .Values.ingress.hosts }}
+   
+   External URL: https://{{ .host }}
+   {{- end }}
+   {{- else }}
+
+   Port-forward to access locally:
+   kubectl port-forward -n {{ $namespace }} svc/{{ include "stalkerr.fullname" . }} 8080:80
+   
+   Then visit: http://localhost:8080
+   {{- end }}
+
+6. Check API health:
+
+   kubectl exec -n {{ $namespace }} deployment/{{ include "stalkerr.fullname" . }} -- \
+     curl -s http://localhost:8080/health
+{{- end }}
+
+================================================================================
+📊 MONITORING JOBS
+================================================================================
+
+View M3U download job logs:
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-m3u-download --tail=100
+
+View processing job logs:
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-process --tail=100
+
+View Sonarr sync logs:
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-sonarr-sync --tail=100
+
+View Radarr sync logs:
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-radarr-sync --tail=100
+
+================================================================================
+💾 STORAGE INFORMATION
+================================================================================
+
+{{- if .Values.storage.m3u.enabled }}
+M3U Storage:
+  {{- if .Values.storage.m3u.existingClaim }}
+  Using existing PVC: {{ .Values.storage.m3u.existingClaim }}
+  {{- else }}
+  New PVC created: {{ include "stalkerr.fullname" . }}-m3u ({{ .Values.storage.m3u.size }})
+  {{- end }}
+{{- end }}
+
+{{- if .Values.storage.media.enabled }}
+Media Storage:
+  {{- if .Values.storage.media.existingClaim }}
+  Using existing PVC: {{ .Values.storage.media.existingClaim }}
+  {{- else }}
+  New PVC created: {{ include "stalkerr.fullname" . }}-media ({{ .Values.storage.media.size }})
+  {{- end }}
+{{- end }}
+
+Verify PVC status:
+  kubectl get pvc -n {{ $namespace }}
+
+================================================================================
+🗄️  DATABASE INFORMATION
+================================================================================
+
+{{- if .Values.postgresql.enabled }}
+PostgreSQL is deployed via subchart.
+
+Database connection:
+  Host: {{ include "stalkerr.postgresql.serviceName" . }}
+  Port: 5432
+  Database: {{ .Values.postgresql.auth.database }}
+  Username: {{ .Values.postgresql.auth.username }}
+
+Access PostgreSQL:
+  kubectl exec -it -n {{ $namespace }} statefulset/{{ $releaseName }}-postgresql-0 -- psql -U {{ .Values.postgresql.auth.username }}
+{{- else }}
+Using external PostgreSQL database:
+  Host: {{ .Values.config.database.host }}
+  Port: {{ .Values.config.database.port }}
+  Database: {{ .Values.config.database.name }}
+{{- end }}
+
+Run database migrations manually (if needed):
+  kubectl exec -n {{ $namespace }} deployment/{{ include "stalkerr.fullname" . }} -- ./stalkeer migrate
+
+================================================================================
+🔍 TROUBLESHOOTING
+================================================================================
+
+If pods are not starting:
+  kubectl describe pod -n {{ $namespace }} -l app.kubernetes.io/instance={{ $releaseName }}
+
+Check events:
+  kubectl get events -n {{ $namespace }} --sort-by='.lastTimestamp'
+
+View all resources:
+  kubectl get all -n {{ $namespace }} -l app.kubernetes.io/instance={{ $releaseName }}
+
+================================================================================
+📚 DOCUMENTATION
+================================================================================
+
+For detailed documentation:
+  - README: charts/stalkerr/README.md
+  - Values reference: charts/stalkerr/values.yaml
+  - Troubleshooting guide: See README.md
+
+Need help? Check the documentation or open an issue:
+  https://github.com/yourusername/stalkerr
+
+================================================================================
+Happy downloading! 🎉
+================================================================================

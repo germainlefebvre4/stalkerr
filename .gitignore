@@ -81,3 +81,7 @@ data/postgres/
 
 # Testing files
 webserver/html/
+
+# Helm Charts
+charts/stalkeer/charts
+charts/stalkeer/values.*.yaml

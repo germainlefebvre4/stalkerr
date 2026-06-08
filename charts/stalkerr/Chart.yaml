@@ -1,0 +1,31 @@
+apiVersion: v2
+name: stalkerr
+description: A Helm chart for Stalkerr - M3U playlist parser and media downloader for Sonarr/Radarr
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - media
+  - automation
+  - sonarr
+  - radarr
+  - m3u
+  - iptv
+  - jellyfin
+  - tmdb
+  - download
+  - streaming
+home: https://github.com/yourusername/stalkerr
+sources:
+  - https://github.com/yourusername/stalkerr
+maintainers:
+  - name: Stalkerr Team
+    email: maintainer@example.com
+icon: https://raw.githubusercontent.com/yourusername/stalkerr/main/assets/icon.png
+kubeVersion: ">=1.19.0"
+
+dependencies:
+  - name: postgresql
+    version: 18.6.7
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: postgresql.enabled

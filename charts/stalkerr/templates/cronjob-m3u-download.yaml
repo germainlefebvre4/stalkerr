@@ -1,0 +1,75 @@
+{{- if .Values.jobs.m3uDownload.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "stalkerr.fullname" . }}-m3u-download
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cronjob-m3u-download
+spec:
+  schedule: {{ .Values.jobs.m3uDownload.schedule | quote }}
+  concurrencyPolicy: {{ .Values.jobs.m3uDownload.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.jobs.m3uDownload.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.jobs.m3uDownload.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "stalkerr.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cronjob-m3u-download
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "stalkerr.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          restartPolicy: {{ .Values.jobs.m3uDownload.restartPolicy }}
+          containers:
+            - name: m3u-download
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              image: {{ include "stalkerr.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - ./stalkeer
+                - m3u-download
+                # - --config
+                # - /etc/stalkerr/config.yaml
+              env:
+                - name: STALKERR_DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "stalkerr.secretName" . }}
+                      key: database-password
+                - name: DATABASE_URL
+                  value: {{ include "stalkerr.databaseUrl" . | quote }}
+                - name: TMDB_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "stalkerr.secretName" . }}
+                      key: tmdb-api-key
+              resources:
+                {{- toYaml .Values.jobs.m3uDownload.resources | nindent 16 }}
+              volumeMounts:
+                - name: config
+                  # mountPath: /etc/stalkerr/config.yaml
+                  mountPath: /app/config.yaml
+                  subPath: config.yaml
+                  readOnly: true
+                - name: m3u-storage
+                  mountPath: /data/m3u
+                - name: temp-storage
+                  mountPath: /tmp
+          volumes:
+            - name: config
+              configMap:
+                name: {{ include "stalkerr.configMapName" . }}
+            - name: m3u-storage
+              persistentVolumeClaim:
+                claimName: {{ include "stalkerr.m3uPvcName" . }}
+            - name: temp-storage
+              emptyDir: {}
+{{- end }}

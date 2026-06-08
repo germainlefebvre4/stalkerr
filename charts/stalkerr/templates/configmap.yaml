@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "stalkerr.fullname" . }}
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    # Database configuration
+    database:
+      {{- if .Values.postgresql.enabled }}
+      host: {{ include "stalkerr.postgresql.serviceName" . }}
+      port: {{ include "stalkerr.postgresql.port" . }}
+      user: {{ include "stalkerr.postgresql.username" . }}
+      dbname: {{ include "stalkerr.postgresql.database" . }}
+      {{- else }}
+      host: {{ .Values.config.database.host }}
+      port: {{ .Values.config.database.port }}
+      user: {{ .Values.config.database.user }}
+      dbname: {{ .Values.config.database.dbname }}
+      {{- end }}
+      sslmode: {{ .Values.config.database.sslmode }}
+      # password: injected via STALKERR_DATABASE_PASSWORD env var
+    
+    # M3U playlist configuration
+    m3u:
+      file_path: {{ .Values.config.m3u.file_path }}
+      update_interval: {{ .Values.config.m3u.update_interval }}
+      download:
+        enabled: {{ .Values.config.m3u.download.enabled }}
+        {{- if .Values.config.m3u.download.url }}
+        url: {{ .Values.config.m3u.download.url | quote }}
+        {{- end }}
+        archive_dir: {{ .Values.config.m3u.download.archive_dir }}
+        retention_count: {{ .Values.config.m3u.download.retention_count }}
+        max_file_size_mb: {{ .Values.config.m3u.download.max_file_size_mb }}
+        timeout_seconds: {{ .Values.config.m3u.download.timeout_seconds }}
+        retry_attempts: {{ .Values.config.m3u.download.retry_attempts }}
+        {{- if .Values.config.m3u.download.auth_username }}
+        auth_username: {{ .Values.config.m3u.download.auth_username | quote }}
+        {{- end }}
+        {{- if .Values.config.m3u.download.auth_password }}
+        auth_password: {{ .Values.config.m3u.download.auth_password | quote }}
+        {{- end }}
+        schedule_enabled: {{ .Values.config.m3u.download.schedule_enabled }}
+        interval_hours: {{ .Values.config.m3u.download.interval_hours }}
+    
+    # Filter configuration
+    filter:
+      group_title:
+        include_patterns:
+          {{- range .Values.config.filter.group_title.include_patterns }}
+          - {{ . | quote }}
+          {{- end }}
+        exclude_patterns:
+          {{- range .Values.config.filter.group_title.exclude_patterns }}
+          - {{ . | quote }}
+          {{- end }}
+      tvg_name:
+        include_patterns:
+          {{- range .Values.config.filter.tvg_name.include_patterns }}
+          - {{ . | quote }}
+          {{- end }}
+        exclude_patterns:
+          {{- range .Values.config.filter.tvg_name.exclude_patterns }}
+          - {{ . | quote }}
+          {{- end }}
+    
+    # Logging configuration
+    logging:
+      format: {{ .Values.config.logging.format }}
+      level: {{ .Values.config.logging.level }}
+      app:
+        level: {{ .Values.config.logging.app.level }}
+      database:
+        level: {{ .Values.config.logging.database.level }}
+    
+    # API configuration
+    api:
+      port: {{ .Values.config.api.port }}
+    
+    # TMDB integration
+    tmdb:
+      enabled: {{ .Values.config.tmdb.enabled }}
+      language: {{ .Values.config.tmdb.language | quote }}
+      requests_per_second: {{ .Values.config.tmdb.requests_per_second }}
+      # api_key: injected via STALKERR_TMDB_API_KEY env var
+    
+    # Radarr integration
+    radarr:
+      enabled: {{ .Values.config.radarr.enabled }}
+      {{- if .Values.config.radarr.url }}
+      url: {{ .Values.config.radarr.url | quote }}
+      {{- end }}
+      sync_interval: {{ .Values.config.radarr.sync_interval }}
+      quality_profile_id: {{ .Values.config.radarr.quality_profile_id }}
+      # api_key: injected via STALKERR_RADARR_API_KEY env var
+    
+    # Sonarr integration
+    sonarr:
+      enabled: {{ .Values.config.sonarr.enabled }}
+      {{- if .Values.config.sonarr.url }}
+      url: {{ .Values.config.sonarr.url | quote }}
+      {{- end }}
+      sync_interval: {{ .Values.config.sonarr.sync_interval }}
+      quality_profile_id: {{ .Values.config.sonarr.quality_profile_id }}
+      # api_key: injected via STALKERR_SONARR_API_KEY env var
+    
+    # Download configuration
+    downloads:
+      movies_path: {{ .Values.config.downloads.movies_path }}
+      tvshows_path: {{ .Values.config.downloads.tvshows_path }}
+      temp_dir: {{ .Values.config.downloads.temp_dir }}
+      max_parallel: {{ .Values.config.downloads.max_parallel }}
+      timeout: {{ .Values.config.downloads.timeout }}
+      retry_attempts: {{ .Values.config.downloads.retry_attempts }}
+      resume_enabled: {{ .Values.config.downloads.resume_enabled }}
+      progress_interval_mb: {{ .Values.config.downloads.progress_interval_mb }}
+      progress_interval_seconds: {{ .Values.config.downloads.progress_interval_seconds }}
+      lock_timeout_minutes: {{ .Values.config.downloads.lock_timeout_minutes }}
+      max_retry_attempts: {{ .Values.config.downloads.max_retry_attempts }}

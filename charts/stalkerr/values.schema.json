@@ -1,0 +1,445 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["image", "server", "config", "secrets"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Container image repository"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "description": "Image pull policy"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag (defaults to chart appVersion)"
+        }
+      }
+    },
+    "server": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable API server deployment"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of server replicas"
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": ["database", "m3u", "filter", "logging", "api", "tmdb", "radarr", "sonarr", "downloads"],
+      "properties": {
+        "database": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "type": "string",
+              "description": "Database host"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Database port"
+            },
+            "user": {
+              "type": "string",
+              "description": "Database user"
+            },
+            "dbname": {
+              "type": "string",
+              "description": "Database name"
+            },
+            "sslmode": {
+              "type": "string",
+              "enum": ["disable", "require", "verify-ca", "verify-full"],
+              "description": "Database SSL mode"
+            }
+          }
+        },
+        "m3u": {
+          "type": "object",
+          "required": ["file_path"],
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "Path to M3U playlist file"
+            },
+            "update_interval": {
+              "type": "integer",
+              "description": "Update interval in seconds"
+            },
+            "download": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Enable M3U download"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "URL to download M3U playlist"
+                },
+                "archive_dir": {
+                  "type": "string",
+                  "description": "Archive directory for old playlists"
+                },
+                "retention_count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Number of old playlists to keep"
+                },
+                "max_file_size_mb": {
+                  "type": "integer",
+                  "description": "Maximum file size in MB"
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "description": "Download timeout in seconds"
+                },
+                "retry_attempts": {
+                  "type": "integer",
+                  "description": "Number of retry attempts"
+                },
+                "auth_username": {
+                  "type": "string",
+                  "description": "HTTP authentication username"
+                },
+                "auth_password": {
+                  "type": "string",
+                  "description": "HTTP authentication password"
+                },
+                "schedule_enabled": {
+                  "type": "boolean",
+                  "description": "Enable scheduled download"
+                },
+                "interval_hours": {
+                  "type": "integer",
+                  "description": "Download interval in hours"
+                }
+              }
+            }
+          }
+        },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "group_title": {
+              "type": "object",
+              "properties": {
+                "include_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Regular expressions for groups to include"
+                },
+                "exclude_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Regular expressions for groups to exclude"
+                }
+              }
+            },
+            "tvg_name": {
+              "type": "object",
+              "properties": {
+                "include_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Regular expressions for names to include"
+                },
+                "exclude_patterns": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Regular expressions for names to exclude"
+                }
+              }
+            }
+          }
+        },
+        "logging": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string",
+              "enum": ["json", "text"],
+              "description": "Log format"
+            },
+            "level": {
+              "type": "string",
+              "enum": ["debug", "info", "warn", "error"],
+              "description": "Default log level"
+            },
+            "app": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": ["debug", "info", "warn", "error"],
+                  "description": "Application log level"
+                }
+              }
+            },
+            "database": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": ["debug", "info", "warn", "error"],
+                  "description": "Database log level"
+                }
+              }
+            }
+          }
+        },
+        "api": {
+          "type": "object",
+          "properties": {
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535,
+              "description": "API server port"
+            }
+          }
+        },
+        "tmdb": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable TMDB integration"
+            },
+            "language": {
+              "type": "string",
+              "description": "TMDB language preference"
+            },
+            "requests_per_second": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "TMDB API rate limit"
+            }
+          }
+        },
+        "radarr": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Radarr integration"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Radarr API URL"
+            },
+            "sync_interval": {
+              "type": "integer",
+              "description": "Sync interval in seconds"
+            },
+            "quality_profile_id": {
+              "type": "integer",
+              "description": "Radarr quality profile ID"
+            }
+          }
+        },
+        "sonarr": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Sonarr integration"
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Sonarr API URL"
+            },
+            "sync_interval": {
+              "type": "integer",
+              "description": "Sync interval in seconds"
+            },
+            "quality_profile_id": {
+              "type": "integer",
+              "description": "Sonarr quality profile ID"
+            }
+          }
+        },
+        "downloads": {
+          "type": "object",
+          "properties": {
+            "movies_path": {
+              "type": "string",
+              "description": "Path for downloaded movies"
+            },
+            "tvshows_path": {
+              "type": "string",
+              "description": "Path for downloaded TV shows"
+            },
+            "temp_dir": {
+              "type": "string",
+              "description": "Temporary download directory"
+            },
+            "max_parallel": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum parallel downloads"
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Download timeout in seconds"
+            },
+            "retry_attempts": {
+              "type": "integer",
+              "description": "Number of retry attempts"
+            },
+            "resume_enabled": {
+              "type": "boolean",
+              "description": "Enable download resume"
+            },
+            "progress_interval_mb": {
+              "type": "integer",
+              "description": "Progress logging interval in MB"
+            },
+            "progress_interval_seconds": {
+              "type": "integer",
+              "description": "Progress logging interval in seconds"
+            },
+            "lock_timeout_minutes": {
+              "type": "integer",
+              "description": "Lock timeout in minutes"
+            },
+            "max_retry_attempts": {
+              "type": "integer",
+              "description": "Maximum retry attempts for failed downloads"
+            }
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Name of existing secret to use"
+        },
+        "tmdbApiKey": {
+          "type": "string",
+          "description": "TMDB API key (required if existingSecret is empty)"
+        },
+        "radarrApiKey": {
+          "type": "string",
+          "description": "Radarr API key (required if existingSecret is empty)"
+        },
+        "sonarrApiKey": {
+          "type": "string",
+          "description": "Sonarr API key (required if existingSecret is empty)"
+        },
+        "databasePassword": {
+          "type": "string",
+          "description": "Database password (required if existingSecret is empty and postgresql.enabled is false)"
+        }
+      }
+    },
+    "jobs": {
+      "type": "object",
+      "properties": {
+        "m3uDownload": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "schedule": {
+              "type": "string",
+              "pattern": "^(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\\d+(ns|us|µs|ms|s|m|h))+)|((((\\d+,)+\\d+|(\\d+([/-])\\d+)|\\d+|\\*) ?){5,7})$",
+              "description": "Cron schedule expression"
+            }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "m3u": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi|Ti)$"
+            }
+          }
+        },
+        "media": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi|Ti)$"
+            }
+          }
+        }
+      }
+    },
+    "postgresql": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PostgreSQL subchart deployment"
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["host"],
+            "properties": {
+              "host": {
+                "type": "string",
+                "format": "hostname"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

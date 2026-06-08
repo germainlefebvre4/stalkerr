@@ -1,0 +1,22 @@
+{{- if and .Values.storage.media.enabled (not .Values.storage.media.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "stalkerr.fullname" . }}-media
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - {{ .Values.storage.media.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.media.size }}
+  {{- if .Values.storage.media.storageClass }}
+  {{- if (eq "-" .Values.storage.media.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ .Values.storage.media.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}

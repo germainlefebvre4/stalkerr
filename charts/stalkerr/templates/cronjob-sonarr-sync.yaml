@@ -1,0 +1,80 @@
+{{- if .Values.jobs.sonarrSync.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "stalkerr.fullname" . }}-sonarr-sync
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cronjob-sonarr-sync
+spec:
+  schedule: {{ .Values.jobs.sonarrSync.schedule | quote }}
+  concurrencyPolicy: {{ .Values.jobs.sonarrSync.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.jobs.sonarrSync.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.jobs.sonarrSync.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "stalkerr.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cronjob-sonarr-sync
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "stalkerr.serviceAccountName" . }}
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+          restartPolicy: {{ .Values.jobs.sonarrSync.restartPolicy }}
+          containers:
+            - name: sonarr-sync
+              securityContext:
+                {{- toYaml .Values.securityContext | nindent 16 }}
+              image: {{ include "stalkerr.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - ./stalkeer
+                - sonarr
+                # - --config
+                # - /etc/stalkerr/config.yaml
+              env:
+                - name: STALKERR_DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "stalkerr.secretName" . }}
+                      key: database-password
+                - name: DATABASE_URL
+                  value: {{ include "stalkerr.databaseUrl" . | quote }}
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "stalkerr.secretName" . }}
+                      key: sonarr-api-key
+              resources:
+                {{- toYaml .Values.jobs.sonarrSync.resources | nindent 16 }}
+              volumeMounts:
+                - name: config
+                  # mountPath: /etc/stalkerr/config.yaml
+                  mountPath: /app/config.yaml
+                  subPath: config.yaml
+                  readOnly: true
+                - name: m3u-storage
+                  mountPath: /data/m3u
+                - name: media-storage
+                  mountPath: /media
+                - name: temp-storage
+                  mountPath: /tmp
+          volumes:
+            - name: config
+              configMap:
+                name: {{ include "stalkerr.configMapName" . }}
+            - name: m3u-storage
+              persistentVolumeClaim:
+                claimName: {{ include "stalkerr.m3uPvcName" . }}
+            - name: media-storage
+              persistentVolumeClaim:
+                claimName: {{ include "stalkerr.mediaPvcName" . }}
+            - name: temp-storage
+              emptyDir: {}
+{{- end }}

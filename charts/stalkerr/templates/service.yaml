@@ -1,0 +1,23 @@
+{{- if .Values.server.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "stalkerr.fullname" . }}
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.service.targetPort }}
+      protocol: TCP
+      name: http
+    - port: {{ .Values.server.service.adminPort }}
+      targetPort: {{ .Values.server.service.adminPort }}
+      protocol: TCP
+      name: admin
+  selector:
+    {{- include "stalkerr.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+{{- end }}

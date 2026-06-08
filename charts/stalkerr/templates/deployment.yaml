@@ -1,0 +1,120 @@
+{{- if .Values.server.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "stalkerr.fullname" . }}
+  labels:
+    {{- include "stalkerr.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "stalkerr.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "stalkerr.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "stalkerr.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: stalkerr
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "stalkerr.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - ./stalkeer
+            - server
+            # - --config
+            # - /etc/stalkerr/config.yaml
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: admin
+              containerPort: 8081
+              protocol: TCP
+          env:
+            # Secret environment variables (override config.yaml)
+            - name: STALKERR_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "stalkerr.secretName" . }}
+                  key: database-password
+            - name: TMDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "stalkerr.secretName" . }}
+                  key: tmdb-api-key
+            - name: RADARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "stalkerr.secretName" . }}
+                  key: radarr-api-key
+            - name: SONARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "stalkerr.secretName" . }}
+                  key: sonarr-api-key
+            # Convenience: provide full DATABASE_URL
+            - name: DATABASE_URL
+              value: {{ include "stalkerr.databaseUrl" . | quote }}
+          {{- with .Values.server.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.server.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              # mountPath: /etc/stalkerr/config.yaml
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: m3u-storage
+              mountPath: /data/m3u
+            - name: media-storage
+              mountPath: /media
+            - name: temp-storage
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "stalkerr.configMapName" . }}
+        - name: m3u-storage
+          persistentVolumeClaim:
+            claimName: {{ include "stalkerr.m3uPvcName" . }}
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: {{ include "stalkerr.mediaPvcName" . }}
+        - name: temp-storage
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
