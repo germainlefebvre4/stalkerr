@@ -741,3 +741,75 @@ func toFilterResponse(filter models.FilterConfig) FilterResponse {
 		UpdatedAt:       filter.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
+
+// resetMovie handles the POST /api/v1/movies/:id/reset request
+func (s *Server) resetMovie(c *gin.Context) {
+	db := database.Get()
+	idStr := c.Param("id")
+
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "invalid movie ID format",
+		})
+		return
+	}
+
+	rows, err := database.ResetMovie(db, uint(id))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error:   "not_found",
+				Message: fmt.Sprintf("movie with id %d not found", id),
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: "failed to reset movie stream state",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": fmt.Sprintf("movie with id %d was reset successfully, removed %d processed lines", id, rows),
+	})
+}
+
+// resetTVShow handles the POST /api/v1/tvshows/:id/reset request
+func (s *Server) resetTVShow(c *gin.Context) {
+	db := database.Get()
+	idStr := c.Param("id")
+
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "invalid TV show ID format",
+		})
+		return
+	}
+
+	rows, err := database.ResetTVShow(db, uint(id))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error:   "not_found",
+				Message: fmt.Sprintf("TV show with id %d not found", id),
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: "failed to reset TV show stream state",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": fmt.Sprintf("TV show with id %d was reset successfully, removed %d processed lines", id, rows),
+	})
+}

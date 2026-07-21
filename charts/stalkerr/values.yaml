@@ -309,3 +309,25 @@ tolerations: []
 
 # Affinity
 affinity: {}
+
+# Frontend configuration (React 19 + Nginx)
+frontend:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: germainlefebvre4/stalkeer-frontend
+    tag: ""  # Defaults to chart appVersion
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi

@@ -1,2 +1,8 @@
 schema: spec-driven
-created: 2026-02-26
+created: "2026-02-26"
+tags:
+    type: batch
+    complexity: 0
+    components: []
+    _auto: true
+    _tagged_at: "2026-06-30"

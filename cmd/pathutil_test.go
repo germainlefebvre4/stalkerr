@@ -8,7 +8,7 @@ import (
 
 func TestBuildSonarrDestPath_UseSeriesPath(t *testing.T) {
 	t.Run("primary root folder", func(t *testing.T) {
-		got, fallback := buildSonarrDestPath("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 1, 1)
+		got, fallback := buildSonarrDestPath("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1)
 		if fallback {
 			t.Error("expected no fallback")
 		}
@@ -19,7 +19,7 @@ func TestBuildSonarrDestPath_UseSeriesPath(t *testing.T) {
 	})
 
 	t.Run("secondary root folder (sonarr-bis)", func(t *testing.T) {
-		got, fallback := buildSonarrDestPath("/downloads/sonarr-bis/Malcolm in the Middle", "./data/sonarr", "Malcolm in the Middle", 1, 1)
+		got, fallback := buildSonarrDestPath("/downloads/sonarr-bis/Malcolm in the Middle", "./data/sonarr", "Malcolm in the Middle", 2000, 1, 1)
 		if fallback {
 			t.Error("expected no fallback")
 		}
@@ -33,7 +33,7 @@ func TestBuildSonarrDestPath_UseSeriesPath(t *testing.T) {
 	})
 
 	t.Run("season and episode zero-padding", func(t *testing.T) {
-		got, _ := buildSonarrDestPath("/downloads/sonarr/Show", "./data/sonarr", "Show", 3, 12)
+		got, _ := buildSonarrDestPath("/downloads/sonarr/Show", "./data/sonarr", "Show", 0, 3, 12)
 		if !strings.HasSuffix(got, "Season 03"+string(filepath.Separator)+"Show - S03E12") {
 			t.Errorf("unexpected path suffix, got %q", got)
 		}
@@ -41,14 +41,27 @@ func TestBuildSonarrDestPath_UseSeriesPath(t *testing.T) {
 }
 
 func TestBuildSonarrDestPath_EmptyPathFallback(t *testing.T) {
-	got, fallback := buildSonarrDestPath("", "./data/sonarr", "My Show", 2, 5)
-	if !fallback {
-		t.Error("expected fallback=true when seriesPath is empty")
-	}
-	want := filepath.Join("./data/sonarr", "My Show", "Season 02", "My Show - S02E05")
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	t.Run("includes year when available", func(t *testing.T) {
+		got, fallback := buildSonarrDestPath("", "./data/sonarr", "My Show", 2020, 2, 5)
+		if !fallback {
+			t.Error("expected fallback=true when seriesPath is empty")
+		}
+		want := filepath.Join("./data/sonarr", "My Show (2020)", "Season 02", "My Show - S02E05")
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("keeps previous behavior when year is unavailable", func(t *testing.T) {
+		got, fallback := buildSonarrDestPath("", "./data/sonarr", "My Show", 0, 2, 5)
+		if !fallback {
+			t.Error("expected fallback=true when seriesPath is empty")
+		}
+		want := filepath.Join("./data/sonarr", "My Show", "Season 02", "My Show - S02E05")
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
 }
 
 func TestBuildRadarrDestPath_UseMoviePath(t *testing.T) {

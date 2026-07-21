@@ -52,13 +52,17 @@ func valueOrEmpty(ptr *string) string {
 // buildSonarrDestPath constructs the base destination path for a TV show episode download.
 // It uses seriesPath (from the Sonarr API) as the authoritative root directory, which
 // already encodes the correct Sonarr root folder. When seriesPath is empty it falls back
-// to joining fallbackBase with a sanitised seriesTitle.
+// to joining fallbackBase with a sanitised seriesTitle and year when available.
 // The second return value is true when the fallback was used.
-func buildSonarrDestPath(seriesPath, fallbackBase, seriesTitle string, seasonNum, episodeNum int) (string, bool) {
+func buildSonarrDestPath(seriesPath, fallbackBase, seriesTitle string, seriesYear, seasonNum, episodeNum int) (string, bool) {
 	root := seriesPath
 	usedFallback := false
 	if root == "" {
-		root = filepath.Join(fallbackBase, sanitizeFilename(seriesTitle))
+		seriesDir := sanitizeFilename(seriesTitle)
+		if seriesYear > 0 {
+			seriesDir = fmt.Sprintf("%s (%d)", seriesDir, seriesYear)
+		}
+		root = filepath.Join(fallbackBase, seriesDir)
 		usedFallback = true
 	}
 	return filepath.Join(

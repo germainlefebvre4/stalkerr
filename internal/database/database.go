@@ -83,6 +83,11 @@ func Get() *gorm.DB {
 	return db
 }
 
+// SetDB sets the database instance for testing purposes
+func SetDB(gdb *gorm.DB) {
+	db = gdb
+}
+
 // GetDB is an alias for Get() to maintain compatibility
 func GetDB() *gorm.DB {
 	return db

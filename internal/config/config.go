@@ -245,6 +245,11 @@ func Get() *Config {
 	return cfg
 }
 
+// SetConfig sets the configuration instance directly (primarily for testing purposes)
+func SetConfig(c *Config) {
+	cfg = c
+}
+
 // Reload reloads the configuration from file
 func Reload() error {
 	return Load()

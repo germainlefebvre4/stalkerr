@@ -42,6 +42,11 @@ func NewServer() *Server {
 	return s
 }
 
+// ServeHTTP allows the Server to handle HTTP requests directly (useful for testing)
+func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	s.router.ServeHTTP(w, req)
+}
+
 // Run starts the API server on the specified port
 func (s *Server) Run(port int) error {
 	s.httpServer = &http.Server{
@@ -84,6 +89,8 @@ func (s *Server) setupRoutes() {
 		{
 			movies.GET("", s.listMovies)
 			movies.GET("/:id", s.getMovie)
+			movies.POST("/:id/move", s.moveMovieFolder)
+			movies.POST("/:id/reset", s.resetMovie)
 		}
 
 		// TV shows endpoints
@@ -91,6 +98,8 @@ func (s *Server) setupRoutes() {
 		{
 			tvshows.GET("", s.listTVShows)
 			tvshows.GET("/:id", s.getTVShow)
+			tvshows.POST("/:id/move", s.moveTVShowFolder)
+			tvshows.POST("/:id/reset", s.resetTVShow)
 		}
 
 		// Filter endpoints
@@ -108,5 +117,10 @@ func (s *Server) setupRoutes() {
 
 		// Statistics endpoint
 		v1.GET("/stats", s.getStats)
+
+		// Background logs and downloads tracking endpoints
+		v1.GET("/processing-logs", s.listProcessingLogs)
+		v1.GET("/downloads", s.listDownloads)
+		v1.GET("/config/paths", s.getConfigPaths)
 	}
 }

@@ -29,6 +29,29 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
+          {{- if $.Values.frontend.enabled }}
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "stalkerr.fullname" $ }}
+                port:
+                  number: {{ $.Values.server.service.port }}
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "stalkerr.fullname" $ }}
+                port:
+                  number: {{ $.Values.server.service.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "stalkerr.fullname" $ }}-frontend
+                port:
+                  number: {{ $.Values.frontend.service.port }}
+          {{- else }}
           {{- range .paths }}
           - path: {{ .path }}
             pathType: {{ .pathType }}
@@ -37,6 +60,7 @@ spec:
                 name: {{ include "stalkerr.fullname" $ }}
                 port:
                   number: {{ .port }}
+          {{- end }}
           {{- end }}
     {{- end }}
 {{- end }}

@@ -1,6 +1,6 @@
 # Makefile for Stalkeer
 
-.PHONY: all build test clean run lint fmt help
+.PHONY: all build test clean run lint fmt help front-install front-dev front-build front-lint dev
 
 # Variables
 BINARY_NAME=stalkeer
@@ -35,7 +35,7 @@ build:
 ## test: Run tests
 test:
 	@echo "Running tests..."
-	$(GOTEST) -v -race -coverprofile=coverage.out ./...
+	$(GOTEST) -v -race -coverprofile=coverage.out ./cmd/... ./internal/...
 	@echo "Tests complete"
 
 ## coverage: Generate test coverage report
@@ -55,7 +55,7 @@ clean:
 ## run: Run the application
 run: build
 	@echo "Running $(BINARY_NAME)..."
-	./$(BIN_DIR)/$(BINARY_NAME)
+	./$(BIN_DIR)/$(BINARY_NAME) server
 
 ## lint: Run linters
 lint:
@@ -99,6 +99,63 @@ docker-down:
 ## docker-logs: View Docker logs
 docker-logs:
 	docker-compose logs -f
+
+## seed-test-data: Load test data into database for development
+seed-test-data:
+	@echo "Loading test data into database..."
+	@if [ ! -f config.yml ]; then \
+		echo "Error: config.yml not found. Copy config.yml.example and configure it first."; \
+		exit 1; \
+	fi
+	@DB_HOST=$$(grep -A10 '^database:' config.yml | grep 'host:' | awk '{print $$2}'); \
+	DB_PORT=$$(grep -A10 '^database:' config.yml | grep 'port:' | awk '{print $$2}'); \
+	DB_USER=$$(grep -A10 '^database:' config.yml | grep 'user:' | awk '{print $$2}'); \
+	DB_NAME=$$(grep -A10 '^database:' config.yml | grep 'dbname:' | awk '{print $$2}'); \
+	echo "Connecting to PostgreSQL at $$DB_HOST:$$DB_PORT as $$DB_USER..."; \
+	PGPASSWORD=$$(grep -A10 '^database:' config.yml | grep 'password:' | awk '{print $$2}') \
+	psql -h $$DB_HOST -p $$DB_PORT -U $$DB_USER -d $$DB_NAME -f scripts/seed-test-data.sql
+	@echo "Test data loaded successfully!"
+
+## front-install: Install Frontend Node/npm dependencies
+front-install:
+	@echo "Installing frontend dependencies..."
+	cd frontend && npm install
+	@echo "Frontend dependencies installed"
+
+## front-dev: Start Frontend Vite development server
+front-dev:
+	@echo "Starting frontend dev server..."
+	cd frontend && npm run dev
+
+## front-build: Build Frontend production-ready static assets
+front-build:
+	@echo "Building frontend static assets..."
+	cd frontend && npm run build
+
+## front-lint: Lint Frontend source code using ESLint
+front-lint:
+	@echo "Linting frontend code..."
+	cd frontend && npm run lint
+
+## dev: Compile backend and run both API server and Frontend dev server in parallel
+dev: build
+	@echo "Starting stalkeer development environment (Backend + Frontend)..."
+	@echo "API server: http://localhost:8080"
+	@echo "Frontend dashboard: http://localhost:5173"
+	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server & cd frontend && npm run dev)
+
+## dev-frontend: Run only the Frontend dev server
+dev-frontend:
+	@echo "Starting stalkeer development environment (Backend + Frontend)..."
+	@echo "API server: http://localhost:8080"
+	@echo "Frontend dashboard: http://localhost:5173"
+	(trap 'kill 0' SIGINT; cd frontend && npm run dev)
+
+## dev-backend: Run only the Backend API server
+dev-backend: build
+	@echo "Starting stalkeer development environment (Backend + Frontend)..."
+	@echo "API server: http://localhost:8080"
+	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server)
 
 ## docker-build: Docker build (if needed later)
 docker-build:

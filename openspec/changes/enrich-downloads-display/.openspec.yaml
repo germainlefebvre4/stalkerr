@@ -1,0 +1,8 @@
+schema: spec-driven
+created: "2026-07-21"
+tags:
+    type: "feature"
+    complexity: 3
+    components: ["backend", "frontend", "api"]
+    _auto: true
+    _tagged_at: "2026-07-21"

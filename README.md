@@ -18,6 +18,7 @@
 - ⬇️ Download missing items via direct links
 - 🚀 REST API for querying and managing media items
 - 📊 Processing logs and statistics
+- 🖥️ **Web Dashboard (IHM)** - Modern light-themed dashboard built with React 19 and Radix UI to explore playlists, monitor download progress, view processing logs, and execute folder-level media moves.
 
 ## Quick Start
 
@@ -383,6 +384,7 @@ docker-compose up -d postgres
 stalkeer/
 ├── cmd/                    # Application entry points
 │   └── main.go
+├── frontend/               # React 19 + Radix UI Frontend Web Dashboard
 ├── internal/               # Private application code
 │   ├── api/               # REST API handlers
 │   ├── config/            # Configuration management
@@ -437,7 +439,38 @@ See [docs/TESTING.md](docs/TESTING.md) for detailed testing documentation.
 
 ### Development Setup
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development setup instructions.
+To quickly run and develop both the Go backend API and the React 19 Frontend Web Dashboard locally, use the following commands:
+
+#### 1. Prerequisites
+
+Ensure you have the following installed on your machine:
+- **Go** 1.24 or higher
+- **Node.js** 22 or higher (with `npm`)
+- **Docker** and **Docker Compose** (for the database and profile dependencies)
+
+#### 2. Local Database & Dependencies
+Start the PostgreSQL container and any other necessary development profile dependencies:
+```bash
+make docker-up
+```
+
+#### 3. Frontend Installation
+Install the React dashboard dependencies in the `/frontend` directory:
+```bash
+make front-install
+```
+
+#### 4. Run Both Servers Concurrently
+Start the local development server unifing both Go API on port `8080` and Vite Frontend on port `5173`:
+```bash
+make dev
+```
+*   **Web Dashboard (IHM)**: Available at [http://localhost:5173](http://localhost:5173)
+*   **API v1 Server**: Available at [http://localhost:8080](http://localhost:8080)
+
+*Note:* Vite is preconfigured to automatically proxy all REST API requests on `/api/v1/*` directly to port `8080` to avoid CORS issues.
+
+For advanced settings, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development setup instructions.
 
 ## API Documentation
 

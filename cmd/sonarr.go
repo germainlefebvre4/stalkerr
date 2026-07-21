@@ -215,7 +215,7 @@ and download matched items from M3U playlist stream URLs.`,
 			// Download - use series.Path from Sonarr as the authoritative root so that
 			// series assigned to secondary root folders land in the correct directory.
 			baseDestPath, usedFallback := buildSonarrDestPath(
-				series.Path, cfg.Downloads.TVShowsPath, series.Title,
+				series.Path, cfg.Downloads.TVShowsPath, series.Title, series.Year,
 				episode.SeasonNumber, episode.EpisodeNumber,
 			)
 			if usedFallback {

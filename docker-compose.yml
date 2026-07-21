@@ -1,5 +1,5 @@
 # YAML anchors for common configurations
-x-stalkeer-build: &stalkeer-build
+x-stalkerr-build: &stalkerr-build
   context: .
   dockerfile: Dockerfile
   args:
@@ -7,7 +7,7 @@ x-stalkeer-build: &stalkeer-build
     COMMIT: ${COMMIT:-unknown}
     DATE: ${DATE:-unknown}
 
-x-stalkeer-volumes: &stalkeer-volumes
+x-stalkerr-volumes: &stalkerr-volumes
   - ./config.yml:/app/config/config.yml:ro
   - ./m3u_playlist:/app/m3u_playlist:ro
   - ${DOWNLOADS_DIR:-./data/downloads}:/app/data/downloads
@@ -15,12 +15,12 @@ x-stalkeer-volumes: &stalkeer-volumes
   - ./data/downloads/movies:/app/data/downloads/movies
   - ./data/downloads/movies:/app/data/downloads/tvshows
 
-x-stalkeer-environment: &stalkeer-environment
+x-stalkerr-environment: &stalkerr-environment
   DB_HOST: ${DB_HOST:-postgres}
   DB_PORT: ${DB_PORT:-5432}
   DB_USER: ${DB_USER:-postgres}
   DB_PASSWORD: ${DB_PASSWORD:-postgres}
-  DB_NAME: ${DB_NAME:-stalkeer}
+  DB_NAME: ${DB_NAME:-stalkerr}
   DB_SSLMODE: ${DB_SSLMODE:-disable}
   LOG_LEVEL: ${LOG_LEVEL:-info}
   API_PORT: ${API_PORT:-8080}
@@ -33,11 +33,11 @@ x-stalkeer-environment: &stalkeer-environment
   PGID: ${PGID:-1000}
   TZ: ${TZ:-Etc/UTC}
 
-x-stalkeer-depends-on: &stalkeer-depends-on
+x-stalkerr-depends-on: &stalkerr-depends-on
   postgres:
     condition: service_healthy
 
-x-stalkeer-resources: &stalkeer-resources
+x-stalkerr-resources: &stalkerr-resources
   resources:
     limits:
       cpus: '2.0'
@@ -54,11 +54,11 @@ x-linuxserver-environment: &linuxserver-environment
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: stalkeer-postgres
+    container_name: stalkerr-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-stalkeer}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-stalkerr}
+      POSTGRES_USER: ${POSTGRES_USER:-stalkerr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stalkerr}
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
     # volumes:
@@ -73,22 +73,22 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - stalkeer-network
+      - stalkerr-network
     profiles:
       - stalkerr
       - development
 
   server:
-    build: *stalkeer-build
-    image: germainlefebvre4/stalkeer:${VERSION:-dev}
-    container_name: stalkeer-server
+    build: *stalkerr-build
+    image: germainlefebvre4/stalkerr:${VERSION:-dev}
+    container_name: stalkerr-server
     command: ["./stalkeer", "server"]
     ports:
       - "${API_PORT:-8080}:8080"
       - "${ADMIN_PORT:-8081}:8081"
-    depends_on: *stalkeer-depends-on
-    volumes: *stalkeer-volumes
-    environment: *stalkeer-environment
+    depends_on: *stalkerr-depends-on
+    volumes: *stalkerr-volumes
+    environment: *stalkerr-environment
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
@@ -97,90 +97,90 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - stalkeer-network
-    deploy: *stalkeer-resources
+      - stalkerr-network
+    deploy: *stalkerr-resources
     profiles:
       - stalkerr
 
   process:
-    build: *stalkeer-build
-    image: germainlefebvre4/stalkeer:${VERSION:-dev}
-    container_name: stalkeer-process
+    build: *stalkerr-build
+    image: germainlefebvre4/stalkerr:${VERSION:-dev}
+    container_name: stalkerr-process
     command: ["./stalkeer", "process", "--config", "/app/config/config.yml"]
-    depends_on: *stalkeer-depends-on
-    volumes: *stalkeer-volumes
-    environment: *stalkeer-environment
+    depends_on: *stalkerr-depends-on
+    volumes: *stalkerr-volumes
+    environment: *stalkerr-environment
     restart: no
     networks:
-      - stalkeer-network
-    deploy: *stalkeer-resources
+      - stalkerr-network
+    deploy: *stalkerr-resources
     profiles:
       - stalkerr
 
   sonarr-sync:
-    build: *stalkeer-build
-    image: germainlefebvre4/stalkeer:${VERSION:-dev}
-    container_name: stalkeer-sonarr-sync
+    build: *stalkerr-build
+    image: germainlefebvre4/stalkerr:${VERSION:-dev}
+    container_name: stalkerr-sonarr-sync
     command: ["./stalkeer", "sonarr", "--config", "/app/config/config.yml"]
-    depends_on: *stalkeer-depends-on
-    volumes: *stalkeer-volumes
-    environment: *stalkeer-environment
+    depends_on: *stalkerr-depends-on
+    volumes: *stalkerr-volumes
+    environment: *stalkerr-environment
     restart: no
     networks:
-      - stalkeer-network
-    deploy: *stalkeer-resources
+      - stalkerr-network
+    deploy: *stalkerr-resources
     profiles:
       - stalkerr
 
   radarr-sync:
-    build: *stalkeer-build
-    image: germainlefebvre4/stalkeer:${VERSION:-dev}
-    container_name: stalkeer-radarr-sync
+    build: *stalkerr-build
+    image: germainlefebvre4/stalkerr:${VERSION:-dev}
+    container_name: stalkerr-radarr-sync
     command: ["./stalkeer", "radarr", "--config", "/app/config/config.yml"]
-    depends_on: *stalkeer-depends-on
-    volumes: *stalkeer-volumes
-    environment: *stalkeer-environment
+    depends_on: *stalkerr-depends-on
+    volumes: *stalkerr-volumes
+    environment: *stalkerr-environment
     restart: no
     networks:
-      - stalkeer-network
-    deploy: *stalkeer-resources
+      - stalkerr-network
+    deploy: *stalkerr-resources
     profiles:
       - stalkerr
 
   resume-downloads:
-    build: *stalkeer-build
-    image: germainlefebvre4/stalkeer:${VERSION:-dev}
-    container_name: stalkeer-resume-downloads
+    build: *stalkerr-build
+    image: germainlefebvre4/stalkerr:${VERSION:-dev}
+    container_name: stalkerr-resume-downloads
     command: ["./stalkeer", "resume-downloads", "--config", "/app/config/config.yml"]
-    depends_on: *stalkeer-depends-on
-    volumes: *stalkeer-volumes
-    environment: *stalkeer-environment
+    depends_on: *stalkerr-depends-on
+    volumes: *stalkerr-volumes
+    environment: *stalkerr-environment
     restart: no
     networks:
-      - stalkeer-network
-    deploy: *stalkeer-resources
+      - stalkerr-network
+    deploy: *stalkerr-resources
     profiles:
       - stalkerr
 
   m3u-download:
-    build: *stalkeer-build
-    image: germainlefebvre4/stalkeer:${VERSION:-dev}
-    container_name: stalkeer-m3u-download
+    build: *stalkerr-build
+    image: germainlefebvre4/stalkerr:${VERSION:-dev}
+    container_name: stalkerr-m3u-download
     command: ["./stalkeer", "m3u-download", "--config", "/app/config/config.yml"]
-    depends_on: *stalkeer-depends-on
-    volumes: *stalkeer-volumes
-    environment: *stalkeer-environment
+    depends_on: *stalkerr-depends-on
+    volumes: *stalkerr-volumes
+    environment: *stalkerr-environment
     restart: no
     networks:
-      - stalkeer-network
-    deploy: *stalkeer-resources
+      - stalkerr-network
+    deploy: *stalkerr-resources
     profiles:
       - stalkerr
 
   # DEVELOPMENT purpose only
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
-    container_name: stalkeer-sonarr
+    container_name: stalkerr-sonarr
     environment: *linuxserver-environment
     volumes:
       - ./data/sonarr:/config
@@ -189,13 +189,13 @@ services:
       - "${SONARR_PORT:-8989}:8989"
     restart: unless-stopped
     networks:
-      - stalkeer-network
+      - stalkerr-network
     profiles:
       - development
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
-    container_name: stalkeer-radarr
+    container_name: stalkerr-radarr
     environment: *linuxserver-environment
     volumes:
       - ./data/radarr:/config
@@ -204,13 +204,13 @@ services:
       - "${RADARR_PORT:-7878}:7878"
     restart: unless-stopped
     networks:
-      - stalkeer-network
+      - stalkerr-network
     profiles:
       - development
 
   web:
     image: nginx:alpine
-    container_name: stalkeer-web
+    container_name: stalkerr-web
     ports:
       - "${WEB_PORT:-8008}:80"
     volumes:
@@ -218,14 +218,28 @@ services:
       - ./webserver/html:/usr/share/nginx/html
     restart: unless-stopped
     networks:
-      - stalkeer-network
+      - stalkerr-network
     profiles:
       - development
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: stalkerr-frontend
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    restart: unless-stopped
+    networks:
+      - stalkerr-network
+    profiles:
+      - development
+      - stalkerr
 
 volumes:
   postgres_data:
     driver: local
 
 networks:
-  stalkeer-network:
+  stalkerr-network:
     driver: bridge

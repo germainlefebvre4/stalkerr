@@ -1,5 +1,7 @@
-## ADDED Requirements
+## Purpose
 
+Define the structure, organization, and registration requirements for the CLI command entrypoints.
+## Requirements
 ### Requirement: Each CLI command is defined in its own file
 The codebase SHALL organise each Cobra command into a dedicated file under `cmd/`. The file name SHALL reflect the command name (e.g., `server.go` for `serverCmd`, `radarr.go` for `radarrCmd`). Commands that share a cohesive domain MAY be grouped in one file (e.g., multiple M3U-related commands in `m3u.go`).
 
@@ -48,3 +50,22 @@ Formatting helpers used across multiple command files (`formatBytes`, `sanitizeF
 #### Scenario: Importing testutil
 - **WHEN** a test file imports the shared test helpers
 - **THEN** the import path is `github.com/glefebvre/stalkeer/internal/testutil`
+
+### Requirement: Database Pruning CLI Interface
+The CLI SHALL provide a `db-prune` command under `stalkeer db-prune` to manually invoke database cleaning.
+
+#### Scenario: db-prune CLI flags registered
+- **WHEN** running `stalkeer db-prune --help`
+- **THEN** the output displays `--dry-run` and `--hard` flags with descriptions.
+
+### Requirement: Media Reset CLI Interface
+The CLI SHALL provide a `reset` command with nested subcommands `movie` and `tvshow` to surgically reset elements.
+
+#### Scenario: reset movie CLI command
+- **WHEN** running `stalkeer reset movie --id 42`
+- **THEN** the system executes a surgical reset for movie ID 42 and prints a success message.
+
+#### Scenario: reset tvshow CLI command
+- **WHEN** running `stalkeer reset tvshow --id 12`
+- **THEN** the system executes a surgical reset for TV Show ID 12 and prints a success message.
+
