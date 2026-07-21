@@ -1,30 +1,53 @@
 :root {
-  --bg-app: #f8f9fa;
+  /* Soft, vibrant, modern light background */
+  --bg-app: #f4f6fc;
   --bg-card: #ffffff;
-  --bg-active: #eff6ff;
-  --border-color: #e2e8f0;
+  --bg-active: #f1f5f9;
 
-  --primary-slate: #1e293b;
-  --primary-accent: #2563eb;
-  --primary-accent-hover: #1d4ed8;
-  
-  --text-main: #0f172a;
-  --text-secondary: #64748b;
+  /* Primary color and gorgeous purple-indigo accents */
+  --primary-slate: #0f172a;
+  --primary-accent: #6366f1; /* Indigo */
+  --primary-accent-hover: #4f46e5;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
 
-  --status-success-bg: #ecfdf5;
-  --status-success-text: #047857;
+  /* High contrast and legible text styles */
+  --text-main: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Borders and Dividers */
+  --border-color: #f1f5f9;
+  --border-focus: #cbd5e1;
+
+  /* Radiant, pastel status badges */
+  --status-success-bg: #e6fdf4;
+  --status-success-text: #059669;
+  --status-success-border: #a7f3d0;
+
   --status-progress-bg: #eff6ff;
-  --status-progress-text: #1d4ed8;
-  --status-failed-bg: #fef2f2;
-  --status-failed-text: #b91c1c;
-  --status-pending-bg: #fef3c7;
-  --status-pending-text: #b45309;
+  --status-progress-text: #2563eb;
+  --status-progress-border: #bfdbfe;
 
-  --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --status-failed-bg: #fff5f5;
+  --status-failed-text: #dc2626;
+  --status-failed-border: #fecaca;
+
+  --status-pending-bg: #fffbeb;
+  --status-pending-text: #d97706;
+  --status-pending-border: #fde68a;
+
+  /* Premium system typography */
+  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
+  /* Diffuse, luxurious premium shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 10px 15px -3px rgba(15, 23, 42, 0.04), 0 4px 6px -4px rgba(15, 23, 42, 0.02);
+  --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
+
+  /* Modern, extra fluid border radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
 }
