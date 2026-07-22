@@ -7,11 +7,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glefebvre/stalkeer/internal/classifier"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
 )
@@ -442,4 +446,316 @@ func getDirInfo(path string) (int64, int, error) {
 	})
 
 	return size, count, err
+}
+
+// searchTMDBProxy queries movies or TV shows on TMDB safely from the backend.
+func (s *Server) searchTMDBProxy(c *gin.Context) {
+	if s.tmdbClient == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Error:   "tmdb_disabled",
+			Message: "TMDB integration is disabled or not configured",
+		})
+		return
+	}
+
+	query := c.Query("query")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "query parameter is required",
+		})
+		return
+	}
+
+	mediaType := c.Query("type")
+	if mediaType != "movie" && mediaType != "tvshow" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "type parameter must be either movie or tvshow",
+		})
+		return
+	}
+
+	var results []TMDBSearchResult
+
+	if mediaType == "movie" {
+		var yearPtr *int
+		if yearStr := c.Query("year"); yearStr != "" {
+			if y, err := strconv.Atoi(yearStr); err == nil && y > 0 {
+				yearPtr = &y
+			}
+		}
+
+		movies, err := s.tmdbClient.SearchMovies(query, yearPtr)
+		if err != nil {
+			// If no results found, TMDB client returns error. Return empty array instead of 500.
+			if strings.Contains(err.Error(), "no results found") {
+				c.JSON(http.StatusOK, []TMDBSearchResult{})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "tmdb_error",
+				Message: fmt.Sprintf("failed to search TMDB: %v", err),
+			})
+			return
+		}
+
+		results = make([]TMDBSearchResult, len(movies))
+		for i, m := range movies {
+			results[i] = TMDBSearchResult{
+				ID:            m.ID,
+				Title:         m.Title,
+				OriginalTitle: m.OriginalTitle,
+				ReleaseDate:   m.ReleaseDate,
+				Overview:      m.Overview,
+				PosterPath:    m.PosterPath,
+			}
+		}
+	} else {
+		shows, err := s.tmdbClient.SearchTVShows(query)
+		if err != nil {
+			if strings.Contains(err.Error(), "no results found") {
+				c.JSON(http.StatusOK, []TMDBSearchResult{})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "tmdb_error",
+				Message: fmt.Sprintf("failed to search TMDB: %v", err),
+			})
+			return
+		}
+
+		results = make([]TMDBSearchResult, len(shows))
+		for i, show := range shows {
+			results[i] = TMDBSearchResult{
+				ID:            show.ID,
+				Title:         show.Name,
+				OriginalTitle: show.OriginalName,
+				ReleaseDate:   show.FirstAirDate,
+				Overview:      show.Overview,
+				PosterPath:    show.PosterPath,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, results)
+}
+
+// overrideItem manually associates a VOD item with a specific TMDB movie or TV show.
+func (s *Server) overrideItem(c *gin.Context) {
+	if s.tmdbClient == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
+			Error:   "tmdb_disabled",
+			Message: "TMDB integration is disabled or not configured",
+		})
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: "invalid item id",
+		})
+		return
+	}
+
+	db := database.Get()
+	var item models.ProcessedLine
+	if err := db.Preload("Movie").Preload("TVShow").First(&item, uint(id)).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error:   "not_found",
+				Message: "item not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: fmt.Sprintf("failed to fetch item: %v", err),
+		})
+		return
+	}
+
+	var req OverrideItemRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_request",
+			Message: fmt.Sprintf("invalid override payload: %v", err),
+		})
+		return
+	}
+
+	var season, episode *int
+	now := time.Now()
+
+	if req.Type == "movie" {
+		details, err := s.tmdbClient.GetMovieDetails(req.TMDBID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "tmdb_error",
+				Message: fmt.Sprintf("failed to fetch TMDB movie details: %v", err),
+			})
+			return
+		}
+
+		externalIDs, _ := s.tmdbClient.GetMovieExternalIDs(req.TMDBID)
+
+		var movie models.Movie
+		tmdbYear := tmdb.ExtractYear(details.ReleaseDate)
+		genres := tmdb.FormatGenres(details.Genres)
+
+		var tvdbID *int
+		if externalIDs != nil {
+			tvdbID = externalIDs.TVDBID
+		}
+
+		attrs := models.Movie{
+			TMDBID:     details.ID,
+			TVDBID:     tvdbID,
+			TMDBTitle:  details.Title,
+			TMDBYear:   tmdbYear,
+			TMDBGenres: &genres,
+			Duration:   details.Runtime,
+		}
+
+		if err := db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).Attrs(attrs).FirstOrCreate(&movie).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: fmt.Sprintf("failed to save movie details: %v", err),
+			})
+			return
+		}
+
+		if externalIDs != nil && externalIDs.TVDBID != nil && movie.TVDBID == nil {
+			movie.TVDBID = externalIDs.TVDBID
+			db.Save(&movie)
+		}
+
+		item.ContentType = models.ContentTypeMovies
+		item.MovieID = &movie.ID
+		item.TVShowID = nil
+		item.ChannelID = nil
+		item.UncategorizedID = nil
+		item.Movie = &movie
+		item.TVShow = nil
+	} else {
+		if req.Season != nil {
+			season = req.Season
+		}
+		if req.Episode != nil {
+			episode = req.Episode
+		}
+		if season == nil || episode == nil {
+			cl := classifier.New()
+			extractedSeason, extractedEpisode := cl.ExtractSeasonEpisode(item.TvgName)
+			if season == nil {
+				season = extractedSeason
+			}
+			if episode == nil {
+				episode = extractedEpisode
+			}
+		}
+
+		details, err := s.tmdbClient.GetTVShowDetails(req.TMDBID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "tmdb_error",
+				Message: fmt.Sprintf("failed to fetch TMDB TV show details: %v", err),
+			})
+			return
+		}
+
+		externalIDs, _ := s.tmdbClient.GetTVShowExternalIDs(req.TMDBID)
+
+		var tvshow models.TVShow
+		tmdbYear := tmdb.ExtractYear(details.FirstAirDate)
+		genres := tmdb.FormatGenres(details.Genres)
+
+		var tvdbID *int
+		if externalIDs != nil {
+			tvdbID = externalIDs.TVDBID
+		}
+
+		attrs := models.TVShow{
+			TMDBID:     details.ID,
+			TVDBID:     tvdbID,
+			TMDBTitle:  details.Name,
+			TMDBYear:   tmdbYear,
+			TMDBGenres: &genres,
+			Season:     season,
+			Episode:    episode,
+		}
+
+		query := db.Where("tmdb_id = ?", details.ID)
+		if season != nil {
+			query = query.Where("season = ?", *season)
+		} else {
+			query = query.Where("season IS NULL")
+		}
+		if episode != nil {
+			query = query.Where("episode = ?", *episode)
+		} else {
+			query = query.Where("episode IS NULL")
+		}
+
+		if err := query.Attrs(attrs).FirstOrCreate(&tvshow).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: fmt.Sprintf("failed to save TV show details: %v", err),
+			})
+			return
+		}
+
+		if externalIDs != nil && externalIDs.TVDBID != nil && tvshow.TVDBID == nil {
+			tvshow.TVDBID = externalIDs.TVDBID
+			db.Save(&tvshow)
+		}
+
+		item.ContentType = models.ContentTypeTVShows
+		item.TVShowID = &tvshow.ID
+		item.MovieID = nil
+		item.ChannelID = nil
+		item.UncategorizedID = nil
+		item.TVShow = &tvshow
+		item.Movie = nil
+	}
+
+	// Persist the learned mapping for future automatic imports
+	var existingMapping models.ManualMapping
+	if err := db.Where("tvg_name = ? AND group_title = ?", item.TvgName, item.GroupTitle).First(&existingMapping).Error; err == nil {
+		existingMapping.ContentType = item.ContentType
+		existingMapping.TMDBID = req.TMDBID
+		existingMapping.Season = season
+		existingMapping.Episode = episode
+		existingMapping.UpdatedAt = now
+		db.Save(&existingMapping)
+	} else {
+		mapping := models.ManualMapping{
+			TvgName:     item.TvgName,
+			GroupTitle:  item.GroupTitle,
+			ContentType: item.ContentType,
+			TMDBID:      req.TMDBID,
+			Season:      season,
+			Episode:     episode,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		db.Create(&mapping)
+	}
+
+	overrideBy := "manual"
+	item.OverrideBy = &overrideBy
+	item.OverrideAt = &now
+
+	if err := db.Select("ContentType", "MovieID", "TVShowID", "ChannelID", "UncategorizedID", "OverrideBy", "OverrideAt").Save(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: fmt.Sprintf("failed to save override association: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, toItemResponse(item))
 }

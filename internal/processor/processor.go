@@ -264,6 +264,35 @@ func (p *Processor) setContentType(line *models.ProcessedLine, classification cl
 		}
 	}
 
+	// 1. Check for manual mappings first to bypass standard processing & TMDB search entirely
+	if p.db != nil {
+		var mapping models.ManualMapping
+		if err := p.db.Where("tvg_name = ? AND group_title = ?", line.TvgName, line.GroupTitle).First(&mapping).Error; err == nil {
+			line.ContentType = mapping.ContentType
+
+			if !opts.SkipTMDB && p.tmdbClient != nil {
+				if mapping.ContentType == models.ContentTypeMovies {
+					if err := p.enrichMovieWithTMDBID(line, mapping.TMDBID, language, stats); err != nil {
+						p.logger.WithFields(map[string]interface{}{
+							"title":   line.TvgName,
+							"tmdb_id": mapping.TMDBID,
+							"error":   err,
+						}).Warn("failed to enrich movie with TMDB using manual mapping ID")
+					}
+				} else if mapping.ContentType == models.ContentTypeTVShows {
+					if err := p.enrichTVShowWithTMDBID(line, mapping.TMDBID, mapping.Season, mapping.Episode, language, stats); err != nil {
+						p.logger.WithFields(map[string]interface{}{
+							"title":   line.TvgName,
+							"tmdb_id": mapping.TMDBID,
+							"error":   err,
+						}).Warn("failed to enrich TV show with TMDB using manual mapping ID")
+					}
+				}
+			}
+			return nil
+		}
+	}
+
 	switch classification.ContentType {
 	case classifier.ContentTypeMovie:
 		line.ContentType = models.ContentTypeMovies
@@ -313,19 +342,24 @@ func (p *Processor) enrichMovie(line *models.ProcessedLine, language string, sta
 		return err
 	}
 
+	return p.enrichMovieWithTMDBID(line, result.ID, language, stats)
+}
+
+// enrichMovieWithTMDBID fetches movie data from TMDB by ID and associates it with the ProcessedLine
+func (p *Processor) enrichMovieWithTMDBID(line *models.ProcessedLine, tmdbID int, language string, stats *Statistics) error {
 	// Get detailed information
-	details, err := p.tmdbClient.GetMovieDetails(result.ID)
+	details, err := p.tmdbClient.GetMovieDetails(tmdbID)
 	if err != nil {
 		stats.TMDBErrors++
 		return err
 	}
 
 	// Get external IDs (including TVDB ID)
-	externalIDs, err := p.tmdbClient.GetMovieExternalIDs(result.ID)
+	externalIDs, err := p.tmdbClient.GetMovieExternalIDs(tmdbID)
 	if err != nil {
 		// Log warning but don't fail - external IDs are optional
 		p.logger.WithFields(map[string]interface{}{
-			"tmdb_id": result.ID,
+			"tmdb_id": tmdbID,
 			"error":   err,
 		}).Warn("Failed to fetch movie external IDs")
 	}
@@ -384,19 +418,24 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 		return err
 	}
 
+	return p.enrichTVShowWithTMDBID(line, result.ID, classification.Season, classification.Episode, language, stats)
+}
+
+// enrichTVShowWithTMDBID fetches TV show data from TMDB by ID and associates it with the ProcessedLine
+func (p *Processor) enrichTVShowWithTMDBID(line *models.ProcessedLine, tmdbID int, season, episode *int, language string, stats *Statistics) error {
 	// Get detailed information
-	details, err := p.tmdbClient.GetTVShowDetails(result.ID)
+	details, err := p.tmdbClient.GetTVShowDetails(tmdbID)
 	if err != nil {
 		stats.TMDBErrors++
 		return err
 	}
 
 	// Get external IDs (including TVDB ID)
-	externalIDs, err := p.tmdbClient.GetTVShowExternalIDs(result.ID)
+	externalIDs, err := p.tmdbClient.GetTVShowExternalIDs(tmdbID)
 	if err != nil {
 		// Log warning but don't fail - external IDs are optional
 		p.logger.WithFields(map[string]interface{}{
-			"tmdb_id": result.ID,
+			"tmdb_id": tmdbID,
 			"error":   err,
 		}).Warn("Failed to fetch TV show external IDs")
 	}
@@ -416,18 +455,18 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 		TMDBTitle:  details.Name,
 		TMDBYear:   tmdbYear,
 		TMDBGenres: &genres,
-		Season:     classification.Season,
-		Episode:    classification.Episode,
+		Season:     season,
+		Episode:    episode,
 	}
 
 	query := p.db.Where("tmdb_id = ?", details.ID)
-	if classification.Season != nil {
-		query = query.Where("season = ?", *classification.Season)
+	if season != nil {
+		query = query.Where("season = ?", *season)
 	} else {
 		query = query.Where("season IS NULL")
 	}
-	if classification.Episode != nil {
-		query = query.Where("episode = ?", *classification.Episode)
+	if episode != nil {
+		query = query.Where("episode = ?", *episode)
 	} else {
 		query = query.Where("episode IS NULL")
 	}

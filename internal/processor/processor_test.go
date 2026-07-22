@@ -1,25 +1,39 @@
 package processor
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/glefebvre/stalkeer/internal/classifier"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/models"
 )
 
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
-	// Set test configuration
-	os.Setenv("DB_HOST", "localhost")
-	os.Setenv("DB_PORT", "5432")
-	os.Setenv("DB_USER", "postgres")
-	os.Setenv("DB_PASSWORD", "postgres")
-	os.Setenv("DB_NAME", "stalkeer_test")
+	// Set test configuration with defaults matching docker-compose.yml
+	if os.Getenv("DB_HOST") == "" {
+		os.Setenv("DB_HOST", "localhost")
+	}
+	if os.Getenv("DB_PORT") == "" {
+		os.Setenv("DB_PORT", "5433")
+	}
+	if os.Getenv("DB_USER") == "" {
+		os.Setenv("DB_USER", "stalkerr")
+	}
+	if os.Getenv("DB_PASSWORD") == "" {
+		os.Setenv("DB_PASSWORD", "stalkerr")
+	}
+	if os.Getenv("DB_NAME") == "" {
+		os.Setenv("DB_NAME", "stalkerr")
+	}
 
 	// Load config
 	if err := config.Load(); err != nil {
@@ -33,7 +47,7 @@ func setupTestDB(t *testing.T) {
 
 	// Clean up tables
 	db := database.Get()
-	db.Exec("TRUNCATE TABLE processed_lines, processing_logs, movies, tvshows CASCADE")
+	db.Exec("TRUNCATE TABLE processed_lines, processing_logs, movies, tvshows, manual_mappings CASCADE")
 }
 
 func teardownTestDB(t *testing.T) {
@@ -202,8 +216,13 @@ http://example.com/movie.mkv`
 		t.Fatalf("First Process failed: %v", err)
 	}
 
-	// Second processing (should detect duplicate)
-	stats2, err := proc.Process(opts)
+	// Second processing with fresh processor instance (should detect duplicate in DB)
+	proc2, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	stats2, err := proc2.Process(opts)
 	if err != nil {
 		t.Fatalf("Second Process failed: %v", err)
 	}
@@ -234,7 +253,7 @@ http://example.com/movie.mkv`
 	}
 
 	opts := ProcessOptions{
-		Force:            true,
+		Force:            false, // set to false first to process normally
 		Limit:            0,
 		BatchSize:        10,
 		ProgressInterval: 100,
@@ -246,8 +265,15 @@ http://example.com/movie.mkv`
 		t.Fatalf("First Process failed: %v", err)
 	}
 
-	// Second processing with force (should process again)
-	stats2, err := proc.Process(opts)
+	// Second processing with force on a fresh processor instance (should process again)
+	proc2, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	optsForce := opts
+	optsForce.Force = true
+	stats2, err := proc2.Process(optsForce)
 	if err != nil {
 		t.Fatalf("Second Process failed: %v", err)
 	}
@@ -471,5 +497,98 @@ func TestComputeLineHash(t *testing.T) {
 
 	if len(hash1) != 64 {
 		t.Errorf("expected hash length 64, got %d", len(hash1))
+	}
+}
+
+func TestProcessWithManualMapping(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	db := database.Get()
+
+	// Seed ManualMapping in DB
+	mapping := models.ManualMapping{
+		TvgName:     "FR: INCEPTION (2010)",
+		GroupTitle:  "FR: FILMS ACTION",
+		ContentType: models.ContentTypeMovies,
+		TMDBID:      27205,
+	}
+	db.Create(&mapping)
+
+	// Mock TMDB Server
+	mockTMDB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/movie/27205") {
+			if strings.HasSuffix(r.URL.Path, "/external_ids") {
+				w.Write([]byte(`{"tvdb_id":12345}`))
+			} else {
+				w.Write([]byte(`{"id":27205,"title":"Inception","release_date":"2010-07-16","genres":[{"id":28,"name":"Action"}],"runtime":148}`))
+			}
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockTMDB.Close()
+
+	// Override TMDB baseURL
+	tmdb.SetBaseURL(mockTMDB.URL)
+	defer tmdb.SetBaseURL("https://api.themoviedb.org/3")
+
+	// Set configuration so TMDB is enabled
+	config.SetConfig(&config.Config{
+		TMDB: config.TMDBConfig{
+			Enabled:           true,
+			APIKey:            "mock-key",
+			Language:          "en-US",
+			RequestsPerSecond: 0,
+		},
+	})
+
+	tmpFile := createTestM3U(t, "#EXTM3U\n#EXTINF:-1 tvg-name=\"FR: INCEPTION (2010)\" group-title=\"FR: FILMS ACTION\",FR: INCEPTION (2010)\nhttp://example.com/inception.mkv")
+
+	p, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("failed to create processor: %v", err)
+	}
+
+	line := &models.ProcessedLine{
+		TvgName:    "FR: INCEPTION (2010)",
+		GroupTitle: "FR: FILMS ACTION",
+	}
+
+	cl := classifier.Classification{
+		ContentType: classifier.ContentTypeSeries, // Note: classifier says "Series" but manual mapping says "Movies"! This tests that mapping takes precedence!
+		Resolution:  nil,
+	}
+
+	stats := &Statistics{}
+	opts := &ProcessOptions{
+		SkipTMDB:     false,
+		TMDBLanguage: "en-US",
+	}
+
+	if err := p.setContentType(line, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType failed: %v", err)
+	}
+
+	if line.ContentType != models.ContentTypeMovies {
+		t.Errorf("expected ContentType 'movies' (from manual mapping), got '%s'", line.ContentType)
+	}
+
+	if line.MovieID == nil {
+		t.Fatal("expected MovieID to be populated")
+	}
+
+	var movie models.Movie
+	if err := db.First(&movie, *line.MovieID).Error; err != nil {
+		t.Fatalf("failed to find associated movie in DB: %v", err)
+	}
+
+	if movie.TMDBID != 27205 || movie.TMDBTitle != "Inception" {
+		t.Errorf("associated movie details are incorrect: %+v", movie)
 	}
 }

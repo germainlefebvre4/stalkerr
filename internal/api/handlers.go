@@ -680,12 +680,21 @@ func parsePagination(c *gin.Context) (limit, offset int) {
 }
 
 func toItemResponse(item models.ProcessedLine) ItemResponse {
+	var overrideAtStr *string
+	if item.OverrideAt != nil {
+		formatted := item.OverrideAt.Format("2006-01-02T15:04:05Z07:00")
+		overrideAtStr = &formatted
+	}
+
 	resp := ItemResponse{
 		ID:          item.ID,
 		TvgName:     item.TvgName,
 		GroupTitle:  item.GroupTitle,
 		ContentType: item.ContentType,
 		State:       item.State,
+		Resolution:  item.Resolution,
+		OverrideBy:  item.OverrideBy,
+		OverrideAt:  overrideAtStr,
 		ProcessedAt: item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:   item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

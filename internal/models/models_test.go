@@ -147,3 +147,44 @@ func TestTVShow_Creation(t *testing.T) {
 		t.Errorf("expected Episode 5, got %d", *tvshow.Episode)
 	}
 }
+
+func TestManualMapping_TableName(t *testing.T) {
+	mapping := ManualMapping{}
+	expected := "manual_mappings"
+	if mapping.TableName() != expected {
+		t.Errorf("expected table name %s, got %s", expected, mapping.TableName())
+	}
+}
+
+func TestManualMapping_Creation(t *testing.T) {
+	season := 2
+	episode := 10
+	now := time.Now()
+
+	mapping := ManualMapping{
+		TvgName:     "Test TvgName",
+		GroupTitle:  "Test Group",
+		ContentType: ContentTypeTVShows,
+		TMDBID:      9999,
+		Season:      &season,
+		Episode:     &episode,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if mapping.TvgName != "Test TvgName" {
+		t.Errorf("expected TvgName 'Test TvgName', got %s", mapping.TvgName)
+	}
+	if mapping.ContentType != ContentTypeTVShows {
+		t.Errorf("expected ContentType tvshows, got %s", mapping.ContentType)
+	}
+	if mapping.TMDBID != 9999 {
+		t.Errorf("expected TMDBID 9999, got %d", mapping.TMDBID)
+	}
+	if *mapping.Season != 2 {
+		t.Errorf("expected Season 2, got %d", *mapping.Season)
+	}
+	if *mapping.Episode != 10 {
+		t.Errorf("expected Episode 10, got %d", *mapping.Episode)
+	}
+}

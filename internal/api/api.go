@@ -8,12 +8,15 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 )
 
 // Server represents the API server
 type Server struct {
 	router     *gin.Engine
 	httpServer *http.Server
+	tmdbClient *tmdb.Client
 }
 
 // NewServer creates a new API server instance
@@ -21,11 +24,11 @@ func NewServer() *Server {
 	router := gin.Default()
 
 	// Configure CORS
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"} // TODO: Configure from config file
-	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
-	router.Use(cors.New(config))
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowOrigins = []string{"*"} // TODO: Configure from config file
+	corsConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	corsConfig.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	router.Use(cors.New(corsConfig))
 
 	// Add request ID middleware
 	router.Use(requestIDMiddleware())
@@ -33,8 +36,19 @@ func NewServer() *Server {
 	// Add error handling middleware
 	router.Use(errorHandlerMiddleware())
 
+	var tmdbClient *tmdb.Client
+	cfg := config.Get()
+	if cfg.TMDB.Enabled && cfg.TMDB.APIKey != "" {
+		tmdbClient = tmdb.NewClient(tmdb.Config{
+			APIKey:            cfg.TMDB.APIKey,
+			Language:          cfg.TMDB.Language,
+			RequestsPerSecond: cfg.TMDB.RequestsPerSecond,
+		})
+	}
+
 	s := &Server{
-		router: router,
+		router:     router,
+		tmdbClient: tmdbClient,
 	}
 
 	s.setupRoutes()
@@ -75,6 +89,9 @@ func (s *Server) setupRoutes() {
 	// API v1 routes
 	v1 := s.router.Group("/api/v1")
 	{
+		// TMDB proxy endpoint
+		v1.GET("/tmdb/search", s.searchTMDBProxy)
+
 		// Items endpoints
 		items := v1.Group("/items")
 		{
@@ -82,6 +99,7 @@ func (s *Server) setupRoutes() {
 			items.GET("/:id", s.getItem)
 			items.PUT("/:id", s.updateItem)
 			items.POST("/search", s.searchItems)
+			items.POST("/:id/override", s.overrideItem)
 		}
 
 		// Movies endpoints

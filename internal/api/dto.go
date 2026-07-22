@@ -29,6 +29,8 @@ type ItemResponse struct {
 	Resolution  *string                `json:"resolution,omitempty"`
 	Movie       *MovieResponse         `json:"movie,omitempty"`
 	TVShow      *TVShowResponse        `json:"tvshow,omitempty"`
+	OverrideBy  *string                `json:"override_by,omitempty"`
+	OverrideAt  *string                `json:"override_at,omitempty"`
 	ProcessedAt string                 `json:"processed_at"`
 	CreatedAt   string                 `json:"created_at"`
 	UpdatedAt   string                 `json:"updated_at"`
@@ -105,4 +107,22 @@ type UpdateFilterRequest struct {
 	Attribute       *string `json:"attribute,omitempty"`
 	IncludePatterns *string `json:"include_patterns,omitempty"`
 	ExcludePatterns *string `json:"exclude_patterns,omitempty"`
+}
+
+// OverrideItemRequest represents the payload to manually override a VOD item match
+type OverrideItemRequest struct {
+	TMDBID  int    `json:"tmdb_id" binding:"required"`
+	Type    string `json:"type" binding:"required,oneof=movie tvshow"`
+	Season  *int   `json:"season,omitempty"`
+	Episode *int   `json:"episode,omitempty"`
+}
+
+// TMDBSearchResult represents a unified metadata entry returned by the backend proxy
+type TMDBSearchResult struct {
+	ID            int     `json:"id"`
+	Title         string  `json:"title"`
+	OriginalTitle string  `json:"original_title"`
+	ReleaseDate   string  `json:"release_date"`
+	Overview      string  `json:"overview"`
+	PosterPath    *string `json:"poster_path"`
 }

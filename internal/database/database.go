@@ -127,6 +127,7 @@ func runMigrations() error {
 		&models.ProcessingLog{},
 		&models.DownloadInfo{},
 		&models.ProcessedLine{},
+		&models.ManualMapping{},
 	); err != nil {
 		return err
 	}

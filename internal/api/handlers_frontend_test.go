@@ -7,11 +7,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -30,6 +32,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.ProcessedLine{},
 		&models.ProcessingLog{},
 		&models.DownloadInfo{},
+		&models.ManualMapping{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate models: %v", err)
@@ -363,5 +366,145 @@ func TestMoveTVShowFolder(t *testing.T) {
 	}
 	if updatedDl.DownloadPath == nil || *updatedDl.DownloadPath != expectedNewPath {
 		t.Errorf("Expected database download path to be '%s', got '%s'", expectedNewPath, *updatedDl.DownloadPath)
+	}
+}
+
+func TestSearchTMDBProxy_And_OverrideItem(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Mock TMDB Server
+	mockTMDB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(r.URL.Path, "/search/movie") {
+			w.Write([]byte(`{"results":[{"id":101,"title":"Mock Inception","original_title":"Inception","release_date":"2010-07-16","overview":"A dream within a dream.","poster_path":"/poster1.jpg"}]}`))
+		} else if strings.HasPrefix(r.URL.Path, "/search/tv") {
+			w.Write([]byte(`{"results":[{"id":202,"name":"Mock Malcolm","original_name":"Malcolm","first_air_date":"2000-01-09","overview":"Malcolm in the middle.","poster_path":"/poster2.jpg"}]}`))
+		} else if strings.HasPrefix(r.URL.Path, "/movie/101") {
+			if strings.HasSuffix(r.URL.Path, "/external_ids") {
+				w.Write([]byte(`{"tvdb_id":12345}`))
+			} else {
+				w.Write([]byte(`{"id":101,"title":"Mock Inception","release_date":"2010-07-16","genres":[{"id":28,"name":"Action"}],"runtime":148}`))
+			}
+		} else if strings.HasPrefix(r.URL.Path, "/tv/202") {
+			if strings.HasSuffix(r.URL.Path, "/external_ids") {
+				w.Write([]byte(`{"tvdb_id":67890}`))
+			} else {
+				w.Write([]byte(`{"id":202,"name":"Mock Malcolm","first_air_date":"2000-01-09","genres":[{"id":35,"name":"Comedy"}]}`))
+			}
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockTMDB.Close()
+
+	// Override TMDB baseURL
+	tmdb.SetBaseURL(mockTMDB.URL)
+	defer tmdb.SetBaseURL("https://api.themoviedb.org/3")
+
+	// Set configuration so TMDB is enabled
+	config.SetConfig(&config.Config{
+		TMDB: config.TMDBConfig{
+			Enabled:           true,
+			APIKey:            "mock-key",
+			Language:          "en-US",
+			RequestsPerSecond: 0,
+		},
+	})
+
+	server := NewServer()
+
+	// 1. Test Search Proxy (Movie)
+	req1, _ := http.NewRequest("GET", "/api/v1/tmdb/search?query=Inception&type=movie", nil)
+	w1 := httptest.NewRecorder()
+	server.router.ServeHTTP(w1, req1)
+
+	if w1.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d. Body: %s", w1.Code, w1.Body.String())
+	}
+	var searchResults []TMDBSearchResult
+	if err := json.Unmarshal(w1.Body.Bytes(), &searchResults); err != nil {
+		t.Fatalf("failed to unmarshal search results: %v", err)
+	}
+	if len(searchResults) != 1 || searchResults[0].ID != 101 || searchResults[0].Title != "Mock Inception" {
+		t.Errorf("unexpected movie search results: %+v", searchResults)
+	}
+
+	// 2. Test Search Proxy (TV Show)
+	req2, _ := http.NewRequest("GET", "/api/v1/tmdb/search?query=Malcolm&type=tvshow", nil)
+	w2 := httptest.NewRecorder()
+	server.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w2.Code)
+	}
+	var showResults []TMDBSearchResult
+	if err := json.Unmarshal(w2.Body.Bytes(), &showResults); err != nil {
+		t.Fatalf("failed to unmarshal show results: %v", err)
+	}
+	if len(showResults) != 1 || showResults[0].ID != 202 || showResults[0].Title != "Mock Malcolm" {
+		t.Errorf("unexpected tvshow search results: %+v", showResults)
+	}
+
+	// Seed item to override
+	item := models.ProcessedLine{
+		LineContent: "Test content",
+		LineHash:    "hash123",
+		TvgName:     "FR: Inception (2010)",
+		GroupTitle:  "FR: FILMS ACTION",
+		ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeUncategorized,
+		State:       models.StateProcessed,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	db.Create(&item)
+
+	// 3. Test Override (Movie)
+	overrideBody := OverrideItemRequest{
+		TMDBID: 101,
+		Type:   "movie",
+	}
+	bodyBytes, _ := json.Marshal(overrideBody)
+	req3, _ := http.NewRequest("POST", "/api/v1/items/1/override", bytes.NewBuffer(bodyBytes))
+	req3.Header.Set("Content-Type", "application/json")
+	w3 := httptest.NewRecorder()
+	server.router.ServeHTTP(w3, req3)
+
+	if w3.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d. Body: %s", w3.Code, w3.Body.String())
+	}
+	var overrideResp ItemResponse
+	if err := json.Unmarshal(w3.Body.Bytes(), &overrideResp); err != nil {
+		t.Fatalf("failed to unmarshal override response: %v", err)
+	}
+	if overrideResp.ContentType != models.ContentTypeMovies || overrideResp.Movie == nil || overrideResp.Movie.TMDBID != 101 {
+		t.Errorf("unexpected override movie response: %+v", overrideResp)
+	}
+	if overrideResp.OverrideBy == nil || *overrideResp.OverrideBy != "manual" || overrideResp.OverrideAt == nil {
+		t.Errorf("missing override logging fields in response")
+	}
+
+	// Verify manual mapping was persisted
+	var mapping models.ManualMapping
+	if err := db.Where("tvg_name = ? AND group_title = ?", item.TvgName, item.GroupTitle).First(&mapping).Error; err != nil {
+		t.Fatalf("failed to find persistent manual mapping in DB: %v", err)
+	}
+	if mapping.TMDBID != 101 || mapping.ContentType != models.ContentTypeMovies {
+		t.Errorf("incorrect manual mapping persisted in DB: %+v", mapping)
+	}
+
+	// 4. Test Search Proxy (Disabled Config)
+	config.SetConfig(&config.Config{
+		TMDB: config.TMDBConfig{
+			Enabled: false,
+		},
+	})
+	serverDisabled := NewServer()
+	req4, _ := http.NewRequest("GET", "/api/v1/tmdb/search?query=Inception&type=movie", nil)
+	w4 := httptest.NewRecorder()
+	serverDisabled.router.ServeHTTP(w4, req4)
+
+	if w4.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503, got %d", w4.Code)
 	}
 }

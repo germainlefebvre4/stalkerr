@@ -207,6 +207,35 @@ func (c *Client) SearchTVShow(title string) (*TVShowResult, error) {
 	return &response.Results[0], nil
 }
 
+// SearchMovies searches for movies by title and optional year, returning all results
+func (c *Client) SearchMovies(title string, year *int) ([]MovieResult, error) {
+	params := url.Values{}
+	params.Set("query", title)
+	if year != nil && *year > 0 {
+		params.Set("year", fmt.Sprintf("%d", *year))
+	}
+
+	var response MovieSearchResponse
+	if err := c.makeRequest("/search/movie", params, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Results, nil
+}
+
+// SearchTVShows searches for TV shows by title, returning all results
+func (c *Client) SearchTVShows(title string) ([]TVShowResult, error) {
+	params := url.Values{}
+	params.Set("query", title)
+
+	var response TVShowSearchResponse
+	if err := c.makeRequest("/search/tv", params, &response); err != nil {
+		return nil, err
+	}
+
+	return response.Results, nil
+}
+
 // GetMovieDetails retrieves detailed information for a specific movie
 func (c *Client) GetMovieDetails(movieID int) (*MovieDetails, error) {
 	var details MovieDetails

@@ -283,3 +283,54 @@ func TestFormatGenres(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchMovies(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search/movie" {
+			t.Errorf("expected path '/search/movie', got '%s'", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"page":1,"results":[{"id":603,"title":"The Matrix","original_title":"The Matrix","release_date":"1999-03-30","overview":"A computer hacker learns about the true nature of reality.","vote_average":8.7,"popularity":58.123,"genre_ids":[28,878]},{"id":604,"title":"The Matrix Reloaded","original_title":"The Matrix Reloaded","release_date":"2003-05-15","overview":"The second movie.","vote_average":7.5,"popularity":45.123,"genre_ids":[28,878]}],"total_pages":1,"total_results":2}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL, 0)
+
+	results, err := client.SearchMovies("The Matrix", nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if results[0].ID != 603 || results[0].Title != "The Matrix" {
+		t.Errorf("unexpected first result: %+v", results[0])
+	}
+	if results[1].ID != 604 || results[1].Title != "The Matrix Reloaded" {
+		t.Errorf("unexpected second result: %+v", results[1])
+	}
+}
+
+func TestSearchTVShows(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search/tv" {
+			t.Errorf("expected path '/search/tv', got '%s'", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"page":1,"results":[{"id":1406,"name":"Squid Game","original_name":"Squid Game","first_air_date":"2021-09-17","overview":"Hundreds of cash-strapped players...","vote_average":8.4,"popularity":95.123,"genre_ids":[9648]}],"total_pages":1,"total_results":1}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL, 0)
+
+	results, err := client.SearchTVShows("Squid Game")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].ID != 1406 || results[0].Name != "Squid Game" {
+		t.Errorf("unexpected result: %+v", results[0])
+	}
+}
