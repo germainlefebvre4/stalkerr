@@ -120,9 +120,11 @@ export function DownloadsTab({
             const hasYearIssue = item.file_info && !item.file_info.has_year_in_path;
             const hasYearMismatch = item.file_info?.year_mismatch;
             const hasFormatIssue = item.file_info && !item.file_info.is_valid_format;
+            const resolutionLower = item.file_info?.detected_resolution?.toLowerCase() || '';
+            const isLowQuality = resolutionLower === '480p' || resolutionLower === '360p';
 
             return (
-              <div key={item.id} className="download-card" style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', backgroundColor: '#fff', boxShadow: 'var(--shadow-sm)' }}>
+              <div key={item.id} className="download-card" style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: '#fff', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ flex: 1, minWidth: '250px' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-slate)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -145,12 +147,19 @@ export function DownloadsTab({
 
                 {/* File Path Section */}
                 {item.file_info && (
-                  <div className="file-info" style={{ backgroundColor: 'var(--bg-app)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', fontFamily: "'Courier New', monospace", fontSize: '0.85rem', lineHeight: '1.6', border: '1px solid var(--border-color)' }}>
+                  <div className="file-info" style={{ backgroundColor: 'var(--bg-app)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', fontFamily: "'Courier New', monospace", fontSize: '0.85rem', lineHeight: '1.4', border: '1px solid var(--border-color)' }}>
                     <div style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>📂 Dossier : {item.file_info.folder_name}/</div>
                     {item.file_info.file_name && (
                       <div style={{ color: 'var(--text-muted)', paddingLeft: '1rem' }}>└─ {item.file_info.file_name}</div>
                     )}
-                    <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--primary-slate)' }}>
+                  </div>
+                )}
+
+                {/* Technical specs & Validation row */}
+                {item.file_info && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem' }}>
+                    {/* Technical values inline row */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', color: 'var(--primary-slate)', fontWeight: 500 }}>
                       <span>📹 Format : {item.file_info.extension.toUpperCase() || 'Inconnu'}</span>
                       <span>•</span>
                       <span>{item.file_info.detected_resolution || 'Résolution inconnue'}</span>
@@ -158,19 +167,47 @@ export function DownloadsTab({
                       {item.file_size && (
                         <span>{(item.file_size / 1024 / 1024).toFixed(1)} Mo</span>
                       )}
-                      <span>•</span>
-                      {hasYearIssue ? (
-                        <span style={{ color: 'var(--status-failed-text)', fontWeight: 600 }}>⚠️ Année manquante</span>
-                      ) : hasYearMismatch ? (
-                        <span style={{ color: 'var(--status-failed-text)', fontWeight: 600 }} title="Année dans le path différente de TMDB">⚠️ Année incorrecte</span>
-                      ) : (
-                        <span style={{ color: 'var(--status-success-text)', fontWeight: 600 }}>Année ✓</span>
-                      )}
-                      {hasFormatIssue && (
+                      {item.content?.duration && (
                         <>
                           <span>•</span>
-                          <span style={{ color: 'var(--status-failed-text)', fontWeight: 600 }}>⚠️ Format inconnu</span>
+                          <span>🕒 {item.content.duration} min</span>
                         </>
+                      )}
+                    </div>
+
+                    {/* Validation chips row */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                      {/* Low quality check */}
+                      {isLowQuality && (
+                        <span className="badge badge-pending" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                          ⚠️ Basse qualité ({item.file_info.detected_resolution})
+                        </span>
+                      )}
+                      
+                      {/* Year validity */}
+                      {hasYearIssue ? (
+                        <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                          ⚠️ Année manquante
+                        </span>
+                      ) : hasYearMismatch ? (
+                        <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }} title="Année dans le path différente de TMDB">
+                          ⚠️ Année incorrecte
+                        </span>
+                      ) : (
+                        <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                          ✅ Année OK
+                        </span>
+                      )}
+
+                      {/* Format validity */}
+                      {hasFormatIssue ? (
+                        <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                          ⚠️ Format inconnu
+                        </span>
+                      ) : (
+                        <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                          ✅ Format OK
+                        </span>
                       )}
                     </div>
                   </div>

@@ -21,7 +21,9 @@ import { MoveFolderDialog } from './components/MoveFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('playlist');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('stalkeer_active_tab') || 'playlist';
+  });
   
   const { notification, showToast } = useToast();
   const { healthStatus, stats, fetchStats, getDownloadSuccessRatio } = useHealthAndStats();
@@ -46,6 +48,10 @@ export default function App() {
   const [moveItem, setMoveItem] = useState<{ id: number; title: string; type: 'movie' | 'tvshow'; currentPath?: string } | null>(null);
   const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [overrideItemData, setOverrideItemData] = useState<PlaylistItem | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('stalkeer_active_tab', activeTab);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'filters') {

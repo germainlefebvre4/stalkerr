@@ -26,11 +26,14 @@ Enhanced frontend Downloads tab that displays enriched download information with
 
 **GIVEN** a download with file_info metadata  
 **WHEN** rendering the download card  
-**THEN** the system SHALL display:
-- Folder name in a file path section (📂 icon)
-- File extension, resolution, and size on one line (📹 icon)
-- Year presence indicator (✓ if has_year_in_path, ⚠️ if not)
-- Format validity indicator (⚠️ for invalid formats)
+**THEN** the system SHALL:
+- Display the folder/file names inside a compact monospace box.
+- Extract and display technical specifications (Format, Resolution, Size, and optional Duration in minutes with 🕒 icon) inline below the monospace box.
+- Render validation status/indicators as structured, colored badge chips (Year validity: `✅ Année OK` or `⚠️ Année manquante`/`⚠️ Année incorrecte`, Format validity: `✅ Format OK` or `⚠️ Format inconnu`) next to the technical specs line.
+
+**GIVEN** the download's detected resolution is 480p or 360p  
+**WHEN** rendering the download card  
+**THEN** the system SHALL display a warning chip `⚠️ Basse qualité (<resolution>)` using `badge badge-pending` next to the validation indicators.
 
 **GIVEN** a download with genres  
 **WHEN** rendering the download card  
