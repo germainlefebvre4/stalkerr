@@ -37,6 +37,82 @@
         }
       }
     },
+    "frontend": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable frontend deployment"
+        },
+        "replicaCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of frontend replicas"
+        },
+        "image": {
+          "type": "object",
+          "required": ["repository", "pullPolicy"],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "description": "Frontend container image repository"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Frontend image tag (defaults to chart appVersion)"
+            },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"],
+              "description": "Frontend image pull policy"
+            }
+          }
+        },
+        "service": {
+          "type": "object",
+          "required": ["type", "port"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "description": "Frontend service type"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Frontend service port"
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            },
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "string"
+                },
+                "memory": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": "Frontend resource requests and limits"
+        }
+      }
+    },
     "config": {
       "type": "object",
       "required": ["database", "m3u", "filter", "logging", "api", "tmdb", "radarr", "sonarr", "downloads"],

@@ -2,11 +2,15 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+global:
+  security:
+    allowInsecureImages: true
+
 # Image configuration
 image:
-  repository: ghcr.io/yourusername/stalkeer
+  repository: germainlefebvre4/stalkeer
   pullPolicy: IfNotPresent
-  tag: ""  # Defaults to chart appVersion
+  tag: "latest"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -108,7 +112,7 @@ config:
   tmdb:
     enabled: true
     language: "fr-FR,fr;q=0.9,en-US;q=0.5,en;q=0.5"
-    requests_per_second: 10
+    requests_per_second: 5
     # api_key: injected from secrets
   
   # Radarr integration
@@ -135,6 +139,7 @@ config:
     max_parallel: 1
     timeout: 3600
     retry_attempts: 3
+    # Resume support configuration
     resume_enabled: true
     progress_interval_mb: 500
     progress_interval_seconds: 60
@@ -255,10 +260,51 @@ postgresql:
     password: ""  # Auto-generated if empty
     database: stalkerr
   primary:
+    configuration: |
+      listen_addresses = '*'
+      port = '5432'
+      wal_level = 'replica'
+      fsync = 'on'
+      hot_standby = 'on'
+      log_connections = 'false'
+      log_disconnections = 'false'
+      log_hostname = 'false'
+      client_min_messages = 'error'
+      include_dir = 'conf.d'
+    extendedConfiguration: |
+      max_connections = 500
+    resourcesPreset: "none"
     persistence:
       enabled: true
       size: 10Gi
       storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    containerSecurityContext:
+      readOnlyRootFilesystem: true
+    extraVolumeMounts:
+      - name: postgresql-socket
+        mountPath: /var/run/postgresql
+    extraVolumes:
+      - name: postgresql-socket
+        emptyDir: {}
+
+  readReplicas:
+    resourcesPreset: "none"
+  backup:
+    resourcesPreset: "none"
+  passwordUpdateJob:
+    resourcesPreset: "none"
+  volumePermissions:
+    resourcesPreset: "none"
+    image:
+      repository: debian
+      tag: 13-slim
+  metrics:
+    resourcesPreset: "none"
+    image:
+      repository: prometheuscommunity/postgres-exporter
+      tag: v0.19.1
 
 # Ingress configuration
 ingress:
@@ -317,7 +363,7 @@ frontend:
 
   image:
     repository: germainlefebvre4/stalkeer-frontend
-    tag: ""  # Defaults to chart appVersion
+    tag: "latest"
     pullPolicy: IfNotPresent
 
   service:
