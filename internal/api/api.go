@@ -138,7 +138,8 @@ func (s *Server) setupRoutes() {
 
 		// Background logs and downloads tracking endpoints
 		v1.GET("/processing-logs", s.listProcessingLogs)
-		v1.GET("/downloads", s.listDownloads)
+		v1.GET("/downloads", s.listDownloadsEnriched)
+		v1.GET("/downloads/simple", s.listDownloads)
 		v1.GET("/config/paths", s.getConfigPaths)
 	}
 }

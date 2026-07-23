@@ -160,6 +160,184 @@ func TestListDownloads(t *testing.T) {
 	}
 }
 
+func TestListDownloadsEnriched(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Seed Movies and TV Shows
+	movie := models.Movie{
+		TMDBID:     12345,
+		TMDBTitle:  "The Matrix",
+		TMDBYear:   1999,
+		TMDBGenres: func(s string) *string { return &s }("Action, Sci-Fi"),
+	}
+	db.Create(&movie)
+
+	tvShow := models.TVShow{
+		TMDBID:     67890,
+		TMDBTitle:  "Breaking Bad",
+		TMDBYear:   2008,
+		TMDBGenres: func(s string) *string { return &s }("Drama"),
+		Season:     func(i int) *int { return &i }(5),
+		Episode:    func(i int) *int { return &i }(14),
+	}
+	db.Create(&tvShow)
+
+	// Seed Downloads with Processed Lines
+	path1 := "/media/movies/The.Matrix.1999/matrix.mkv"
+	dl1 := models.DownloadInfo{
+		URL:          "http://example.com/matrix",
+		Status:       "completed",
+		DownloadPath: &path1,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	db.Create(&dl1)
+
+	pl1 := models.ProcessedLine{
+		LineContent:    "matrix content",
+		LineHash:       "hash1",
+		TvgName:        "The Matrix",
+		ContentType:    "movies",
+		MovieID:        &movie.ID,
+		DownloadInfoID: &dl1.ID,
+		State:          "downloaded",
+		ProcessedAt:    time.Now(),
+	}
+	db.Create(&pl1)
+
+	path2 := "/media/tvshows/Breaking_Bad_S05E14.mp4"
+	dl2 := models.DownloadInfo{
+		URL:          "http://example.com/breakingbad",
+		Status:       "completed",
+		DownloadPath: &path2,
+		CreatedAt:    time.Now().Add(time.Second),
+		UpdatedAt:    time.Now().Add(time.Second),
+	}
+	db.Create(&dl2)
+
+	pl2 := models.ProcessedLine{
+		LineContent:    "breaking bad content",
+		LineHash:       "hash2",
+		TvgName:        "Breaking Bad",
+		ContentType:    "tvshows",
+		TVShowID:       &tvShow.ID,
+		DownloadInfoID: &dl2.ID,
+		State:          "downloaded",
+		ProcessedAt:    time.Now(),
+	}
+	db.Create(&pl2)
+
+	// Flat path with missing year
+	path3 := "avatar.mkv"
+	dl3 := models.DownloadInfo{
+		URL:          "http://example.com/avatar",
+		Status:       "completed",
+		DownloadPath: &path3,
+		CreatedAt:    time.Now().Add(time.Second * 2),
+		UpdatedAt:    time.Now().Add(time.Second * 2),
+	}
+	db.Create(&dl3)
+
+	pl3 := models.ProcessedLine{
+		LineContent:    "avatar content",
+		LineHash:       "hash3",
+		TvgName:        "Avatar",
+		ContentType:    "movies",
+		DownloadInfoID: &dl3.ID,
+		State:          "downloaded",
+		ProcessedAt:    time.Now(),
+	}
+	db.Create(&pl3)
+
+	server := NewServer()
+
+	// 1. Query un-filtered enriched
+	req, _ := http.NewRequest("GET", "/api/v1/downloads", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data  []DownloadEnrichedResponse `json:"data"`
+		Total int64                      `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if resp.Total != 3 {
+		t.Errorf("Expected 3, got %d", resp.Total)
+	}
+
+	// Verify the enriched content for Matrix
+	foundMatrix := false
+	for _, item := range resp.Data {
+		if item.ID == dl1.ID {
+			foundMatrix = true
+			if item.Content == nil {
+				t.Error("Matrix content should not be nil")
+			} else {
+				if item.Content.Title != "The Matrix" {
+					t.Errorf("Expected Title 'The Matrix', got %q", item.Content.Title)
+				}
+				if item.Content.Type != "movies" {
+					t.Errorf("Expected Type 'movies', got %q", item.Content.Type)
+				}
+			}
+			if item.FileInfo == nil {
+				t.Error("Matrix file_info should not be nil")
+			} else {
+				if item.FileInfo.FolderName != "The.Matrix.1999" {
+					t.Errorf("Expected folder name 'The.Matrix.1999', got %q", item.FileInfo.FolderName)
+				}
+				if !item.FileInfo.HasYearInPath {
+					t.Error("Expected HasYearInPath to be true")
+				}
+			}
+		}
+	}
+	if !foundMatrix {
+		t.Error("Did not find Matrix download in enriched response")
+	}
+
+	// 2. Query with problem=missing_year (should return dl3 and dl2 because they have no year in path)
+	reqMissingYear, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year", nil)
+	wMissingYear := httptest.NewRecorder()
+	server.router.ServeHTTP(wMissingYear, reqMissingYear)
+
+	var respMissingYear struct {
+		Data  []DownloadEnrichedResponse `json:"data"`
+		Total int64                      `json:"total"`
+	}
+	if err := json.Unmarshal(wMissingYear.Body.Bytes(), &respMissingYear); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if len(respMissingYear.Data) != 2 {
+		t.Errorf("Expected 2 downloads with missing year, got %d", len(respMissingYear.Data))
+	}
+
+	// 3. Query with type=movies (should return dl1, dl3)
+	reqType, _ := http.NewRequest("GET", "/api/v1/downloads?type=movies", nil)
+	wType := httptest.NewRecorder()
+	server.router.ServeHTTP(wType, reqType)
+
+	var respType struct {
+		Data  []DownloadEnrichedResponse `json:"data"`
+		Total int64                      `json:"total"`
+	}
+	if err := json.Unmarshal(wType.Body.Bytes(), &respType); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if respType.Total != 2 {
+		t.Errorf("Expected 2 movies, got %d", respType.Total)
+	}
+}
+
 func TestGetConfigPaths(t *testing.T) {
 	_ = setupTestDB(t)
 

@@ -431,3 +431,61 @@ input, select {
     transform: translate(-50%, -50%) scale(1);
   }
 }
+
+/* Downloads display additions */
+.download-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1rem;
+}
+
+.download-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.download-header h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--primary-slate);
+  margin: 0;
+}
+
+.file-info {
+  background: var(--bg-app);
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+}
+
+.error-message {
+  padding: 0.75rem;
+  background: var(--status-failed-bg);
+  color: var(--status-failed-text);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.filters {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filters select {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  background: #fff;
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
+	"github.com/glefebvre/stalkeer/internal/fileparser"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
 )
@@ -98,6 +99,158 @@ func (s *Server) listDownloads(c *gin.Context) {
 		Offset:     offset,
 		TotalPages: totalPages,
 	})
+}
+
+// listDownloadsEnriched returns a paginated, metadata-enriched list of downloads with advanced filtering
+func (s *Server) listDownloadsEnriched(c *gin.Context) {
+	db := database.Get()
+	limit, offset := parsePagination(c)
+	status := c.Query("status")
+	contentType := c.Query("type")
+	problem := c.Query("problem")
+
+	query := db.Model(&models.DownloadInfo{})
+
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	if contentType != "" {
+		query = query.Joins("JOIN processed_lines pl ON pl.download_info_id = download_info.id").
+			Where("pl.content_type = ?", contentType).
+			Distinct()
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: "failed to count downloads",
+		})
+		return
+	}
+
+	var downloads []models.DownloadInfo
+	if err := query.Preload("ProcessedLines.Movie").
+		Preload("ProcessedLines.TVShow").
+		Order("download_info.updated_at desc").
+		Limit(limit).Offset(offset).
+		Find(&downloads).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: "failed to fetch downloads",
+		})
+		return
+	}
+
+	enriched := make([]DownloadEnrichedResponse, 0, len(downloads))
+	for _, dl := range downloads {
+		resp := enrichDownloadInfo(dl)
+		if matchesProblem(resp, problem) {
+			enriched = append(enriched, resp)
+		}
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	c.JSON(http.StatusOK, PaginatedResponse{
+		Data:       enriched,
+		Total:      total,
+		Limit:      limit,
+		Offset:     offset,
+		TotalPages: totalPages,
+	})
+}
+
+func enrichDownloadInfo(dl models.DownloadInfo) DownloadEnrichedResponse {
+	resp := DownloadEnrichedResponse{
+		ID:              dl.ID,
+		URL:             dl.URL,
+		Status:          dl.Status,
+		DownloadPath:    dl.DownloadPath,
+		FileSize:        dl.FileSize,
+		BytesDownloaded: dl.BytesDownloaded,
+		TotalBytes:      dl.TotalBytes,
+		RetryCount:      dl.RetryCount,
+		ErrorMessage:    dl.ErrorMessage,
+		UpdatedAt:       dl.UpdatedAt,
+	}
+
+	var contentYear *int
+	if len(dl.ProcessedLines) > 0 {
+		contentInfo := buildContentInfo(dl.ProcessedLines[0])
+		resp.Content = contentInfo
+		contentYear = contentInfo.Year
+	}
+
+	if dl.DownloadPath != nil && *dl.DownloadPath != "" {
+		resp.FileInfo = fileparser.Parse(*dl.DownloadPath, contentYear)
+	}
+
+	return resp
+}
+
+func buildContentInfo(pl models.ProcessedLine) *ContentInfo {
+	info := &ContentInfo{}
+
+	if pl.Resolution != nil {
+		info.Resolution = pl.Resolution
+	}
+
+	if pl.Movie != nil {
+		info.Type = "movies"
+		info.Title = pl.Movie.TMDBTitle
+		info.Year = &pl.Movie.TMDBYear
+		info.Genres = pl.Movie.TMDBGenres
+		info.Duration = pl.Movie.Duration
+		return info
+	}
+
+	if pl.TVShow != nil {
+		info.Type = "tvshows"
+		title := pl.TVShow.TMDBTitle
+		if pl.TVShow.Season != nil && pl.TVShow.Episode != nil {
+			title = fmt.Sprintf("%s S%02dE%02d", pl.TVShow.TMDBTitle, *pl.TVShow.Season, *pl.TVShow.Episode)
+		}
+		info.Title = title
+		info.Year = &pl.TVShow.TMDBYear
+		info.Genres = pl.TVShow.TMDBGenres
+		info.Season = pl.TVShow.Season
+		info.Episode = pl.TVShow.Episode
+		return info
+	}
+
+	info.Type = string(pl.ContentType)
+	if info.Type == "" {
+		info.Type = "uncategorized"
+	}
+	info.Title = pl.TvgName
+	return info
+}
+
+func matchesProblem(resp DownloadEnrichedResponse, filter string) bool {
+	if filter == "" {
+		return true
+	}
+	if resp.FileInfo == nil {
+		return false
+	}
+	switch filter {
+	case "missing_year":
+		return !resp.FileInfo.HasYearInPath
+	case "year_mismatch":
+		return resp.FileInfo.YearMismatch
+	case "unknown_format":
+		return !resp.FileInfo.IsValidFormat
+	case "low_quality":
+		if resp.FileInfo.DetectedRes == nil {
+			return false
+		}
+		res := *resp.FileInfo.DetectedRes
+		return res == "480p" || res == "360p"
+	default:
+		return true
+	}
 }
 
 // getConfigPaths returns configured default storage directories

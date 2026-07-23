@@ -54,7 +54,7 @@ interface ProcessingLog {
   error_message?: string;
 }
 
-interface DownloadInfo {
+interface DownloadEnriched {
   id: number;
   url: string;
   status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying';
@@ -65,6 +65,28 @@ interface DownloadInfo {
   retry_count: number;
   error_message?: string;
   updated_at: string;
+  
+  content?: {
+    type: 'movies' | 'tvshows' | 'channels' | 'uncategorized';
+    title: string;
+    year?: number;
+    resolution?: string;
+    season?: number;
+    episode?: number;
+    genres?: string;
+    duration?: number;
+  };
+  
+  file_info?: {
+    extension: string;
+    folder_name: string;
+    file_name: string;
+    has_year_in_path: boolean;
+    year_mismatch: boolean;
+    detected_year?: number;
+    detected_resolution?: string;
+    is_valid_format: boolean;
+  };
 }
 
 interface ConfigPaths {
@@ -108,8 +130,13 @@ export default function App() {
   const [logsLoading, setLogsLoading] = useState(false);
 
   // Downloads State
-  const [downloads, setDownloads] = useState<DownloadInfo[]>([]);
+  const [downloads, setDownloads] = useState<DownloadEnriched[]>([]);
   const [downloadsLoading, setDownloadsLoading] = useState(false);
+
+  // Downloads Filters State
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [problemFilter, setProblemFilter] = useState<string>('');
 
   // Re-organization Modal State
   const [isMoveOpen, setIsMoveOpen] = useState(false);
@@ -236,9 +263,14 @@ export default function App() {
   // Fetch Downloads Info
   const fetchDownloads = () => {
     setDownloadsLoading(true);
-    fetch('/api/v1/downloads?limit=20')
+    let url = '/api/v1/downloads?limit=20';
+    if (statusFilter) url += `&status=${statusFilter}`;
+    if (typeFilter) url += `&type=${typeFilter}`;
+    if (problemFilter) url += `&problem=${problemFilter}`;
+
+    fetch(url)
       .then(res => res.json())
-      .then((data: PaginatedResponse<DownloadInfo>) => setDownloads(data.data || []))
+      .then((data: PaginatedResponse<DownloadEnriched>) => setDownloads(data.data || []))
       .catch(() => {})
       .finally(() => setDownloadsLoading(false));
   };
@@ -248,7 +280,7 @@ export default function App() {
     fetchDownloads();
     const interval = setInterval(fetchDownloads, 5000);
     return () => clearInterval(interval);
-  }, [activeTab]);
+  }, [activeTab, statusFilter, typeFilter, problemFilter]);
 
   // Fetch Custom Filters
   const fetchFilters = () => {
@@ -464,27 +496,29 @@ export default function App() {
       .finally(() => setIsMoving(false));
   };
 
-  const openMoveDialog = (item: DownloadInfo) => {
+  const openMoveDialog = (item: DownloadEnriched) => {
     // Find matching movie or tv show from loaded playlist if possible, or build basic metadata
     let moveMeta: { id: number; title: string; type: 'movie' | 'tvshow'; currentPath?: string } = {
       id: 0,
-      title: 'Inconnu',
-      type: 'movie',
+      title: item.content?.title || 'Inconnu',
+      type: item.content?.type === 'tvshows' ? 'tvshow' : 'movie',
       currentPath: item.download_path,
     };
     
-    // Look in playlist for matching items
-    const match = playlist.find(p => p.movie && p.id === item.id) || playlist.find(p => p.tvshow && p.id === item.id);
-    if (match) {
-      if (match.content_type === 'movies' && match.movie) {
-        moveMeta = { id: match.movie.id, title: match.movie.tmdb_title, type: 'movie', currentPath: item.download_path };
-      } else if (match.content_type === 'tvshows' && match.tvshow) {
-        moveMeta = { id: match.tvshow.id, title: match.tvshow.tmdb_title, type: 'tvshow', currentPath: item.download_path };
+    // Look in playlist for matching items if title is still Inconnu
+    if (moveMeta.title === 'Inconnu') {
+      const match = playlist.find(p => p.movie && p.id === item.id) || playlist.find(p => p.tvshow && p.id === item.id);
+      if (match) {
+        if (match.content_type === 'movies' && match.movie) {
+          moveMeta = { id: match.movie.id, title: match.movie.tmdb_title, type: 'movie', currentPath: item.download_path };
+        } else if (match.content_type === 'tvshows' && match.tvshow) {
+          moveMeta = { id: match.tvshow.id, title: match.tvshow.tmdb_title, type: 'tvshow', currentPath: item.download_path };
+        }
+      } else {
+        // Fallback: extract title from download path
+        const folderName = item.download_path ? filepathBase(item.download_path) : 'Média';
+        moveMeta = { id: item.id, title: folderName, type: item.download_path?.includes('tvshows') ? 'tvshow' : 'movie', currentPath: item.download_path };
       }
-    } else {
-      // Fallback: extract title from download path
-      const folderName = item.download_path ? filepathBase(item.download_path) : 'Média';
-      moveMeta = { id: item.id, title: folderName, type: item.download_path?.includes('tvshows') ? 'tvshow' : 'movie', currentPath: item.download_path };
     }
 
     setMoveItem(moveMeta);
@@ -892,12 +926,48 @@ export default function App() {
 
         {/* Tab 4: Downloads Tracker */}
         <Tabs.Content value="downloads" className="card" style={{ padding: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)' }}>File de Téléchargement et Organisation</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>Suivi dynamique des téléchargements de fichiers vidéo et réorganisations</p>
             </div>
             <button onClick={fetchDownloads} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Actualiser ↻</button>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="filters" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+            <select 
+              value={statusFilter} 
+              onChange={e => setStatusFilter(e.target.value)}
+              style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+            >
+              <option value="">Statut : Tous</option>
+              <option value="completed">Complétés</option>
+              <option value="downloading">En cours</option>
+              <option value="failed">Échoués</option>
+            </select>
+            
+            <select 
+              value={typeFilter} 
+              onChange={e => setTypeFilter(e.target.value)}
+              style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+            >
+              <option value="">Type : Tous</option>
+              <option value="movies">Films</option>
+              <option value="tvshows">Séries</option>
+            </select>
+            
+            <select 
+              value={problemFilter} 
+              onChange={e => setProblemFilter(e.target.value)}
+              style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+            >
+              <option value="">Problèmes : Aucun</option>
+              <option value="missing_year">Année manquante</option>
+              <option value="year_mismatch">Année incorrecte</option>
+              <option value="unknown_format">Format inconnu</option>
+              <option value="low_quality">Basse qualité</option>
+            </select>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -912,16 +982,49 @@ export default function App() {
                 const progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
                 const isCompleted = item.status === 'completed';
 
+                // Metadata extraction
+                const title = item.content?.title || (item.download_path ? filepathBase(item.download_path) : item.url);
+                const year = item.content?.year ? `(${item.content.year})` : '';
+                const typeIcon = item.content?.type === 'movies' ? '🎬' : item.content?.type === 'tvshows' ? '📺' : '🔗';
+                
+                // Status mapping
+                let statusLabel: string = item.status;
+                let statusBadgeClass = 'badge-pending';
+                if (item.status === 'completed') {
+                  statusLabel = '✅ Complété';
+                  statusBadgeClass = 'badge-success';
+                } else if (item.status === 'downloading') {
+                  statusLabel = '⏳ En cours';
+                  statusBadgeClass = 'badge-progress';
+                } else if (item.status === 'failed') {
+                  statusLabel = item.retry_count > 0 ? `❌ Échec (${item.retry_count}×)` : '❌ Échec';
+                  statusBadgeClass = 'badge-failed';
+                } else if (item.status === 'pending') {
+                  statusLabel = '⏳ En attente';
+                  statusBadgeClass = 'badge-pending';
+                } else if (item.status === 'retrying') {
+                  statusLabel = '🔄 Réessai';
+                  statusBadgeClass = 'badge-pending';
+                }
+
+                // Problem detection flags
+                const hasYearIssue = item.file_info && !item.file_info.has_year_in_path;
+                const hasYearMismatch = item.file_info?.year_mismatch;
+                const hasFormatIssue = item.file_info && !item.file_info.is_valid_format;
+
                 return (
-                  <div key={item.id} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', backgroundColor: '#fff', boxShadow: 'var(--shadow-sm)' }}>
+                  <div key={item.id} className="download-card" style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', backgroundColor: '#fff', boxShadow: 'var(--shadow-sm)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div style={{ flex: 1, minWidth: '250px' }}>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-slate)', wordBreak: 'break-all' }}>{item.download_path ? filepathBase(item.download_path) : item.url}</h3>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-slate)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>{typeIcon}</span>
+                          <span>{title} {year}</span>
+                        </h3>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem', wordBreak: 'break-all', fontWeight: 500 }}>{item.url}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span className={`badge ${item.status === 'completed' ? 'badge-success' : item.status === 'downloading' ? 'badge-progress' : item.status === 'failed' ? 'badge-failed' : 'badge-pending'}`}>
-                          {item.status}
+                        <span className={`badge ${statusBadgeClass}`} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem', fontWeight: 600 }}>
+                          {statusLabel}
                         </span>
                         {isCompleted && (
                           <button onClick={() => openMoveDialog(item)} className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
@@ -931,11 +1034,52 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* File Path Section */}
+                    {item.file_info && (
+                      <div className="file-info" style={{ backgroundColor: 'var(--bg-app)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', fontFamily: "'Courier New', monospace", fontSize: '0.85rem', lineHeight: '1.6', border: '1px solid var(--border-color)' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>📂 Dossier : {item.file_info.folder_name}/</div>
+                        {item.file_info.file_name && (
+                          <div style={{ color: 'var(--text-muted)', paddingLeft: '1rem' }}>└─ {item.file_info.file_name}</div>
+                        )}
+                        <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem', color: 'var(--primary-slate)' }}>
+                          <span>📹 Format : {item.file_info.extension.toUpperCase() || 'Inconnu'}</span>
+                          <span>•</span>
+                          <span>{item.file_info.detected_resolution || 'Résolution inconnue'}</span>
+                          <span>•</span>
+                          {item.file_size && (
+                            <span>{(item.file_size / 1024 / 1024).toFixed(1)} Mo</span>
+                          )}
+                          <span>•</span>
+                          {hasYearIssue ? (
+                            <span style={{ color: 'var(--status-failed-text)', fontWeight: 600 }}>⚠️ Année manquante</span>
+                          ) : hasYearMismatch ? (
+                            <span style={{ color: 'var(--status-failed-text)', fontWeight: 600 }} title="Année dans le path différente de TMDB">⚠️ Année incorrecte</span>
+                          ) : (
+                            <span style={{ color: 'var(--status-success-text)', fontWeight: 600 }}>Année ✓</span>
+                          )}
+                          {hasFormatIssue && (
+                            <>
+                              <span>•</span>
+                              <span style={{ color: 'var(--status-failed-text)', fontWeight: 600 }}>⚠️ Format inconnu</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Genres Section */}
+                    {item.content?.genres && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 500 }}>
+                        <span>🎭 Genres :</span>
+                        <span style={{ color: 'var(--primary-slate)', fontWeight: 600 }}>{item.content.genres}</span>
+                      </div>
+                    )}
+
                     {/* Progress Bar for Downloading / Retrying */}
                     {!isCompleted && item.status !== 'failed' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                          <span>Progression: {progress}%</span>
+                          <span>Progression : {progress}%</span>
                           {item.file_size && (
                             <span>{(downloaded / 1024 / 1024).toFixed(1)} Mo / {(item.file_size / 1024 / 1024).toFixed(1)} Mo</span>
                           )}
@@ -949,7 +1093,7 @@ export default function App() {
 
                     {item.error_message && (
                       <div style={{ padding: '0.75rem', backgroundColor: 'var(--status-failed-bg)', borderRadius: 'var(--radius-sm)', color: 'var(--status-failed-text)', fontSize: '0.8rem', fontWeight: 600, border: '1px solid var(--status-failed-border)' }}>
-                        {item.error_message}
+                        🔴 {item.error_message}
                       </div>
                     )}
                   </div>
