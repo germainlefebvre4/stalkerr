@@ -31,7 +31,8 @@ export default function App() {
   const {
     playlist, playlistSearch, setPlaylistSearch,
     playlistFilter, setPlaylistFilter, playlistStateFilter, setPlaylistStateFilter,
-    playlistTotal, playlistPage, setPlaylistPage, playlistLoading, fetchPlaylist
+    playlistTotal, playlistPage, setPlaylistPage, playlistLoading, fetchPlaylist,
+    playlistLimit, setPlaylistLimit
   } = usePlaylist();
   
   const { filters, filtersLoading, fetchFilters, deleteFilter } = useFilters();
@@ -120,6 +121,7 @@ export default function App() {
           playlistFilter={playlistFilter} setPlaylistFilter={setPlaylistFilter}
           playlistStateFilter={playlistStateFilter} setPlaylistStateFilter={setPlaylistStateFilter}
           playlistTotal={playlistTotal} playlistPage={playlistPage} setPlaylistPage={setPlaylistPage}
+          playlistLimit={playlistLimit} setPlaylistLimit={setPlaylistLimit}
           playlistLoading={playlistLoading} onOpenOverride={(item) => { setOverrideItemData(item); setIsOverrideOpen(true); }}
           onResetPipeline={handleResetPipeline}
         />

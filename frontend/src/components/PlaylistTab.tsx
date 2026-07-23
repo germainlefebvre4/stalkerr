@@ -13,6 +13,8 @@ interface PlaylistTabProps {
   playlistTotal: number;
   playlistPage: number;
   setPlaylistPage: React.Dispatch<React.SetStateAction<number>>;
+  playlistLimit: number;
+  setPlaylistLimit: (limit: number) => void;
   playlistLoading: boolean;
   onOpenOverride: (item: PlaylistItem) => void;
   onResetPipeline: (id: number, contentType: string) => void;
@@ -29,6 +31,8 @@ export function PlaylistTab({
   playlistTotal,
   playlistPage,
   setPlaylistPage,
+  playlistLimit,
+  setPlaylistLimit,
   playlistLoading,
   onOpenOverride,
   onResetPipeline
@@ -171,30 +175,122 @@ export function PlaylistTab({
         </table>
       </div>
 
-      {/* Pagination */}
-      {playlistTotal > 15 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Affichage de 15 sur {playlistTotal} entrées</span>
-          <div style={{ display: 'flex', gap: '0.35rem' }}>
-            <button 
-              disabled={playlistPage === 1} 
-              onClick={() => setPlaylistPage(p => p - 1)} 
-              className="btn-secondary" 
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
-            >
-              Précédent
-            </button>
-            <button 
-              disabled={playlistPage * 15 >= playlistTotal} 
-              onClick={() => setPlaylistPage(p => p + 1)} 
-              className="btn-secondary" 
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', opacity: playlistPage * 15 >= playlistTotal ? 0.5 : 1 }}
-            >
-              Suivant
-            </button>
+      {/* Pagination & Limit Selector */}
+      {playlistTotal > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+              {`Affichage de ${playlistTotal === 0 ? 0 : (playlistPage - 1) * playlistLimit + 1} à ${Math.min(playlistPage * playlistLimit, playlistTotal)} sur ${playlistTotal} entrées`}
+            </span>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Afficher :</span>
+              <select
+                value={playlistLimit}
+                onChange={e => {
+                  const limit = parseInt(e.target.value, 10);
+                  setPlaylistLimit(limit);
+                }}
+                className="custom-select"
+                style={{ padding: '0.2rem 1.5rem 0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto', height: 'auto' }}
+              >
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>par page</span>
+            </div>
           </div>
+
+          {Math.ceil(playlistTotal / playlistLimit) > 1 && (
+            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+              <button 
+                disabled={playlistPage === 1} 
+                onClick={() => setPlaylistPage(1)} 
+                className="btn-secondary" 
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
+                title="Première page"
+              >
+                &lt;&lt;
+              </button>
+              <button 
+                disabled={playlistPage === 1} 
+                onClick={() => setPlaylistPage(p => Math.max(1, p - 1))} 
+                className="btn-secondary" 
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
+                title="Page précédente"
+              >
+                &lt;
+              </button>
+              
+              {getPaginationRange(playlistPage, Math.ceil(playlistTotal / playlistLimit)).map((page, index) => {
+                if (page === '...') {
+                  return (
+                    <span key={`ellipsis-${index}`} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                      ...
+                    </span>
+                  );
+                }
+                return (
+                  <button
+                    key={`page-${page}`}
+                    onClick={() => setPlaylistPage(page as number)}
+                    className={playlistPage === page ? 'btn-primary' : 'btn-secondary'}
+                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button 
+                disabled={playlistPage === Math.ceil(playlistTotal / playlistLimit)} 
+                onClick={() => setPlaylistPage(p => Math.min(Math.ceil(playlistTotal / playlistLimit), p + 1))} 
+                className="btn-secondary" 
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === Math.ceil(playlistTotal / playlistLimit) ? 0.5 : 1 }}
+                title="Page suivante"
+              >
+                &gt;
+              </button>
+              <button 
+                disabled={playlistPage === Math.ceil(playlistTotal / playlistLimit)} 
+                onClick={() => setPlaylistPage(Math.ceil(playlistTotal / playlistLimit))} 
+                className="btn-secondary" 
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === Math.ceil(playlistTotal / playlistLimit) ? 0.5 : 1 }}
+                title="Dernière page"
+              >
+                &gt;&gt;
+              </button>
+            </div>
+          )}
         </div>
       )}
     </Tabs.Content>
   );
+}
+
+function getPaginationRange(current: number, total: number): (number | string)[] {
+  const range: number[] = [];
+  const delta = 1;
+
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i);
+    }
+  }
+
+  const result: (number | string)[] = [];
+  let prev: number | null = null;
+  for (const i of range) {
+    if (prev !== null) {
+      if (i - prev === 2) {
+        result.push(prev + 1);
+      } else if (i - prev > 2) {
+        result.push('...');
+      }
+    }
+    result.push(i);
+    prev = i;
+  }
+  return result;
 }

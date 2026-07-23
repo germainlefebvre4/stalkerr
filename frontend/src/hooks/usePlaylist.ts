@@ -10,12 +10,28 @@ export function usePlaylist() {
   const [playlistTotal, setPlaylistTotal] = useState(0);
   const [playlistPage, setPlaylistPage] = useState(1);
   const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [playlistLimit, setPlaylistLimitState] = useState<number>(() => {
+    const stored = localStorage.getItem('stalkeer_playlist_limit');
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      if (!isNaN(parsed) && [10, 50, 100].includes(parsed)) {
+        return parsed;
+      }
+    }
+    return 50;
+  });
+
+  const setPlaylistLimit = useCallback((limit: number) => {
+    setPlaylistLimitState(limit);
+    localStorage.setItem('stalkeer_playlist_limit', limit.toString());
+    setPlaylistPage(1);
+  }, []);
 
   const fetchPlaylist = useCallback(() => {
     setPlaylistLoading(true);
     api.getPlaylist(
       playlistPage,
-      15,
+      playlistLimit,
       playlistFilter,
       playlistStateFilter,
       playlistSearch
@@ -26,7 +42,7 @@ export function usePlaylist() {
       })
       .catch(() => {})
       .finally(() => setPlaylistLoading(false));
-  }, [playlistPage, playlistFilter, playlistStateFilter, playlistSearch]);
+  }, [playlistPage, playlistLimit, playlistFilter, playlistStateFilter, playlistSearch]);
 
   useEffect(() => {
     fetchPlaylist();
@@ -43,6 +59,8 @@ export function usePlaylist() {
     playlistTotal,
     playlistPage,
     setPlaylistPage,
+    playlistLimit,
+    setPlaylistLimit,
     playlistLoading,
     fetchPlaylist,
   };

@@ -43,7 +43,7 @@ type ProcessedLine struct {
 	State           ProcessingState `gorm:"type:varchar(50);not null;default:processed;index:idx_processed_lines_content" json:"state"`
 	OverrideBy      *string         `gorm:"type:varchar(50)" json:"override_by,omitempty"`
 	OverrideAt      *time.Time      `json:"override_at,omitempty"`
-	CreatedAt       time.Time       `gorm:"not null" json:"created_at"`
+	CreatedAt       time.Time       `gorm:"not null;index:idx_processed_lines_created_at" json:"created_at"`
 	UpdatedAt       time.Time       `gorm:"not null" json:"updated_at"`
 
 	// Associations
