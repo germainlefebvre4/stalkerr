@@ -30,6 +30,8 @@ export default function App() {
   
   const {
     playlist, playlistSearch, setPlaylistSearch,
+    playlistSearchName, setPlaylistSearchName,
+    playlistTMDBFilter, setPlaylistTMDBFilter,
     playlistFilter, setPlaylistFilter, playlistStateFilter, setPlaylistStateFilter,
     playlistTotal, playlistPage, setPlaylistPage, playlistLoading, fetchPlaylist,
     playlistLimit, setPlaylistLimit
@@ -118,6 +120,8 @@ export default function App() {
 
         <PlaylistTab
           playlist={playlist} playlistSearch={playlistSearch} setPlaylistSearch={setPlaylistSearch}
+          playlistSearchName={playlistSearchName} setPlaylistSearchName={setPlaylistSearchName}
+          playlistTMDBFilter={playlistTMDBFilter} setPlaylistTMDBFilter={setPlaylistTMDBFilter}
           playlistFilter={playlistFilter} setPlaylistFilter={setPlaylistFilter}
           playlistStateFilter={playlistStateFilter} setPlaylistStateFilter={setPlaylistStateFilter}
           playlistTotal={playlistTotal} playlistPage={playlistPage} setPlaylistPage={setPlaylistPage}

@@ -46,6 +46,8 @@ func (s *Server) listItems(c *gin.Context) {
 	contentType := c.Query("content_type")
 	state := c.Query("state")
 	groupTitle := c.Query("group_title")
+	tvgName := c.Query("tvg_name")
+	tmdbEnriched := c.Query("tmdb_enriched")
 
 	// Parse sort
 	sortBy := c.DefaultQuery("sort", "created_at")
@@ -69,6 +71,8 @@ func (s *Server) listItems(c *gin.Context) {
 	// Build query
 	query := db.Model(&models.ProcessedLine{}).Preload("Movie").Preload("TVShow")
 
+	likeOp := getLikeOp(db)
+
 	if contentType != "" {
 		query = query.Where("content_type = ?", contentType)
 	}
@@ -76,7 +80,15 @@ func (s *Server) listItems(c *gin.Context) {
 		query = query.Where("state = ?", state)
 	}
 	if groupTitle != "" {
-		query = query.Where("group_title ILIKE ?", "%"+groupTitle+"%")
+		query = query.Where(fmt.Sprintf("group_title %s ?", likeOp), "%"+groupTitle+"%")
+	}
+	if tvgName != "" {
+		query = query.Where(fmt.Sprintf("tvg_name %s ?", likeOp), "%"+tvgName+"%")
+	}
+	if tmdbEnriched == "yes" {
+		query = query.Where("(movie_id IS NOT NULL OR tv_show_id IS NOT NULL)")
+	} else if tmdbEnriched == "no" {
+		query = query.Where("(movie_id IS NULL AND tv_show_id IS NULL)")
 	}
 
 	// Count total
@@ -206,11 +218,13 @@ func (s *Server) searchItems(c *gin.Context) {
 
 	limit, offset := parsePagination(c)
 
+	likeOp := getLikeOp(db)
+
 	// Build search query
 	dbQuery := db.Model(&models.ProcessedLine{}).
 		Preload("Movie").
 		Preload("TVShow").
-		Where("tvg_name ILIKE ? OR group_title ILIKE ?", "%"+query+"%", "%"+query+"%")
+		Where(fmt.Sprintf("tvg_name %s ? OR group_title %s ?", likeOp, likeOp), "%"+query+"%", "%"+query+"%")
 
 	// Count total
 	var total int64
@@ -825,4 +839,11 @@ func (s *Server) resetTVShow(c *gin.Context) {
 		"status":  "success",
 		"message": fmt.Sprintf("TV show with id %d was reset successfully, removed %d processed lines", id, rows),
 	})
+}
+
+func getLikeOp(db *gorm.DB) string {
+	if db.Dialector != nil && db.Dialector.Name() == "sqlite" {
+		return "LIKE"
+	}
+	return "ILIKE"
 }

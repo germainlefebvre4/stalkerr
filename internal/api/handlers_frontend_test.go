@@ -686,3 +686,125 @@ func TestSearchTMDBProxy_And_OverrideItem(t *testing.T) {
 		t.Errorf("Expected status 503, got %d", w4.Code)
 	}
 }
+
+func TestListItemsFiltering(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Seed Movie and TVShow
+	movie := models.Movie{
+		TMDBID:    111,
+		TMDBTitle: "The Matrix",
+	}
+	db.Create(&movie)
+
+	tvshow := models.TVShow{
+		TMDBID:    222,
+		TMDBTitle: "Breaking Bad",
+	}
+	db.Create(&tvshow)
+
+	// Seed items
+	item1 := models.ProcessedLine{
+		LineContent: "matrix-m3u-line",
+		LineHash:    "hash-matrix",
+		TvgName:     "The Matrix",
+		GroupTitle:  "Sci-Fi",
+		ContentType: "movies",
+		State:       "processed",
+		MovieID:     &movie.ID,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	db.Create(&item1)
+
+	item2 := models.ProcessedLine{
+		LineContent: "inception-m3u-line",
+		LineHash:    "hash-inception",
+		TvgName:     "Inception",
+		GroupTitle:  "Sci-Fi",
+		ContentType: "movies",
+		State:       "processed",
+		CreatedAt:   time.Now().Add(time.Second),
+		UpdatedAt:   time.Now().Add(time.Second),
+	}
+	db.Create(&item2)
+
+	item3 := models.ProcessedLine{
+		LineContent: "breaking-bad-m3u-line",
+		LineHash:    "hash-breaking-bad",
+		TvgName:     "Breaking Bad",
+		GroupTitle:  "Drama",
+		ContentType: "tvshows",
+		State:       "processed",
+		TVShowID:    &tvshow.ID,
+		CreatedAt:   time.Now().Add(2 * time.Second),
+		UpdatedAt:   time.Now().Add(2 * time.Second),
+	}
+	db.Create(&item3)
+
+	server := NewServer()
+
+	// 1. Test un-filtered list items
+	req, _ := http.NewRequest("GET", "/api/v1/items", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+	var resp PaginatedResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if resp.Total != 3 {
+		t.Errorf("Expected 3 items, got %d", resp.Total)
+	}
+
+	// 2. Filter by tvg_name
+	reqTvg, _ := http.NewRequest("GET", "/api/v1/items?tvg_name=Matrix", nil)
+	wTvg := httptest.NewRecorder()
+	server.router.ServeHTTP(wTvg, reqTvg)
+
+	if wTvg.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", wTvg.Code)
+	}
+	var respTvg PaginatedResponse
+	if err := json.Unmarshal(wTvg.Body.Bytes(), &respTvg); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respTvg.Total != 1 {
+		t.Errorf("Expected 1 item, got %d", respTvg.Total)
+	}
+
+	// 3. Filter by tmdb_enriched=yes
+	reqEnriched, _ := http.NewRequest("GET", "/api/v1/items?tmdb_enriched=yes", nil)
+	wEnriched := httptest.NewRecorder()
+	server.router.ServeHTTP(wEnriched, reqEnriched)
+
+	if wEnriched.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", wEnriched.Code)
+	}
+	var respEnriched PaginatedResponse
+	if err := json.Unmarshal(wEnriched.Body.Bytes(), &respEnriched); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respEnriched.Total != 2 {
+		t.Errorf("Expected 2 items, got %d", respEnriched.Total)
+	}
+
+	// 4. Filter by tmdb_enriched=no
+	reqNotEnriched, _ := http.NewRequest("GET", "/api/v1/items?tmdb_enriched=no", nil)
+	wNotEnriched := httptest.NewRecorder()
+	server.router.ServeHTTP(wNotEnriched, reqNotEnriched)
+
+	if wNotEnriched.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", wNotEnriched.Code)
+	}
+	var respNotEnriched PaginatedResponse
+	if err := json.Unmarshal(wNotEnriched.Body.Bytes(), &respNotEnriched); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respNotEnriched.Total != 1 {
+		t.Errorf("Expected 1 item, got %d", respNotEnriched.Total)
+	}
+}

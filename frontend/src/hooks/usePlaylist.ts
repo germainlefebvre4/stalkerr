@@ -5,6 +5,8 @@ import { PlaylistItem } from '../types';
 export function usePlaylist() {
   const [playlist, setPlaylist] = useState<PlaylistItem[]>([]);
   const [playlistSearch, setPlaylistSearch] = useState('');
+  const [playlistSearchName, setPlaylistSearchName] = useState('');
+  const [playlistTMDBFilter, setPlaylistTMDBFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [playlistFilter, setPlaylistFilter] = useState<'all' | 'movies' | 'tvshows'>('all');
   const [playlistStateFilter, setPlaylistStateFilter] = useState<string>('all');
   const [playlistTotal, setPlaylistTotal] = useState(0);
@@ -27,6 +29,11 @@ export function usePlaylist() {
     setPlaylistPage(1);
   }, []);
 
+  // Reset to page 1 when any filter is modified
+  useEffect(() => {
+    setPlaylistPage(1);
+  }, [playlistSearch, playlistSearchName, playlistTMDBFilter, playlistFilter, playlistStateFilter]);
+
   const fetchPlaylist = useCallback(() => {
     setPlaylistLoading(true);
     api.getPlaylist(
@@ -34,7 +41,9 @@ export function usePlaylist() {
       playlistLimit,
       playlistFilter,
       playlistStateFilter,
-      playlistSearch
+      playlistSearch,
+      playlistSearchName,
+      playlistTMDBFilter
     )
       .then(data => {
         setPlaylist(data.data || []);
@@ -42,7 +51,7 @@ export function usePlaylist() {
       })
       .catch(() => {})
       .finally(() => setPlaylistLoading(false));
-  }, [playlistPage, playlistLimit, playlistFilter, playlistStateFilter, playlistSearch]);
+  }, [playlistPage, playlistLimit, playlistFilter, playlistStateFilter, playlistSearch, playlistSearchName, playlistTMDBFilter]);
 
   useEffect(() => {
     fetchPlaylist();
@@ -52,6 +61,10 @@ export function usePlaylist() {
     playlist,
     playlistSearch,
     setPlaylistSearch,
+    playlistSearchName,
+    setPlaylistSearchName,
+    playlistTMDBFilter,
+    setPlaylistTMDBFilter,
     playlistFilter,
     setPlaylistFilter,
     playlistStateFilter,

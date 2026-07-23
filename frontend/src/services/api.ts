@@ -32,7 +32,9 @@ export const api = {
     limit: number = 15, 
     contentType?: 'all' | 'movies' | 'tvshows', 
     stateFilter?: string, 
-    search?: string
+    search?: string,
+    searchName?: string,
+    tmdbEnriched?: string
   ): Promise<PaginatedResponse<PlaylistItem>> {
     let url = `/api/v1/items?limit=${limit}&offset=${(page - 1) * limit}`;
     if (contentType && contentType !== 'all') {
@@ -43,6 +45,12 @@ export const api = {
     }
     if (search) {
       url += `&group_title=${encodeURIComponent(search)}`;
+    }
+    if (searchName) {
+      url += `&tvg_name=${encodeURIComponent(searchName)}`;
+    }
+    if (tmdbEnriched && tmdbEnriched !== 'all') {
+      url += `&tmdb_enriched=${tmdbEnriched}`;
     }
     const res = await fetch(url);
     if (!res.ok) throw new Error('Failed to fetch playlist');

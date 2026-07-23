@@ -4,13 +4,21 @@
 TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
 ## Requirements
 ### Requirement: Playlist View with Filtering
-The frontend SHALL render a comprehensive M3U playlist item table allowing searching by group title and filtering by content type (`movie` or `tvshow`) AND processing state (`all`, `processed`, `pending`, `downloading`, `downloaded`, `failed`), and paginated navigation.
+The frontend SHALL render a comprehensive M3U playlist item table allowing:
+- Searching by media name (`tvg_name`).
+- Filtering/searching by group title (`group_title`).
+- Filtering by content type (`all`, `movies`, `tvshows`).
+- Filtering by processing state (`all`, `processed`, `pending`, `downloading`, `organizing`, `downloaded`, `failed`).
+- Filtering by TMDB enrichment state (`all`, `yes`, `no`).
+- Paginated navigation.
+
 The frontend SHALL allow configuring the page size (10, 50, 100 entries per page), default to 50 entries, and persist this choice in the browser's `localStorage` under the key `stalkeer_playlist_limit`.
+
 The frontend SHALL render an interactive pagination bar with page numbers, smart ellipsis (`...`) for navigation in large page counts, and quick jump buttons to the first (`<<`) and last (`>>`) pages.
 
-#### Scenario: Filter items by Content Type, State and Search Title
-- **WHEN** the user selects the "Movies" content tab, "Failed" status filter, and types "Matrix" in the search input
-- **THEN** the frontend SHALL fetch and display only playlist items of content type `movies`, in a `failed` state, and whose group titles contain "Matrix".
+#### Scenario: Filter items by Content Type, State, TMDB Enrichment and Search Title
+- **WHEN** the user selects the "Movies" content tab, "Failed" status filter, "Non (Non Enrichi)" TMDB filter, types "Matrix" in the media name search, and types "ACTION" in the group search
+- **THEN** the frontend SHALL fetch and display only playlist items of content type `movies`, in a `failed` state, not enriched by TMDB, whose media name contains "Matrix", and whose group contains "ACTION".
 
 #### Scenario: Change page size configuration and persist preference
 - **WHEN** the user selects "50" as the size from the page size dropdown

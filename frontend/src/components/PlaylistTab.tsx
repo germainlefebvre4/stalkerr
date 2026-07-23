@@ -7,6 +7,10 @@ interface PlaylistTabProps {
   playlist: PlaylistItem[];
   playlistSearch: string;
   setPlaylistSearch: (search: string) => void;
+  playlistSearchName: string;
+  setPlaylistSearchName: (searchName: string) => void;
+  playlistTMDBFilter: 'all' | 'yes' | 'no';
+  setPlaylistTMDBFilter: (filter: 'all' | 'yes' | 'no') => void;
   playlistFilter: 'all' | 'movies' | 'tvshows';
   setPlaylistFilter: (filter: 'all' | 'movies' | 'tvshows') => void;
   playlistStateFilter: string;
@@ -25,6 +29,10 @@ export function PlaylistTab({
   playlist,
   playlistSearch,
   setPlaylistSearch,
+  playlistSearchName,
+  setPlaylistSearchName,
+  playlistTMDBFilter,
+  setPlaylistTMDBFilter,
   playlistFilter,
   setPlaylistFilter,
   playlistStateFilter,
@@ -50,10 +58,9 @@ export function PlaylistTab({
 
   return (
     <Tabs.Content value="playlist" className="card" style={{ padding: '2rem' }}>
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        
-        {/* Filter Content Type Buttons */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
+        {/* Block Supérieur : Boutons de Type de Contenu */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button 
             onClick={() => { setPlaylistFilter('all'); setPlaylistPage(1); }} 
             className={playlistFilter === 'all' ? 'btn-primary' : 'btn-secondary'} 
@@ -75,35 +82,74 @@ export function PlaylistTab({
           >
             Séries
           </button>
-          
-          {/* Vertical Divider */}
-          <div style={{ width: '1px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
-          
-          {/* Filter State Selection */}
-          <select 
-            value={playlistStateFilter} 
-            onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }} 
-            className="custom-select" 
-            style={{ width: 'auto', padding: '0.4rem 1.5rem 0.4rem 1rem', height: '100%' }}
-          >
-            <option value="all">Tous les Statuts</option>
-            <option value="processed">Traité (Processed)</option>
-            <option value="pending">En Attente (Pending)</option>
-            <option value="downloading">En Cours (Downloading)</option>
-            <option value="downloaded">Téléchargé (Downloaded)</option>
-            <option value="failed">Échoué (Failed)</option>
-          </select>
         </div>
 
-        {/* Title search */}
-        <div style={{ display: 'flex', gap: '0.5rem', flex: 1, maxWidth: '400px' }}>
-          <input 
-            type="text" 
-            placeholder="Rechercher par Groupe / VOD..." 
-            value={playlistSearch} 
-            onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }} 
-            className="custom-input" 
-          />
+        {/* Block Inférieur : Grille de 4 colonnes pour filtres avancés */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '1rem',
+          alignItems: 'center'
+        }}>
+          {/* 1. Recherche VOD (Nom du Média) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Nom du Média (VOD)</label>
+            <input 
+              type="text" 
+              placeholder="Rechercher par titre..." 
+              value={playlistSearchName} 
+              onChange={e => { setPlaylistSearchName(e.target.value); setPlaylistPage(1); }} 
+              className="custom-input" 
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          {/* 2. Recherche Groupe / Catégorie */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Groupe / Catégorie</label>
+            <input 
+              type="text" 
+              placeholder="Rechercher par groupe..." 
+              value={playlistSearch} 
+              onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }} 
+              className="custom-input" 
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          {/* 3. Filtrage d'enrichissement TMDB */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Enrichissement TMDB</label>
+            <select 
+              value={playlistTMDBFilter} 
+              onChange={e => { setPlaylistTMDBFilter(e.target.value as 'all' | 'yes' | 'no'); setPlaylistPage(1); }} 
+              className="custom-select" 
+              style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+            >
+              <option value="all">Tous</option>
+              <option value="yes">Oui (Enrichis)</option>
+              <option value="no">Non (Non Enrichis)</option>
+            </select>
+          </div>
+
+          {/* 4. État Pipeline */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>État Pipeline</label>
+            <select 
+              value={playlistStateFilter} 
+              onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }} 
+              className="custom-select" 
+              style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+            >
+              <option value="all">Tous les Statuts</option>
+              <option value="processed">Traité (Processed)</option>
+              <option value="pending">En Attente (Pending)</option>
+              <option value="downloading">En Cours (Downloading)</option>
+              <option value="organizing">En cours d'organisation (Organizing)</option>
+              <option value="downloaded">Téléchargé (Downloaded)</option>
+              <option value="failed">Échoué (Failed)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -151,7 +197,7 @@ export function PlaylistTab({
                     <td>
                       <span className={`badge ${
                         item.state === 'downloaded' ? 'badge-success' : 
-                        item.state === 'downloading' ? 'badge-progress' : 
+                        item.state === 'downloading' || item.state === 'organizing' ? 'badge-progress' : 
                         item.state === 'failed' ? 'badge-failed' : 'badge-pending'
                       }`}>
                         {item.state}
@@ -353,7 +399,7 @@ export function PlaylistTab({
                       <div>
                         <span className={`badge ${
                           selectedItem.state === 'downloaded' ? 'badge-success' : 
-                          selectedItem.state === 'downloading' ? 'badge-progress' : 
+                          selectedItem.state === 'downloading' || selectedItem.state === 'organizing' ? 'badge-progress' : 
                           selectedItem.state === 'failed' ? 'badge-failed' : 'badge-pending'
                         }`} style={{ fontSize: '0.75rem' }}>
                           {selectedItem.state}

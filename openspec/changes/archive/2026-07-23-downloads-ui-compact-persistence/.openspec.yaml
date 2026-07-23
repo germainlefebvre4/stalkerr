@@ -1,2 +1,9 @@
 schema: spec-driven
-created: 2026-07-23
+created: "2026-07-23"
+tags:
+    type: frontend
+    complexity: 2
+    components:
+        - frontend
+    _auto: true
+    _tagged_at: "2026-07-23"
