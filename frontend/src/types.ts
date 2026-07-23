@@ -35,6 +35,10 @@ export interface PlaylistItem {
   tvshow?: TVShowResponse;
   override_by?: string;
   override_at?: string;
+  line_content: string;
+  line_url?: string;
+  line_hash: string;
+  line_number: number;
   created_at: string;
 }
 

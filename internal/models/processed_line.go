@@ -30,6 +30,7 @@ type ProcessedLine struct {
 	LineContent     string          `gorm:"type:text;not null" json:"line_content"`
 	LineURL         *string         `gorm:"type:text" json:"line_url,omitempty"`
 	LineHash        string          `gorm:"type:varchar(64);not null;uniqueIndex" json:"line_hash"`
+	LineNumber      int             `gorm:"type:integer;not null;default:0" json:"line_number"`
 	TvgName         string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"tvg_name"`
 	GroupTitle      string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"group_title"`
 	ProcessedAt     time.Time       `gorm:"not null" json:"processed_at"`

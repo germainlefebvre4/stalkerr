@@ -31,6 +31,10 @@ type ItemResponse struct {
 	TVShow      *TVShowResponse        `json:"tvshow,omitempty"`
 	OverrideBy  *string                `json:"override_by,omitempty"`
 	OverrideAt  *string                `json:"override_at,omitempty"`
+	LineContent string                 `json:"line_content"`
+	LineURL     *string                `json:"line_url,omitempty"`
+	LineHash    string                 `json:"line_hash"`
+	LineNumber  int                    `json:"line_number"`
 	ProcessedAt string                 `json:"processed_at"`
 	CreatedAt   string                 `json:"created_at"`
 	UpdatedAt   string                 `json:"updated_at"`

@@ -50,6 +50,9 @@ http://example.com/movie2.mp4`
 	if lines[0].TvgName != "Test Movie" {
 		t.Errorf("expected TvgName 'Test Movie', got '%s'", lines[0].TvgName)
 	}
+	if lines[0].LineNumber != 2 {
+		t.Errorf("expected LineNumber 2, got %d", lines[0].LineNumber)
+	}
 	if lines[0].GroupTitle != "Movies" {
 		t.Errorf("expected GroupTitle 'Movies', got '%s'", lines[0].GroupTitle)
 	}
@@ -64,6 +67,11 @@ http://example.com/movie2.mp4`
 	}
 	if lines[0].ContentType != models.ContentTypeUncategorized {
 		t.Errorf("expected ContentType to be 'uncategorized', got '%s'", lines[0].ContentType)
+	}
+
+	// Verify second entry LineNumber
+	if lines[1].LineNumber != 4 {
+		t.Errorf("expected LineNumber 4, got %d", lines[1].LineNumber)
 	}
 
 	// Verify stats

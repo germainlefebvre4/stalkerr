@@ -24,6 +24,7 @@ type M3UEntry struct {
 	Duration   string
 	Title      string
 	URL        string
+	LineNumber int
 }
 
 // ParseStats tracks parsing statistics
@@ -194,7 +195,9 @@ func (p *Parser) Parse() ([]models.ProcessedLine, error) {
 
 // parseExtinf parses an EXTINF line and extracts metadata
 func (p *Parser) parseExtinf(line string, lineNumber int) *M3UEntry {
-	entry := &M3UEntry{}
+	entry := &M3UEntry{
+		LineNumber: lineNumber,
+	}
 
 	// Extract attributes using regex
 	tvgIDRegex := regexp.MustCompile(`tvg-id="([^"]*)"`)
@@ -251,6 +254,7 @@ func (p *Parser) createProcessedLine(entry *M3UEntry) (*models.ProcessedLine, er
 		LineContent: lineContent,
 		LineURL:     &entry.URL,
 		LineHash:    hash,
+		LineNumber:  entry.LineNumber,
 		TvgName:     entry.TvgName,
 		GroupTitle:  entry.GroupTitle,
 		State:       models.StatePending,
