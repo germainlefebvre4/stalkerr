@@ -36,7 +36,7 @@ export function DownloadsTab({
   };
 
   return (
-    <Tabs.Content value="downloads" className="card" style={{ padding: '2rem' }}>
+    <Tabs.Content value="downloads" className="card tab-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('heading')}</h2>
@@ -126,7 +126,7 @@ export function DownloadsTab({
             const isLowQuality = resolutionLower === '480p' || resolutionLower === '360p';
 
             return (
-              <div key={item.id} className="download-card" style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: '#fff', boxShadow: 'var(--shadow-sm)' }}>
+              <div key={item.id} className="download-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div style={{ flex: 1, minWidth: '250px' }}>
                     <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-slate)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

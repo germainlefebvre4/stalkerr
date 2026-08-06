@@ -22,10 +22,10 @@ export function FloatingHeader({ healthStatus }: FloatingHeaderProps) {
   return (
     <header className="glass-header">
       <div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--primary-slate)' }}>
+        <h1 className="app-title">
           🛰️ {t('app.title')}
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.25rem', fontWeight: 500 }}>
+        <p className="app-subtitle">
           {t('app.subtitle')}
         </p>
       </div>

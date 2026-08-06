@@ -9,6 +9,7 @@ import { useFilters } from './hooks/useFilters';
 import { useLogs } from './hooks/useLogs';
 import { useDownloads } from './hooks/useDownloads';
 import { useURLState, URLStateSchema } from './hooks/useURLState';
+import { useIsMobile } from './hooks/useMediaQuery';
 import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem } from './types';
 
@@ -44,6 +45,7 @@ import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 
 export default function App() {
   const { t, i18n } = useTranslation();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState(readInitialActiveTab);
   const [, patchTabURLState] = useURLState(TAB_URL_SCHEMA);
 
@@ -128,8 +130,15 @@ export default function App() {
     setIsMoveOpen(true);
   };
 
+  const tabs = [
+    { value: 'playlist', icon: '🗒️', label: t('tabs.playlist') },
+    { value: 'filters', icon: '🔍', label: t('tabs.filters') },
+    { value: 'logs', icon: '⚙️', label: t('tabs.logs') },
+    { value: 'downloads', icon: '📥', label: t('tabs.downloads') },
+  ];
+
   return (
-    <div style={{ maxWidth: 1600, margin: '0 auto', padding: '2rem 1.5rem' }}>
+    <div className="app-container" style={{ maxWidth: 1600, margin: '0 auto', paddingTop: '2rem', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
       {/* Toast Notification */}
       {notification && (
         <div style={{
@@ -180,6 +189,23 @@ export default function App() {
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}
         />
       </Tabs.Root>
+
+      {isMobile && (
+        <nav className="mobile-tab-bar">
+          {tabs.map(tab => (
+            <button
+              key={tab.value}
+              type="button"
+              className="mobile-tab-bar-btn"
+              data-state={activeTab === tab.value ? 'active' : 'inactive'}
+              onClick={() => setActiveTab(tab.value)}
+            >
+              <span className="mobile-tab-bar-icon">{tab.icon}</span>
+              <span className="mobile-tab-bar-label">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       <CreateFilterDialog isOpen={isCreateFilterOpen} onOpenChange={setIsCreateFilterOpen} onSuccess={(msg) => { showToast(msg); fetchFilters(); }} />
       
