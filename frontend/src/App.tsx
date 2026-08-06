@@ -201,7 +201,7 @@ export default function App() {
               onClick={() => setActiveTab(tab.value)}
             >
               <span className="mobile-tab-bar-icon">{tab.icon}</span>
-              <span>{tab.label}</span>
+              <span className="mobile-tab-bar-label">{tab.label}</span>
             </button>
           ))}
         </nav>

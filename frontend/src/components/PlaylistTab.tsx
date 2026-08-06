@@ -74,7 +74,7 @@ export function PlaylistTab({
   };
 
   return (
-    <Tabs.Content value="playlist" className="card" style={{ padding: '2rem' }}>
+    <Tabs.Content value="playlist" className="card tab-panel">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
         {/* Block Supérieur : Boutons de Type de Contenu */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

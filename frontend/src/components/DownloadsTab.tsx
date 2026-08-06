@@ -36,7 +36,7 @@ export function DownloadsTab({
   };
 
   return (
-    <Tabs.Content value="downloads" className="card" style={{ padding: '2rem' }}>
+    <Tabs.Content value="downloads" className="card tab-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('heading')}</h2>

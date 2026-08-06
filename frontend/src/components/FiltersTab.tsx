@@ -17,7 +17,7 @@ export function FiltersTab({
 }: FiltersTabProps) {
   const { t } = useTranslation('filters');
   return (
-    <Tabs.Content value="filters" className="card" style={{ padding: '2rem' }}>
+    <Tabs.Content value="filters" className="card tab-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('heading')}</h2>

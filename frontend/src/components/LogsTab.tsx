@@ -21,7 +21,7 @@ export function LogsTab({
   const { t, i18n } = useTranslation('logs');
   const isMobile = useIsMobile();
   return (
-    <Tabs.Content value="logs" className="card" style={{ padding: '2rem' }}>
+    <Tabs.Content value="logs" className="card tab-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('heading')}</h2>
