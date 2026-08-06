@@ -16,11 +16,15 @@ The frontend SHALL display a dedicated tab named "Filtres de Tri" that groups fi
 - **THEN** the frontend SHALL visually distinguish the origin patterns (labeled as origin/system) from the active override (labeled as an active override), making clear that the override is what is currently applied
 
 ### Requirement: Create Filter Configuration
-The frontend SHALL allow creating a new filter configuration via a modern popup dialog using Radix UI `Dialog` primitives, submitting a `POST` request to `/api/v1/filters` on confirmation. The dialog SHALL provide a way to load the currently active configuration (the active override if one exists, otherwise the origin configuration) for the selected attribute into the Include/Exclude fields, and SHALL warn the user before submission if an active override for the selected attribute will be replaced.
+The frontend SHALL allow creating a new filter configuration via a modern popup dialog using Radix UI `Dialog` primitives, submitting a `POST` request to `/api/v1/filters` on confirmation. If the `POST` request fails, the backend response SHALL include a distinct machine-readable error code of `"filter_create_failed"` (rather than a generic error code) so the frontend can render a specific, translated error message in the dialog instead of a generic one. The dialog SHALL provide a way to load the currently active configuration (the active override if one exists, otherwise the origin configuration) for the selected attribute into the Include/Exclude fields, and SHALL warn the user before submission if an active override for the selected attribute will be replaced.
 
 #### Scenario: Successfully create a new inclusion filter
 - **WHEN** the user opens the "Créer Filtre" dialog, inputs name, selects attribute, adds inclusion patterns, and clicks "Enregistrer"
 - **THEN** the frontend SHALL submit a `POST` request to `/api/v1/filters`, display a success notification, close the dialog, and refresh the filters list
+
+#### Scenario: Filter creation fails
+- **WHEN** the user submits the "Créer Filtre" dialog and the `POST /api/v1/filters` request fails (e.g. a duplicate name)
+- **THEN** the backend SHALL respond with `ErrorResponse.error` set to `"filter_create_failed"`, and the frontend SHALL display the translated message for that code inline in the dialog instead of the raw backend `message` text
 
 #### Scenario: Load the currently active configuration into the form
 - **WHEN** the user selects an attribute and clicks "Reprendre la config actuelle"
