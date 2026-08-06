@@ -17,4 +17,4 @@
 
 - [x] 4.1 Build the frontend image locally and run it under a non-root UID (e.g. `docker run --user 1000:0 ...` or via `docker compose`) to confirm Nginx starts without permission errors
 - [x] 4.2 Run `helm template` (or `helm lint`) on `charts/stalkerr` with `values.test.yaml` and confirm the frontend Deployment/Service render with port `8080` internally and `80` externally
-- [ ] 4.3 Deploy to the test cluster and confirm the `stalkerr-frontend` pod reaches `1/1 Running` with no restarts, and that the site is reachable through the existing Service/Ingress on port 80
+- [x] 4.3 Deploy to the test cluster and confirm the `stalkerr-frontend` pod reaches `1/1 Running` with no restarts, and that the site is reachable through the existing Service/Ingress on port 80

@@ -2,6 +2,8 @@ import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { PlaylistItem } from '../types';
+import { formatDate } from '../utils/date';
+import { getPipelineStateBadgeClass } from '../utils/pipelineState';
 
 interface PlaylistTabProps {
   playlist: PlaylistItem[];
@@ -48,6 +50,17 @@ export function PlaylistTab({
 }: PlaylistTabProps) {
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | 'hash' | null>(null);
+  const [gotoPageInput, setGotoPageInput] = React.useState('');
+
+  const totalPages = Math.ceil(playlistTotal / playlistLimit);
+
+  const handleGotoPage = () => {
+    const parsed = parseInt(gotoPageInput, 10);
+    if (!isNaN(parsed)) {
+      setPlaylistPage(Math.min(Math.max(1, parsed), totalPages));
+    }
+    setGotoPageInput('');
+  };
 
   const handleCopy = (text: string, type: 'content' | 'url' | 'hash') => {
     navigator.clipboard.writeText(text).then(() => {
@@ -195,15 +208,11 @@ export function PlaylistTab({
                       )}
                     </td>
                     <td>
-                      <span className={`badge ${
-                        item.state === 'downloaded' ? 'badge-success' : 
-                        item.state === 'downloading' || item.state === 'organizing' ? 'badge-progress' : 
-                        item.state === 'failed' ? 'badge-failed' : 'badge-pending'
-                      }`}>
+                      <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
                         {item.state}
                       </span>
                     </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{new Date(item.created_at).toLocaleDateString()}</td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
                         <button
@@ -259,7 +268,7 @@ export function PlaylistTab({
             </div>
           </div>
 
-          {Math.ceil(playlistTotal / playlistLimit) > 1 && (
+          {totalPages > 1 && (
             <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
               <button 
                 disabled={playlistPage === 1} 
@@ -280,7 +289,7 @@ export function PlaylistTab({
                 &lt;
               </button>
               
-              {getPaginationRange(playlistPage, Math.ceil(playlistTotal / playlistLimit)).map((page, index) => {
+              {getPaginationRange(playlistPage, totalPages).map((page, index) => {
                 if (page === '...') {
                   return (
                     <span key={`ellipsis-${index}`} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
@@ -300,24 +309,46 @@ export function PlaylistTab({
                 );
               })}
 
-              <button 
-                disabled={playlistPage === Math.ceil(playlistTotal / playlistLimit)} 
-                onClick={() => setPlaylistPage(p => Math.min(Math.ceil(playlistTotal / playlistLimit), p + 1))} 
-                className="btn-secondary" 
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === Math.ceil(playlistTotal / playlistLimit) ? 0.5 : 1 }}
+              <button
+                disabled={playlistPage === totalPages}
+                onClick={() => setPlaylistPage(p => Math.min(totalPages, p + 1))}
+                className="btn-secondary"
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === totalPages ? 0.5 : 1 }}
                 title="Page suivante"
               >
                 &gt;
               </button>
-              <button 
-                disabled={playlistPage === Math.ceil(playlistTotal / playlistLimit)} 
-                onClick={() => setPlaylistPage(Math.ceil(playlistTotal / playlistLimit))} 
-                className="btn-secondary" 
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === Math.ceil(playlistTotal / playlistLimit) ? 0.5 : 1 }}
+              <button
+                disabled={playlistPage === totalPages}
+                onClick={() => setPlaylistPage(totalPages)}
+                className="btn-secondary"
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === totalPages ? 0.5 : 1 }}
                 title="Dernière page"
               >
                 &gt;&gt;
               </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.4rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Aller à :</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={gotoPageInput}
+                  onChange={e => setGotoPageInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleGotoPage(); }}
+                  placeholder={String(playlistPage)}
+                  className="custom-input"
+                  style={{ width: '4rem', padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
+                />
+                <button
+                  onClick={handleGotoPage}
+                  className="btn-secondary"
+                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                >
+                  Go
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -397,11 +428,7 @@ export function PlaylistTab({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Statut actuel :</span>
                       <div>
-                        <span className={`badge ${
-                          selectedItem.state === 'downloaded' ? 'badge-success' : 
-                          selectedItem.state === 'downloading' || selectedItem.state === 'organizing' ? 'badge-progress' : 
-                          selectedItem.state === 'failed' ? 'badge-failed' : 'badge-pending'
-                        }`} style={{ fontSize: '0.75rem' }}>
+                        <span className={`badge ${getPipelineStateBadgeClass(selectedItem.state)}`} style={{ fontSize: '0.75rem' }}>
                           {selectedItem.state}
                         </span>
                       </div>
@@ -412,7 +439,7 @@ export function PlaylistTab({
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Date d'import :</span>
-                      <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{new Date(selectedItem.created_at).toLocaleString()}</span>
+                      <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.created_at)}</span>
                     </div>
                     {selectedItem.override_by && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -423,7 +450,7 @@ export function PlaylistTab({
                     {selectedItem.override_at && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Forcé le :</span>
-                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{new Date(selectedItem.override_at).toLocaleString()}</span>
+                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.override_at)}</span>
                       </div>
                     )}
                   </div>

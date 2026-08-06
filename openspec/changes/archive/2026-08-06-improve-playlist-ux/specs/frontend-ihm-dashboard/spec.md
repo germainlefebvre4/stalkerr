@@ -1,8 +1,5 @@
-# frontend-ihm-dashboard Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
-## Requirements
 ### Requirement: Playlist View with Filtering
 The frontend SHALL render a comprehensive M3U playlist item table allowing:
 - Searching by media name (`tvg_name`).
@@ -38,41 +35,7 @@ The frontend SHALL reflect the current page, page size, and all active filters (
 - **WHEN** the user is viewing page 3 with an active content-type and state filter, and refreshes the browser
 - **THEN** the frontend SHALL read the page, page size, and filters from the URL query string and re-render the exact same filtered page, instead of resetting to page 1 with no filters.
 
-### Requirement: Real-time Monitoring Dashboard
-The frontend SHALL present dedicated tabs to display active downloads (incorporating file-size progress bars) and execution logs, using polling to automatically keep content fresh. The interface MUST employ visual shimmers on loading and progress indicators, and active pulsing indicators for the API health state. The frontend SHALL also persist the active tab state in the browser's `localStorage` and restore it upon page refresh.
-
-#### Scenario: Display active download progress bar and logs status
-- **WHEN** the user navigates to the "Downloads" view
-- **THEN** the frontend SHALL render active progress bars indicating the percentage of completion with animated gradient shimmer effects, and automatically re-fetch data every 5 seconds.
-
-#### Scenario: Persist and restore active tab on refresh
-- **WHEN** the user selects a tab and refreshes the browser page
-- **THEN** the frontend SHALL write the selected tab name to `localStorage` upon switch, and read/restore it upon mount to active the correct view.
-
-### Requirement: Modern Light-Themed Radix UI Dialog for File Re-organization
-The frontend SHALL offer a modal dialog powered by Radix UI `Dialog` primitives that enables moving entire movie or TV show parent directories to a target directory.
-
-#### Scenario: Confirm folder move from completed items
-- **WHEN** the user clicks the "Déplacer ⇄" button on a completed item, selects a destination path, and confirms
-- **THEN** the frontend SHALL issue a `POST` request to the media management move endpoint, display a success toast upon success, and refresh the UI state.
-
-### Requirement: Statistics KPI Cards
-The frontend SHALL display a horizontal grid of 4 visual statistics cards beneath the main header, fetching data from `/api/v1/stats`. These cards must display:
-- Total items in the M3U playlist.
-- Number of movies identified.
-- Number of TV shows identified.
-- Download success percentage (downloaded count vs failed count).
-
-#### Scenario: Display global stats on dashboard load
-- **WHEN** the dashboard loads or is refreshed
-- **THEN** the frontend SHALL fetch statistics from `/api/v1/stats` and render them in the KPI grid with modern, translucent pastel backgrounds.
-
-### Requirement: Pipeline Reset Action on Playlist
-The frontend SHALL offer a "Réinitialiser ↻" button on each playlist table row for items that are processed, downloading, or failed. Clicking this button SHALL trigger a `POST` request to the appropriate backend endpoint (`/api/v1/movies/:id/reset` or `/api/v1/tvshows/:id/reset`).
-
-#### Scenario: Trigger reset pipeline of a failed movie
-- **WHEN** the user clicks the "Réinitialiser ↻" button on a failed movie row in the playlist table
-- **THEN** the frontend SHALL send a `POST` request to `/api/v1/movies/:id/reset`, display a success toast on success, and refresh the playlist items list.
+## ADDED Requirements
 
 ### Requirement: Playlist Creation Date Format
 The frontend SHALL render the "Créé le" column of the playlist table using a fixed `DD/MM/YYYY` format with zero-padded day and month, independent of the browser's locale settings.
@@ -95,5 +58,3 @@ The frontend SHALL render the pipeline state badge (wherever the playlist item's
 #### Scenario: Display a pending item with a pending badge
 - **WHEN** a playlist item has `state` equal to `pending`
 - **THEN** the frontend SHALL render its state badge using the pending (amber) style.
-
-
