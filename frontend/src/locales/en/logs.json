@@ -1,0 +1,21 @@
+{
+  "heading": "Latest Task Executions",
+  "subtitle": "History of M3U refreshes, database cleanups, and enrichments",
+  "refresh": "Refresh ↻",
+  "table": {
+    "action": "Action Executed",
+    "itemCount": "Items Processed",
+    "status": "Pipeline Status",
+    "startedAt": "Started",
+    "errorDetails": "Error Details"
+  },
+  "itemsCount": "{{count}} items",
+  "status": {
+    "inProgress": "In progress",
+    "success": "Success",
+    "failed": "Failed"
+  },
+  "loading": "Loading...",
+  "empty": "No logs recorded in the database",
+  "noError": "No error"
+}

@@ -1,0 +1,15 @@
+{
+  "heading": "Inclusion & Exclusion Regular Expressions",
+  "subtitle": "Manage the filtering patterns applied to M3U feeds during enrichment",
+  "configureButton": "+ Configure a Filter",
+  "loading": "Loading filters...",
+  "emptyTitle": "No sorting filter configured",
+  "emptySubtitle": "All imported M3U feeds will be accepted by default",
+  "attribute": "Attribute: {{attribute}}",
+  "deleteTitle": "Delete this filter",
+  "delete": "Delete 🗑️",
+  "include": "🟢 Include: ",
+  "includeAll": "* (Accept all)",
+  "exclude": "🔴 Exclude: ",
+  "excludeNone": "- (None)"
+}

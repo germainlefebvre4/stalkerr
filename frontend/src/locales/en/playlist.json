@@ -1,0 +1,94 @@
+{
+  "contentFilter": {
+    "all": "All",
+    "movies": "Movies",
+    "tvshows": "TV Shows"
+  },
+  "fields": {
+    "mediaName": "Media Name (VOD)",
+    "groupCategory": "Group / Category",
+    "tmdbEnrichment": "TMDB Enrichment",
+    "pipelineState": "Pipeline State"
+  },
+  "search": {
+    "byTitlePlaceholder": "Search by title...",
+    "byGroupPlaceholder": "Search by group..."
+  },
+  "tmdbFilter": {
+    "all": "All",
+    "yes": "Yes (Enriched)",
+    "no": "No (Not Enriched)"
+  },
+  "stateFilter": {
+    "all": "All Statuses",
+    "processed": "Processed",
+    "pending": "Pending",
+    "downloading": "Downloading",
+    "organizing": "Organizing",
+    "downloaded": "Downloaded",
+    "failed": "Failed"
+  },
+  "table": {
+    "headers": {
+      "mediaName": "Media Name",
+      "groupCategory": "Group / Category",
+      "tmdbEnrichment": "TMDB Enrichment",
+      "pipelineState": "Pipeline State",
+      "createdAt": "Created On",
+      "actions": "Actions"
+    },
+    "loading": "Loading playlist...",
+    "empty": "No items found",
+    "notEnriched": "Not enriched",
+    "actions": {
+      "correctTitle": "Correct or manually force the TMDB association",
+      "correct": "Correct ✏️",
+      "associate": "Associate 🔍",
+      "resetTitle": "Reset the media state to force reprocessing",
+      "reset": "Reset ↻"
+    }
+  },
+  "pagination": {
+    "showing": "Showing {{from}} to {{to}} of {{total}} entries",
+    "show": "Show:",
+    "perPage": "per page",
+    "firstPage": "First page",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page",
+    "goTo": "Go to:",
+    "go": "Go"
+  },
+  "drawer": {
+    "title": "📋 Track Details",
+    "close": "Close ✕",
+    "description": "Technical details and enrichment metadata of the playlist track.",
+    "tmdbSection": "🎬 Metadata Enrichment (TMDB)",
+    "genres": "Genres:",
+    "duration": "Duration:",
+    "durationMinutes": "{{count}} minutes",
+    "position": "Position:",
+    "seasonEpisode": "Season {{season}}, Episode {{episode}}",
+    "tmdbId": "TMDB ID:",
+    "noTmdbAssociation": "No official TMDB association. This item is classified as: {{type}}.",
+    "pipelineSection": "⚙️ Pipeline State",
+    "currentStatus": "Current status:",
+    "contentType": "Content type:",
+    "importDate": "Import date:",
+    "overriddenBy": "Forced by:",
+    "overriddenAt": "Forced on:",
+    "m3uSection": "📁 M3U Playlist Origin",
+    "originalName": "🏷️ Original name:",
+    "originalCategory": "📁 Original category:",
+    "m3uLineNumber": "🔢 M3U line number:",
+    "line": "Line {{number}}",
+    "unknownLegacyImport": "Unknown (legacy import)",
+    "uniqueHash": "🔑 Unique hash:",
+    "copied": "✓ Copied",
+    "copy": "📄 Copy",
+    "rawLineSection": "📄 Raw Line Content",
+    "copiedBang": "✓ Copied!",
+    "copyIcon": "📋 Copy",
+    "rawUrlSection": "🔗 Raw stream URL"
+  }
+}

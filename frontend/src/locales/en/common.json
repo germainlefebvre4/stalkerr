@@ -1,0 +1,61 @@
+{
+  "app": {
+    "title": "Stalkeer Dashboard",
+    "subtitle": "Control panel, logs, filters, and media reorganization"
+  },
+  "apiStatus": {
+    "online": "Online",
+    "error": "Error",
+    "checking": "Checking..."
+  },
+  "tabs": {
+    "playlist": "M3U Playlist",
+    "filters": "Sorting Filters",
+    "logs": "Processing",
+    "downloads": "Downloads"
+  },
+  "toasts": {
+    "resetSuccess": "Pipeline reset successfully! Ready for reprocessing.",
+    "filterDeleted": "Filter deleted successfully!"
+  },
+  "confirm": {
+    "deleteFilter": "Are you sure you want to permanently delete this sorting filter?"
+  },
+  "media": {
+    "unnamed": "Media"
+  },
+  "kpi": {
+    "playlist": {
+      "title": "M3U Playlist",
+      "subtitle": "Entries saved in DB"
+    },
+    "movies": {
+      "title": "Identified Movies",
+      "subtitle": "TMDB enriched"
+    },
+    "tvshows": {
+      "title": "Tracked TV Shows",
+      "subtitle": "Seasons and episodes"
+    },
+    "successRate": {
+      "title": "Success Rate",
+      "detail": "{{downloaded}} succeeded / {{failed}} failed",
+      "fallback": "Downloads"
+    }
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "fr": "French"
+  },
+  "errors": {
+    "not_found": "The requested resource was not found.",
+    "invalid_request": "The request was invalid.",
+    "database_error": "A database error occurred. Please try again.",
+    "tmdb_disabled": "TMDB integration is disabled or not configured.",
+    "move_failed": "Failed to move the folder. Please try again.",
+    "override_failed": "Failed to apply the manual override. Please try again.",
+    "filter_create_failed": "Failed to create the filter. Please try again.",
+    "generic": "Something went wrong. Please try again."
+  }
+}

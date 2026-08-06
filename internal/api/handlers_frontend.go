@@ -747,7 +747,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 		details, err := s.tmdbClient.GetMovieDetails(req.TMDBID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "tmdb_error",
+				Error:   "override_failed",
 				Message: fmt.Sprintf("failed to fetch TMDB movie details: %v", err),
 			})
 			return
@@ -775,7 +775,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 
 		if err := db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).Attrs(attrs).FirstOrCreate(&movie).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
+				Error:   "override_failed",
 				Message: fmt.Sprintf("failed to save movie details: %v", err),
 			})
 			return
@@ -814,7 +814,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 		details, err := s.tmdbClient.GetTVShowDetails(req.TMDBID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "tmdb_error",
+				Error:   "override_failed",
 				Message: fmt.Sprintf("failed to fetch TMDB TV show details: %v", err),
 			})
 			return
@@ -855,7 +855,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 
 		if err := query.Attrs(attrs).FirstOrCreate(&tvshow).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
+				Error:   "override_failed",
 				Message: fmt.Sprintf("failed to save TV show details: %v", err),
 			})
 			return
@@ -904,7 +904,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 
 	if err := db.Select("ContentType", "MovieID", "TVShowID", "ChannelID", "UncategorizedID", "OverrideBy", "OverrideAt").Save(&item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
+			Error:   "override_failed",
 			Message: fmt.Sprintf("failed to save override association: %v", err),
 		})
 		return

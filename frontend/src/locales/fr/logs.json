@@ -1,0 +1,21 @@
+{
+  "heading": "Dernières Exécutions de Tâches",
+  "subtitle": "Historique des rafraîchissements M3U, nettoyages de base et enrichissements",
+  "refresh": "Actualiser ↻",
+  "table": {
+    "action": "Action exécutée",
+    "itemCount": "Éléments Traités",
+    "status": "Statut Pipeline",
+    "startedAt": "Lancement",
+    "errorDetails": "Détails d'Erreur"
+  },
+  "itemsCount": "{{count}} items",
+  "status": {
+    "inProgress": "En cours",
+    "success": "Réussi",
+    "failed": "Échoué"
+  },
+  "loading": "Chargement en cours...",
+  "empty": "Aucun log enregistré en base de données",
+  "noError": "Aucune erreur"
+}

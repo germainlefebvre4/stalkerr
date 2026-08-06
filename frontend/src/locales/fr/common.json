@@ -1,0 +1,61 @@
+{
+  "app": {
+    "title": "Stalkeer Dashboard",
+    "subtitle": "IHM de pilotage, logs, filtres et réorganisation de médias"
+  },
+  "apiStatus": {
+    "online": "En ligne",
+    "error": "Erreur",
+    "checking": "Vérification..."
+  },
+  "tabs": {
+    "playlist": "Playlist M3U",
+    "filters": "Filtres de Tri",
+    "logs": "Traitements",
+    "downloads": "Téléchargements"
+  },
+  "toasts": {
+    "resetSuccess": "Flux réinitialisé avec succès ! Prêt pour le retraitement.",
+    "filterDeleted": "Filtre supprimé avec succès !"
+  },
+  "confirm": {
+    "deleteFilter": "Êtes-vous sûr de vouloir supprimer définitivement ce filtre de tri ?"
+  },
+  "media": {
+    "unnamed": "Média"
+  },
+  "kpi": {
+    "playlist": {
+      "title": "Playlist M3U",
+      "subtitle": "Flux enregistrés en DB"
+    },
+    "movies": {
+      "title": "Films identifiés",
+      "subtitle": "TMDB enrichis"
+    },
+    "tvshows": {
+      "title": "Séries suivies",
+      "subtitle": "Saisons et épisodes"
+    },
+    "successRate": {
+      "title": "Taux de Réussite",
+      "detail": "{{downloaded}} réussis / {{failed}} échecs",
+      "fallback": "Téléchargements"
+    }
+  },
+  "language": {
+    "label": "Langue",
+    "en": "Anglais",
+    "fr": "Français"
+  },
+  "errors": {
+    "not_found": "La ressource demandée n'a pas été trouvée.",
+    "invalid_request": "La requête est invalide.",
+    "database_error": "Une erreur de base de données est survenue. Veuillez réessayer.",
+    "tmdb_disabled": "L'intégration TMDB est désactivée ou non configurée.",
+    "move_failed": "Le déplacement du dossier a échoué. Veuillez réessayer.",
+    "override_failed": "L'application de l'association manuelle a échoué. Veuillez réessayer.",
+    "filter_create_failed": "La création du filtre a échoué. Veuillez réessayer.",
+    "generic": "Une erreur est survenue. Veuillez réessayer."
+  }
+}

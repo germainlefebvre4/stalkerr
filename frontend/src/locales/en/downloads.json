@@ -1,0 +1,50 @@
+{
+  "heading": "Download and Organization Queue",
+  "subtitle": "Dynamic tracking of video file downloads and reorganizations",
+  "refresh": "Refresh ↻",
+  "statusFilter": {
+    "all": "Status: All",
+    "completed": "Completed",
+    "downloading": "In progress",
+    "failed": "Failed"
+  },
+  "typeFilter": {
+    "all": "Type: All",
+    "movies": "Movies",
+    "tvshows": "TV Shows"
+  },
+  "problemFilter": {
+    "none": "Problems: None",
+    "missingYear": "Missing year",
+    "yearMismatch": "Incorrect year",
+    "unknownFormat": "Unknown format",
+    "lowQuality": "Low quality"
+  },
+  "loading": "Loading downloads...",
+  "empty": "No downloads recorded",
+  "status": {
+    "completed": "✅ Completed",
+    "downloading": "⏳ In progress",
+    "failedWithRetry": "❌ Failed ({{count}}×)",
+    "failed": "❌ Failed",
+    "pending": "⏳ Pending",
+    "retrying": "🔄 Retrying"
+  },
+  "move": "Move ⇄",
+  "folder": "📂 Folder: {{name}}/",
+  "format": "📹 Format: {{format}}",
+  "unknownFormat": "Unknown",
+  "unknownResolution": "Unknown resolution",
+  "sizeMb": "{{size}} MB",
+  "durationMin": "🕒 {{count}} min",
+  "lowQualityBadge": "⚠️ Low quality ({{resolution}})",
+  "missingYearBadge": "⚠️ Missing year",
+  "incorrectYearBadge": "⚠️ Incorrect year",
+  "incorrectYearTitle": "Year in path differs from TMDB",
+  "yearOkBadge": "✅ Year OK",
+  "unknownFormatBadge": "⚠️ Unknown format",
+  "formatOkBadge": "✅ Format OK",
+  "genres": "🎭 Genres:",
+  "progress": "Progress: {{percent}}%",
+  "progressSize": "{{downloaded}} MB / {{total}} MB"
+}

@@ -33,6 +33,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.ProcessingLog{},
 		&models.DownloadInfo{},
 		&models.ManualMapping{},
+		&models.FilterConfig{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate models: %v", err)
@@ -684,6 +685,62 @@ func TestSearchTMDBProxy_And_OverrideItem(t *testing.T) {
 
 	if w4.Code != http.StatusServiceUnavailable {
 		t.Errorf("Expected status 503, got %d", w4.Code)
+	}
+}
+
+func TestOverrideItem_TMDBDetailFetchFailureReturnsOverrideFailed(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Mock TMDB server that always 404s on detail lookups
+	mockTMDB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer mockTMDB.Close()
+
+	tmdb.SetBaseURL(mockTMDB.URL)
+	defer tmdb.SetBaseURL("https://api.themoviedb.org/3")
+
+	config.SetConfig(&config.Config{
+		TMDB: config.TMDBConfig{
+			Enabled: true,
+			APIKey:  "mock-key",
+		},
+	})
+
+	server := NewServer()
+
+	item := models.ProcessedLine{
+		LineContent: "Test content",
+		LineHash:    "override-failed-hash",
+		TvgName:     "FR: Some Movie (2020)",
+		GroupTitle:  "FR: FILMS ACTION",
+		ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeUncategorized,
+		State:       models.StateProcessed,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	db.Create(&item)
+
+	overrideBody := OverrideItemRequest{
+		TMDBID: 999,
+		Type:   "movie",
+	}
+	bodyBytes, _ := json.Marshal(overrideBody)
+	req, _ := http.NewRequest("POST", "/api/v1/items/1/override", bytes.NewBuffer(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected status 500, got %d. Body: %s", w.Code, w.Body.String())
+	}
+	var errResp ErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &errResp); err != nil {
+		t.Fatalf("failed to unmarshal error response: %v", err)
+	}
+	if errResp.Error != "override_failed" {
+		t.Errorf("Expected error code 'override_failed', got %q", errResp.Error)
 	}
 }
 

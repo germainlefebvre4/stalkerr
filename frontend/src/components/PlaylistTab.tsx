@@ -1,6 +1,7 @@
 import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
+import { useTranslation } from 'react-i18next';
 import { PlaylistItem } from '../types';
 import { formatDate } from '../utils/date';
 import { getPipelineStateBadgeClass } from '../utils/pipelineState';
@@ -48,6 +49,7 @@ export function PlaylistTab({
   onOpenOverride,
   onResetPipeline
 }: PlaylistTabProps) {
+  const { t, i18n } = useTranslation('playlist');
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | 'hash' | null>(null);
   const [gotoPageInput, setGotoPageInput] = React.useState('');
@@ -74,93 +76,93 @@ export function PlaylistTab({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
         {/* Block Supérieur : Boutons de Type de Contenu */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button 
-            onClick={() => { setPlaylistFilter('all'); setPlaylistPage(1); }} 
-            className={playlistFilter === 'all' ? 'btn-primary' : 'btn-secondary'} 
+          <button
+            onClick={() => { setPlaylistFilter('all'); setPlaylistPage(1); }}
+            className={playlistFilter === 'all' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '0.45rem 1rem' }}
           >
-            Tous
+            {t('contentFilter.all')}
           </button>
-          <button 
-            onClick={() => { setPlaylistFilter('movies'); setPlaylistPage(1); }} 
-            className={playlistFilter === 'movies' ? 'btn-primary' : 'btn-secondary'} 
+          <button
+            onClick={() => { setPlaylistFilter('movies'); setPlaylistPage(1); }}
+            className={playlistFilter === 'movies' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '0.45rem 1rem' }}
           >
-            Films
+            {t('contentFilter.movies')}
           </button>
-          <button 
-            onClick={() => { setPlaylistFilter('tvshows'); setPlaylistPage(1); }} 
-            className={playlistFilter === 'tvshows' ? 'btn-primary' : 'btn-secondary'} 
+          <button
+            onClick={() => { setPlaylistFilter('tvshows'); setPlaylistPage(1); }}
+            className={playlistFilter === 'tvshows' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '0.45rem 1rem' }}
           >
-            Séries
+            {t('contentFilter.tvshows')}
           </button>
         </div>
 
         {/* Block Inférieur : Grille de 4 colonnes pour filtres avancés */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '1rem',
           alignItems: 'center'
         }}>
           {/* 1. Recherche VOD (Nom du Média) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Nom du Média (VOD)</label>
-            <input 
-              type="text" 
-              placeholder="Rechercher par titre..." 
-              value={playlistSearchName} 
-              onChange={e => { setPlaylistSearchName(e.target.value); setPlaylistPage(1); }} 
-              className="custom-input" 
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.mediaName')}</label>
+            <input
+              type="text"
+              placeholder={t('search.byTitlePlaceholder')}
+              value={playlistSearchName}
+              onChange={e => { setPlaylistSearchName(e.target.value); setPlaylistPage(1); }}
+              className="custom-input"
               style={{ width: '100%' }}
             />
           </div>
 
           {/* 2. Recherche Groupe / Catégorie */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Groupe / Catégorie</label>
-            <input 
-              type="text" 
-              placeholder="Rechercher par groupe..." 
-              value={playlistSearch} 
-              onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }} 
-              className="custom-input" 
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.groupCategory')}</label>
+            <input
+              type="text"
+              placeholder={t('search.byGroupPlaceholder')}
+              value={playlistSearch}
+              onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }}
+              className="custom-input"
               style={{ width: '100%' }}
             />
           </div>
 
           {/* 3. Filtrage d'enrichissement TMDB */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Enrichissement TMDB</label>
-            <select 
-              value={playlistTMDBFilter} 
-              onChange={e => { setPlaylistTMDBFilter(e.target.value as 'all' | 'yes' | 'no'); setPlaylistPage(1); }} 
-              className="custom-select" 
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.tmdbEnrichment')}</label>
+            <select
+              value={playlistTMDBFilter}
+              onChange={e => { setPlaylistTMDBFilter(e.target.value as 'all' | 'yes' | 'no'); setPlaylistPage(1); }}
+              className="custom-select"
               style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
             >
-              <option value="all">Tous</option>
-              <option value="yes">Oui (Enrichis)</option>
-              <option value="no">Non (Non Enrichis)</option>
+              <option value="all">{t('tmdbFilter.all')}</option>
+              <option value="yes">{t('tmdbFilter.yes')}</option>
+              <option value="no">{t('tmdbFilter.no')}</option>
             </select>
           </div>
 
           {/* 4. État Pipeline */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>État Pipeline</label>
-            <select 
-              value={playlistStateFilter} 
-              onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }} 
-              className="custom-select" 
+            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.pipelineState')}</label>
+            <select
+              value={playlistStateFilter}
+              onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }}
+              className="custom-select"
               style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
             >
-              <option value="all">Tous les Statuts</option>
-              <option value="processed">Traité (Processed)</option>
-              <option value="pending">En Attente (Pending)</option>
-              <option value="downloading">En Cours (Downloading)</option>
-              <option value="organizing">En cours d'organisation (Organizing)</option>
-              <option value="downloaded">Téléchargé (Downloaded)</option>
-              <option value="failed">Échoué (Failed)</option>
+              <option value="all">{t('stateFilter.all')}</option>
+              <option value="processed">{t('stateFilter.processed')}</option>
+              <option value="pending">{t('stateFilter.pending')}</option>
+              <option value="downloading">{t('stateFilter.downloading')}</option>
+              <option value="organizing">{t('stateFilter.organizing')}</option>
+              <option value="downloaded">{t('stateFilter.downloaded')}</option>
+              <option value="failed">{t('stateFilter.failed')}</option>
             </select>
           </div>
         </div>
@@ -170,24 +172,24 @@ export function PlaylistTab({
         <table className="custom-table">
           <thead>
             <tr>
-              <th>Nom du Média</th>
-              <th>Groupe / Catégorie</th>
-              <th>Enrichissement TMDB</th>
-              <th>État Pipeline</th>
-              <th>Créé le</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <th>{t('table.headers.mediaName')}</th>
+              <th>{t('table.headers.groupCategory')}</th>
+              <th>{t('table.headers.tmdbEnrichment')}</th>
+              <th>{t('table.headers.pipelineState')}</th>
+              <th>{t('table.headers.createdAt')}</th>
+              <th style={{ textAlign: 'right' }}>{t('table.headers.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {playlistLoading ? (
               <tr>
                 <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  <span style={{ fontWeight: 600 }}>Chargement de la playlist en cours...</span>
+                  <span style={{ fontWeight: 600 }}>{t('table.loading')}</span>
                 </td>
               </tr>
             ) : playlist.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Aucun item trouvé</td>
+                <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
               </tr>
             ) : (
               playlist.map(item => {
@@ -204,7 +206,7 @@ export function PlaylistTab({
                           <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>({tmdb.tmdb_year})</span>
                         </div>
                       ) : (
-                        <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Non enrichi</span>
+                        <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{t('table.notEnriched')}</span>
                       )}
                     </td>
                     <td>
@@ -212,24 +214,24 @@ export function PlaylistTab({
                         {item.state}
                       </span>
                     </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at)}</td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at, i18n.language)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
                         <button
                           onClick={(e) => { e.stopPropagation(); onOpenOverride(item); }}
                           className="btn-primary"
                           style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                          title="Corriger ou forcer manuellement l'association TMDB"
+                          title={t('table.actions.correctTitle')}
                         >
-                          {item.override_by ? 'Corriger ✏️' : 'Associer 🔍'}
+                          {item.override_by ? t('table.actions.correct') : t('table.actions.associate')}
                         </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onResetPipeline(item.id, item.content_type); }} 
-                          className="btn-secondary" 
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onResetPipeline(item.id, item.content_type); }}
+                          className="btn-secondary"
                           style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                          title="Réinitialiser l'état du média pour forcer le retraitement"
+                          title={t('table.actions.resetTitle')}
                         >
-                          Réinitialiser ↻
+                          {t('table.actions.reset')}
                         </button>
                       </div>
                     </td>
@@ -246,11 +248,15 @@ export function PlaylistTab({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-              {`Affichage de ${playlistTotal === 0 ? 0 : (playlistPage - 1) * playlistLimit + 1} à ${Math.min(playlistPage * playlistLimit, playlistTotal)} sur ${playlistTotal} entrées`}
+              {t('pagination.showing', {
+                from: playlistTotal === 0 ? 0 : (playlistPage - 1) * playlistLimit + 1,
+                to: Math.min(playlistPage * playlistLimit, playlistTotal),
+                total: playlistTotal,
+              })}
             </span>
-            
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Afficher :</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.show')}</span>
               <select
                 value={playlistLimit}
                 onChange={e => {
@@ -264,31 +270,31 @@ export function PlaylistTab({
                 <option value="50">50</option>
                 <option value="100">100</option>
               </select>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>par page</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.perPage')}</span>
             </div>
           </div>
 
           {totalPages > 1 && (
             <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-              <button 
-                disabled={playlistPage === 1} 
-                onClick={() => setPlaylistPage(1)} 
-                className="btn-secondary" 
+              <button
+                disabled={playlistPage === 1}
+                onClick={() => setPlaylistPage(1)}
+                className="btn-secondary"
                 style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
-                title="Première page"
+                title={t('pagination.firstPage')}
               >
                 &lt;&lt;
               </button>
-              <button 
-                disabled={playlistPage === 1} 
-                onClick={() => setPlaylistPage(p => Math.max(1, p - 1))} 
-                className="btn-secondary" 
+              <button
+                disabled={playlistPage === 1}
+                onClick={() => setPlaylistPage(p => Math.max(1, p - 1))}
+                className="btn-secondary"
                 style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
-                title="Page précédente"
+                title={t('pagination.prevPage')}
               >
                 &lt;
               </button>
-              
+
               {getPaginationRange(playlistPage, totalPages).map((page, index) => {
                 if (page === '...') {
                   return (
@@ -314,7 +320,7 @@ export function PlaylistTab({
                 onClick={() => setPlaylistPage(p => Math.min(totalPages, p + 1))}
                 className="btn-secondary"
                 style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === totalPages ? 0.5 : 1 }}
-                title="Page suivante"
+                title={t('pagination.nextPage')}
               >
                 &gt;
               </button>
@@ -323,13 +329,13 @@ export function PlaylistTab({
                 onClick={() => setPlaylistPage(totalPages)}
                 className="btn-secondary"
                 style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === totalPages ? 0.5 : 1 }}
-                title="Dernière page"
+                title={t('pagination.lastPage')}
               >
                 &gt;&gt;
               </button>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.4rem' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Aller à :</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.goTo')}</span>
                 <input
                   type="number"
                   min={1}
@@ -346,7 +352,7 @@ export function PlaylistTab({
                   className="btn-secondary"
                   style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
                 >
-                  Go
+                  {t('pagination.go')}
                 </button>
               </div>
             </div>
@@ -361,15 +367,15 @@ export function PlaylistTab({
           <Dialog.Content className="drawer-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
               <Dialog.Title style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                📋 Détails de la Piste
+                {t('drawer.title')}
               </Dialog.Title>
               <Dialog.Close className="btn-secondary" style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}>
-                Fermer ✕
+                {t('drawer.close')}
               </Dialog.Close>
             </div>
 
             <Dialog.Description style={{ display: 'none' }}>
-              Détails techniques et métadonnées d'enrichissement de la piste de playlist.
+              {t('drawer.description')}
             </Dialog.Description>
 
             {selectedItem && (
@@ -378,7 +384,7 @@ export function PlaylistTab({
                 {/* Section 1: Enrichissement Métadonnées (TMDB) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
-                    🎬 Enrichissement Métadonnées (TMDB)
+                    {t('drawer.tmdbSection')}
                   </h3>
                   {(() => {
                     const isMovie = selectedItem.content_type === 'movies';
@@ -391,28 +397,31 @@ export function PlaylistTab({
                           </div>
                           {tmdb.genres && (
                             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              <strong>Genres :</strong> {tmdb.genres}
+                              <strong>{t('drawer.genres')}</strong> {tmdb.genres}
                             </div>
                           )}
                           {isMovie && selectedItem.movie?.duration && (
                             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              <strong>Durée :</strong> {selectedItem.movie.duration} minutes
+                              <strong>{t('drawer.duration')}</strong> {t('drawer.durationMinutes', { count: selectedItem.movie.duration })}
                             </div>
                           )}
                           {!isMovie && (selectedItem.tvshow?.season !== undefined || (selectedItem as any).season !== undefined) && (
                             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              <strong>Position :</strong> Saison {selectedItem.tvshow?.season ?? (selectedItem as any).season}, Épisode {selectedItem.tvshow?.episode ?? (selectedItem as any).episode}
+                              <strong>{t('drawer.position')}</strong> {t('drawer.seasonEpisode', {
+                                season: selectedItem.tvshow?.season ?? (selectedItem as any).season,
+                                episode: selectedItem.tvshow?.episode ?? (selectedItem as any).episode,
+                              })}
                             </div>
                           )}
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.25rem' }}>
-                            <strong>TMDB ID :</strong> {tmdb.tmdb_id}
+                            <strong>{t('drawer.tmdbId')}</strong> {tmdb.tmdb_id}
                           </div>
                         </div>
                       );
                     } else {
                       return (
                         <div style={{ backgroundColor: 'var(--bg-app)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                          Aucune association TMDB officielle. Cet item est classifié comme : <strong>{selectedItem.content_type}</strong>.
+                          {t('drawer.noTmdbAssociation', { type: selectedItem.content_type })}
                         </div>
                       );
                     }
@@ -422,11 +431,11 @@ export function PlaylistTab({
                 {/* Section 2: État du Pipeline d'Ingestion */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
-                    ⚙️ État du Pipeline
+                    {t('drawer.pipelineSection')}
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Statut actuel :</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.currentStatus')}</span>
                       <div>
                         <span className={`badge ${getPipelineStateBadgeClass(selectedItem.state)}`} style={{ fontSize: '0.75rem' }}>
                           {selectedItem.state}
@@ -434,23 +443,23 @@ export function PlaylistTab({
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Type de contenu :</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.contentType')}</span>
                       <span style={{ fontWeight: 600, color: 'var(--primary-slate)', textTransform: 'capitalize' }}>{selectedItem.content_type}</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Date d'import :</span>
-                      <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.created_at)}</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.importDate')}</span>
+                      <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.created_at, i18n.language)}</span>
                     </div>
                     {selectedItem.override_by && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Forcé par :</span>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.overriddenBy')}</span>
                         <span style={{ fontWeight: 600, color: 'var(--primary-accent)' }}>{selectedItem.override_by}</span>
                       </div>
                     )}
                     {selectedItem.override_at && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Forcé le :</span>
-                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.override_at)}</span>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.overriddenAt')}</span>
+                        <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.override_at, i18n.language)}</span>
                       </div>
                     )}
                   </div>
@@ -459,31 +468,31 @@ export function PlaylistTab({
                 {/* Section 3: Informations de Provenance M3U */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
-                    📁 Provenance Playlist M3U
+                    {t('drawer.m3uSection')}
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
                     <div>
-                      <strong style={{ color: 'var(--text-secondary)' }}>🏷️ Nom d'origine :</strong>{' '}
+                      <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.originalName')}</strong>{' '}
                       <span style={{ color: 'var(--primary-slate)', fontWeight: 600 }}>{selectedItem.tvg_name}</span>
                     </div>
                     <div>
-                      <strong style={{ color: 'var(--text-secondary)' }}>📁 Catégorie d'origine :</strong>{' '}
+                      <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.originalCategory')}</strong>{' '}
                       <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{selectedItem.group_title}</span>
                     </div>
                     <div>
-                      <strong style={{ color: 'var(--text-secondary)' }}>🔢 Numéro de ligne M3U :</strong>{' '}
+                      <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.m3uLineNumber')}</strong>{' '}
                       <span style={{ color: 'var(--primary-slate)', fontWeight: 600 }}>
                         {selectedItem.line_number > 0 ? (
                           <span style={{ backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '0.15rem 0.4rem', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
-                            Ligne {selectedItem.line_number}
+                            {t('drawer.line', { number: selectedItem.line_number })}
                           </span>
                         ) : (
-                          <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>Inconnue (Ancien import)</span>
+                          <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{t('drawer.unknownLegacyImport')}</span>
                         )}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <strong style={{ color: 'var(--text-secondary)' }}>🔑 Hash unique :</strong>{' '}
+                      <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.uniqueHash')}</strong>{' '}
                       <code style={{ fontFamily: 'monospace', fontSize: '0.75rem', backgroundColor: 'var(--bg-app)', padding: '0.15rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
                         {selectedItem.line_hash}
                       </code>
@@ -492,7 +501,7 @@ export function PlaylistTab({
                         onClick={() => handleCopy(selectedItem.line_hash, 'hash')}
                         style={{ fontSize: '0.75rem', color: 'var(--primary-accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.15rem', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }}
                       >
-                        {copiedText === 'hash' ? '✓ Copié' : '📄 Copier'}
+                        {copiedText === 'hash' ? t('drawer.copied') : t('drawer.copy')}
                       </button>
                     </div>
                   </div>
@@ -501,7 +510,7 @@ export function PlaylistTab({
                 {/* Section 4: Ligne M3U d'origine complète (Copiable) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
-                    📄 Contenu Brut de la Ligne
+                    {t('drawer.rawLineSection')}
                   </h3>
                   <div className="technical-block-container">
                     <pre className="technical-block">
@@ -512,7 +521,7 @@ export function PlaylistTab({
                       className="copy-btn"
                       onClick={() => handleCopy(selectedItem.line_content, 'content')}
                     >
-                      {copiedText === 'content' ? '✓ Copié !' : '📋 Copier'}
+                      {copiedText === 'content' ? t('drawer.copiedBang') : t('drawer.copyIcon')}
                     </button>
                   </div>
                 </div>
@@ -521,7 +530,7 @@ export function PlaylistTab({
                 {selectedItem.line_url && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
-                      🔗 URL brute du flux
+                      {t('drawer.rawUrlSection')}
                     </h3>
                     <div className="technical-block-container">
                       <pre className="technical-block" style={{ maxHeight: '80px' }}>
@@ -532,7 +541,7 @@ export function PlaylistTab({
                         className="copy-btn"
                         onClick={() => handleCopy(selectedItem.line_url!, 'url')}
                       >
-                        {copiedText === 'url' ? '✓ Copié !' : '📋 Copier'}
+                        {copiedText === 'url' ? t('drawer.copiedBang') : t('drawer.copyIcon')}
                       </button>
                     </div>
                   </div>

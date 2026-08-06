@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import { useTranslation } from 'react-i18next';
 import { useToast } from './hooks/useToast';
+import { useApiErrorMessage } from './hooks/useApiErrorMessage';
 import { useHealthAndStats } from './hooks/useHealthAndStats';
 import { usePlaylist } from './hooks/usePlaylist';
 import { useFilters } from './hooks/useFilters';
@@ -21,10 +23,11 @@ import { MoveFolderDialog } from './components/MoveFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('stalkeer_active_tab') || 'playlist';
   });
-  
+
   const { notification, showToast } = useToast();
   const { healthStatus, stats, fetchStats, getDownloadSuccessRatio } = useHealthAndStats();
   
@@ -57,30 +60,44 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
+    document.documentElement.lang = i18n.language;
+    const handleLanguageChanged = (lng: string) => {
+      document.documentElement.lang = lng;
+    };
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+  }, [i18n]);
+
+  useEffect(() => {
     if (activeTab === 'filters') {
       fetchFilters();
     }
   }, [activeTab, fetchFilters]);
 
+  const translateApiError = useApiErrorMessage();
+
   const handleResetPipeline = (id: number, contentType: string) => {
     api.resetPipeline(id, contentType)
       .then(() => {
-        showToast('Flux réinitialisé avec succès ! Prêt pour le retraitement.');
+        showToast(t('toasts.resetSuccess'));
         fetchPlaylist();
         fetchStats();
       })
-      .catch(err => showToast(err.message, 'error'));
+      .catch(err => showToast(translateApiError(err), 'error'));
   };
 
   const handleDeleteFilter = (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement ce filtre de tri ?')) return;
+    if (!confirm(t('confirm.deleteFilter'))) return;
     deleteFilter(id)
-      .then(() => showToast('Filtre supprimé avec succès !'))
-      .catch(err => showToast(err.message, 'error'));
+      .then(() => showToast(t('toasts.filterDeleted')))
+      .catch(err => showToast(translateApiError(err), 'error'));
   };
 
   const openMoveDialog = (item: DownloadEnriched) => {
-    const filename = item.download_path ? item.download_path.split('/').pop() || 'Média' : 'Média';
+    const unnamedMedia = t('media.unnamed');
+    const filename = item.download_path ? item.download_path.split('/').pop() || unnamedMedia : unnamedMedia;
     const moveMeta = {
       id: item.id,
       title: item.content?.title || filename,
@@ -112,10 +129,10 @@ export default function App() {
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="segmented-tabs-list">
-          <Tabs.Trigger value="playlist" className="segmented-tabs-trigger">🗒️ Playlist M3U</Tabs.Trigger>
-          <Tabs.Trigger value="filters" className="segmented-tabs-trigger">🔍 Filtres de Tri</Tabs.Trigger>
-          <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ Traitements</Tabs.Trigger>
-          <Tabs.Trigger value="downloads" className="segmented-tabs-trigger">📥 Téléchargements</Tabs.Trigger>
+          <Tabs.Trigger value="playlist" className="segmented-tabs-trigger">🗒️ {t('tabs.playlist')}</Tabs.Trigger>
+          <Tabs.Trigger value="filters" className="segmented-tabs-trigger">🔍 {t('tabs.filters')}</Tabs.Trigger>
+          <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ {t('tabs.logs')}</Tabs.Trigger>
+          <Tabs.Trigger value="downloads" className="segmented-tabs-trigger">📥 {t('tabs.downloads')}</Tabs.Trigger>
         </Tabs.List>
 
         <PlaylistTab

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
+import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
+import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
 
 interface CreateFilterDialogProps {
   isOpen: boolean;
@@ -9,6 +11,8 @@ interface CreateFilterDialogProps {
 }
 
 export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFilterDialogProps) {
+  const { t } = useTranslation('dialogs');
+  const translateApiError = useApiErrorMessage();
   const [newFilterName, setNewFilterName] = useState('');
   const [newFilterAttribute, setNewFilterAttribute] = useState('group_title');
   const [newFilterIncludes, setNewFilterIncludes] = useState('');
@@ -19,7 +23,7 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
   const handleCreateFilter = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFilterName.trim()) {
-      setFilterError('Le nom du filtre est requis.');
+      setFilterError(t('createFilter.nameRequired'));
       return;
     }
 
@@ -35,14 +39,14 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
 
     api.createFilter(payload)
       .then(() => {
-        onSuccess('Nouveau filtre de tri configuré avec succès !');
+        onSuccess(t('createFilter.successMessage'));
         onOpenChange(false);
         setNewFilterName('');
         setNewFilterIncludes('');
         setNewFilterExcludes('');
       })
-      .catch((err: any) => {
-        setFilterError(err.message);
+      .catch((err: unknown) => {
+        setFilterError(translateApiError(err));
       })
       .finally(() => setIsFilterCreating(false));
   };
@@ -53,56 +57,56 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog-content">
           <Dialog.Title style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-slate)', marginBottom: '1rem' }}>
-            🔍 Configurer un Nouveau Filtre de Tri
+            {t('createFilter.title')}
           </Dialog.Title>
           <Dialog.Description style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1.5rem', fontWeight: 500 }}>
-            Ajoutez une expression régulière d'Inclusion ou d'Exclusion pour accepter ou rejeter automatiquement les flux de votre playlist M3U lors de l'import.
+            {t('createFilter.description')}
           </Dialog.Description>
 
           <form onSubmit={handleCreateFilter} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Nom explicite du filtre :</label>
-              <input 
-                type="text" 
-                placeholder="Ex: Filtre Films Francophones" 
-                value={newFilterName} 
-                onChange={e => setNewFilterName(e.target.value)} 
-                className="custom-input" 
-                required 
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.nameLabel')}</label>
+              <input
+                type="text"
+                placeholder={t('createFilter.namePlaceholder')}
+                value={newFilterName}
+                onChange={e => setNewFilterName(e.target.value)}
+                className="custom-input"
+                required
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Attribut ciblé du média :</label>
-              <select 
-                value={newFilterAttribute} 
-                onChange={e => setNewFilterAttribute(e.target.value)} 
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.attributeLabel')}</label>
+              <select
+                value={newFilterAttribute}
+                onChange={e => setNewFilterAttribute(e.target.value)}
                 className="custom-select"
               >
-                <option value="group_title">Group Title (Ex: VOD-FR, SERIES-US)</option>
-                <option value="tvg_name">TVG Name (Ex: Inception.2010.mkv)</option>
+                <option value="group_title">{t('createFilter.attributeGroupTitle')}</option>
+                <option value="tvg_name">{t('createFilter.attributeTvgName')}</option>
               </select>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Patterns d'Inclusion (Séparés par des virgules) :</label>
-              <input 
-                type="text" 
-                placeholder="Ex: FRENCH, TRUEFRENCH, VFF" 
-                value={newFilterIncludes} 
-                onChange={e => setNewFilterIncludes(e.target.value)} 
-                className="custom-input" 
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.includeLabel')}</label>
+              <input
+                type="text"
+                placeholder={t('createFilter.includePlaceholder')}
+                value={newFilterIncludes}
+                onChange={e => setNewFilterIncludes(e.target.value)}
+                className="custom-input"
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Patterns d'Exclusion (Séparés par des virgules) :</label>
-              <input 
-                type="text" 
-                placeholder="Ex: VOSTFR, SUBBED, HDLight" 
-                value={newFilterExcludes} 
-                onChange={e => setNewFilterExcludes(e.target.value)} 
-                className="custom-input" 
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.excludeLabel')}</label>
+              <input
+                type="text"
+                placeholder={t('createFilter.excludePlaceholder')}
+                value={newFilterExcludes}
+                onChange={e => setNewFilterExcludes(e.target.value)}
+                className="custom-input"
               />
             </div>
 
@@ -114,22 +118,22 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
 
             {/* Actions */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-              <button 
-                type="button" 
-                disabled={isFilterCreating} 
-                onClick={() => { onOpenChange(false); setFilterError(null); }} 
-                className="btn-secondary" 
+              <button
+                type="button"
+                disabled={isFilterCreating}
+                onClick={() => { onOpenChange(false); setFilterError(null); }}
+                className="btn-secondary"
                 style={{ padding: '0.5rem 1rem' }}
               >
-                Annuler
+                {t('cancel')}
               </button>
-              <button 
-                type="submit" 
-                disabled={isFilterCreating} 
-                className="btn-primary" 
+              <button
+                type="submit"
+                disabled={isFilterCreating}
+                className="btn-primary"
                 style={{ padding: '0.5rem 1.25rem' }}
               >
-                {isFilterCreating ? 'Enregistrement...' : '✓ Enregistrer le Filtre'}
+                {isFilterCreating ? t('createFilter.saving') : t('createFilter.save')}
               </button>
             </div>
           </form>

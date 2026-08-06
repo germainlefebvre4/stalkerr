@@ -444,7 +444,7 @@ func (s *Server) createFilter(c *gin.Context) {
 
 	if err := db.Create(&filter).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
+			Error:   "filter_create_failed",
 			Message: "failed to create filter",
 		})
 		return
