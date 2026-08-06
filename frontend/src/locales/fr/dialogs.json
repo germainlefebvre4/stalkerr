@@ -9,6 +9,8 @@
     "attributeLabel": "Attribut ciblé du média :",
     "attributeGroupTitle": "Group Title (Ex: VOD-FR, SERIES-US)",
     "attributeTvgName": "TVG Name (Ex: Inception.2010.mkv)",
+    "loadCurrentConfig": "↻ Reprendre la config actuelle",
+    "replaceWarning": "Une surcharge active nommée « {{name}} » existe déjà sur cet attribut — l'enregistrement la remplacera.",
     "includeLabel": "Patterns d'Inclusion (Séparés par des virgules) :",
     "includePlaceholder": "Ex: FRENCH, TRUEFRENCH, VFF",
     "excludeLabel": "Patterns d'Exclusion (Séparés par des virgules) :",

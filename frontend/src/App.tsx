@@ -62,7 +62,10 @@ export default function App() {
     playlistSort, playlistOrder, setPlaylistSort
   } = usePlaylist();
   
-  const { filters, filtersLoading, fetchFilters, deleteFilter } = useFilters();
+  const {
+    filters, filtersLoading, fetchFilters, deleteFilter,
+    systemFilters, systemFiltersLoading, fetchSystemFilters
+  } = useFilters();
   const { logs, logsLoading, fetchLogs } = useLogs(activeTab === 'logs');
   
   const {
@@ -96,8 +99,9 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'filters') {
       fetchFilters();
+      fetchSystemFilters();
     }
-  }, [activeTab, fetchFilters]);
+  }, [activeTab, fetchFilters, fetchSystemFilters]);
 
   const translateApiError = useApiErrorMessage();
 
@@ -180,6 +184,7 @@ export default function App() {
 
         <FiltersTab
           filters={filters} filtersLoading={filtersLoading} onDeleteFilter={handleDeleteFilter}
+          systemFilters={systemFilters} systemFiltersLoading={systemFiltersLoading}
           onOpenCreate={() => setIsCreateFilterOpen(true)}
         />
 
@@ -209,8 +214,12 @@ export default function App() {
         </nav>
       )}
 
-      <CreateFilterDialog isOpen={isCreateFilterOpen} onOpenChange={setIsCreateFilterOpen} onSuccess={(msg) => { showToast(msg); fetchFilters(); }} />
-      
+      <CreateFilterDialog
+        isOpen={isCreateFilterOpen} onOpenChange={setIsCreateFilterOpen}
+        onSuccess={(msg) => { showToast(msg); fetchFilters(); }}
+        filters={filters} systemFilters={systemFilters}
+      />
+
       <MoveFolderDialog isOpen={isMoveOpen} onOpenChange={setIsMoveOpen} moveItem={moveItem} configPaths={configPaths} onSuccess={(msg) => { showToast(msg); fetchDownloads(); fetchStats(); }} />
       
       <ManualOverrideDialog isOpen={isOverrideOpen} onOpenChange={setIsOverrideOpen} overrideItemData={overrideItemData} onSuccess={(msg) => { showToast(msg); fetchPlaylist(); fetchStats(); }} />

@@ -9,6 +9,8 @@
     "attributeLabel": "Targeted media attribute:",
     "attributeGroupTitle": "Group Title (E.g.: VOD-FR, SERIES-US)",
     "attributeTvgName": "TVG Name (E.g.: Inception.2010.mkv)",
+    "loadCurrentConfig": "↻ Load current config",
+    "replaceWarning": "An active override named \"{{name}}\" already exists on this attribute — saving will replace it.",
     "includeLabel": "Inclusion patterns (comma-separated):",
     "includePlaceholder": "E.g.: FRENCH, TRUEFRENCH, VFF",
     "excludeLabel": "Exclusion patterns (comma-separated):",

@@ -1,12 +1,13 @@
 package filter
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 )
 
@@ -31,29 +32,40 @@ func NewManager() *Manager {
 	}
 }
 
-// LoadFromConfig loads file-based filters from configuration
+// LoadFromConfig loads file-based filters from configuration. A pattern that
+// fails to compile for one attribute is logged and that attribute is skipped
+// (treated as having no origin filter) rather than aborting the whole load.
 func (m *Manager) LoadFromConfig() error {
 	cfg := config.Get()
+	log := logger.AppLogger()
 
 	// Load group-title filters
 	if err := m.loadFilterSet("group_title", cfg.Filter.GroupTitle.IncludePatterns, cfg.Filter.GroupTitle.ExcludePatterns, false); err != nil {
-		return fmt.Errorf("failed to load group-title filters: %w", err)
+		log.WithFields(map[string]interface{}{
+			"attribute": "group_title",
+		}).Error("skipping group_title origin filter", err)
 	}
 
 	// Load tvg-name filters
 	if err := m.loadFilterSet("tvg_name", cfg.Filter.TvgName.IncludePatterns, cfg.Filter.TvgName.ExcludePatterns, false); err != nil {
-		return fmt.Errorf("failed to load tvg-name filters: %w", err)
+		log.WithFields(map[string]interface{}{
+			"attribute": "tvg_name",
+		}).Error("skipping tvg_name origin filter", err)
 	}
 
 	return nil
 }
 
-// LoadFromDatabase loads runtime filters from database
+// LoadFromDatabase loads runtime filters from database. A runtime filter row
+// whose patterns fail to compile is logged and skipped rather than aborting
+// the whole load.
 func (m *Manager) LoadFromDatabase() error {
 	db := database.Get()
 	if db == nil {
 		return fmt.Errorf("database not initialized")
 	}
+
+	log := logger.AppLogger()
 
 	var dbFilters []models.FilterConfig
 	if err := db.Where("is_runtime = ?", true).Find(&dbFilters).Error; err != nil {
@@ -62,22 +74,21 @@ func (m *Manager) LoadFromDatabase() error {
 
 	for _, dbFilter := range dbFilters {
 		var includePatterns []string
-		var excludePatterns []string
-
 		if dbFilter.IncludePatterns != nil {
-			if err := json.Unmarshal([]byte(*dbFilter.IncludePatterns), &includePatterns); err != nil {
-				return fmt.Errorf("failed to unmarshal include patterns for filter '%s': %w", dbFilter.Name, err)
-			}
+			includePatterns = ParsePatternList(*dbFilter.IncludePatterns)
 		}
 
+		var excludePatterns []string
 		if dbFilter.ExcludePatterns != nil {
-			if err := json.Unmarshal([]byte(*dbFilter.ExcludePatterns), &excludePatterns); err != nil {
-				return fmt.Errorf("failed to unmarshal exclude patterns for filter '%s': %w", dbFilter.Name, err)
-			}
+			excludePatterns = ParsePatternList(*dbFilter.ExcludePatterns)
 		}
 
 		if err := m.loadFilterSet(dbFilter.Attribute, includePatterns, excludePatterns, true); err != nil {
-			return fmt.Errorf("failed to load runtime filter '%s': %w", dbFilter.Name, err)
+			log.WithFields(map[string]interface{}{
+				"attribute":   dbFilter.Attribute,
+				"filter_name": dbFilter.Name,
+			}).Error("skipping runtime filter", err)
+			continue
 		}
 	}
 
@@ -222,6 +233,26 @@ func (m *Manager) loadFilterSet(attribute string, includePatterns, excludePatter
 	}
 
 	return nil
+}
+
+// ParsePatternList splits a stored comma-separated pattern list into individual
+// trimmed patterns, dropping empty tokens (e.g. from a trailing comma).
+func ParsePatternList(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	patterns := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		patterns = append(patterns, trimmed)
+	}
+
+	return patterns
 }
 
 // ValidatePattern validates a regex pattern

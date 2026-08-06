@@ -3,7 +3,11 @@ package filter
 import (
 	"testing"
 
+	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestValidatePattern(t *testing.T) {
@@ -39,6 +43,54 @@ func TestValidatePattern(t *testing.T) {
 			err := ValidatePattern(tt.pattern)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidatePattern() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParsePatternList(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{
+			name: "empty string",
+			raw:  "",
+			want: nil,
+		},
+		{
+			name: "single pattern",
+			raw:  "FRENCH",
+			want: []string{"FRENCH"},
+		},
+		{
+			name: "multiple patterns",
+			raw:  "FRENCH, VFF, TRUEFRENCH",
+			want: []string{"FRENCH", "VFF", "TRUEFRENCH"},
+		},
+		{
+			name: "trailing comma",
+			raw:  "FRENCH, VFF,",
+			want: []string{"FRENCH", "VFF"},
+		},
+		{
+			name: "extra whitespace",
+			raw:  "  FRENCH  ,   VFF  ",
+			want: []string{"FRENCH", "VFF"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParsePatternList(tt.raw)
+			if len(got) != len(tt.want) {
+				t.Fatalf("ParsePatternList(%q) = %v, want %v", tt.raw, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("ParsePatternList(%q)[%d] = %q, want %q", tt.raw, i, got[i], tt.want[i])
+				}
 			}
 		})
 	}
@@ -292,6 +344,64 @@ func TestManager_RuntimeFilterPrecedence(t *testing.T) {
 				t.Errorf("Matches() = %v, want %v (runtime precedence test)", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestManager_LoadFromConfig_IsolatesAttributeFailures(t *testing.T) {
+	config.SetConfig(&config.Config{
+		Filter: config.FilterConfig{
+			GroupTitle: config.FilterDef{
+				IncludePatterns: []string{".*"},
+			},
+			TvgName: config.FilterDef{
+				IncludePatterns: []string{"*"}, // invalid regex
+			},
+		},
+	})
+	defer config.SetConfig(nil)
+
+	m := NewManager()
+	if err := m.LoadFromConfig(); err != nil {
+		t.Fatalf("LoadFromConfig() returned error, want nil (failures should be isolated): %v", err)
+	}
+
+	if !m.Matches("group_title", "Movies HD") {
+		t.Error("expected group_title's valid origin filter to still be loaded and matching")
+	}
+	if m.GetFilterCount() != 1 {
+		t.Errorf("expected 1 filter loaded (group_title only, tvg_name skipped), got %d", m.GetFilterCount())
+	}
+	if !m.Matches("tvg_name", "anything") {
+		t.Error("expected tvg_name to allow all values since its origin filter failed to compile")
+	}
+}
+
+func TestManager_LoadFromDatabase_IsolatesRowFailures(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.FilterConfig{}); err != nil {
+		t.Fatalf("failed to migrate models: %v", err)
+	}
+
+	valid := "FRENCH"
+	invalid := "("
+	db.Create(&models.FilterConfig{Name: "Good", Attribute: "group_title", IncludePatterns: &valid, IsRuntime: true})
+	db.Create(&models.FilterConfig{Name: "Bad", Attribute: "tvg_name", IncludePatterns: &invalid, IsRuntime: true})
+
+	database.SetDB(db)
+
+	m := NewManager()
+	if err := m.LoadFromDatabase(); err != nil {
+		t.Fatalf("LoadFromDatabase() returned error, want nil (row failures should be isolated): %v", err)
+	}
+
+	if !m.Matches("group_title", "FRENCH Movie") {
+		t.Error("expected group_title's valid runtime filter to be loaded and matching")
+	}
+	if m.GetFilterCount() != 1 {
+		t.Errorf("expected 1 filter loaded (bad tvg_name row skipped), got %d", m.GetFilterCount())
 	}
 }
 

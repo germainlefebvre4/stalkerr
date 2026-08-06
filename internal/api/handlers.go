@@ -11,6 +11,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/dryrun"
+	"github.com/glefebvre/stalkeer/internal/filter"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
 )
@@ -447,6 +448,51 @@ func (s *Server) listFilters(c *gin.Context) {
 	})
 }
 
+// listSystemFilters returns the origin (config.yml) filter configuration per attribute
+func (s *Server) listSystemFilters(c *gin.Context) {
+	filterCfg := config.Get().Filter
+
+	c.JSON(http.StatusOK, SystemFilterResponse{
+		GroupTitle: toAttributeFilterPatterns(filterCfg.GroupTitle),
+		TvgName:    toAttributeFilterPatterns(filterCfg.TvgName),
+	})
+}
+
+func toAttributeFilterPatterns(def config.FilterDef) AttributeFilterPatterns {
+	include := def.IncludePatterns
+	if include == nil {
+		include = []string{}
+	}
+	exclude := def.ExcludePatterns
+	if exclude == nil {
+		exclude = []string{}
+	}
+	return AttributeFilterPatterns{
+		IncludePatterns: include,
+		ExcludePatterns: exclude,
+	}
+}
+
+// validateFilterPatterns checks that every pattern in a comma-separated
+// include/exclude pattern list compiles as a valid regular expression.
+func validateFilterPatterns(includePatterns, excludePatterns *string) error {
+	if includePatterns != nil {
+		for _, pattern := range filter.ParsePatternList(*includePatterns) {
+			if err := filter.ValidatePattern(pattern); err != nil {
+				return fmt.Errorf("invalid include pattern %q: %w", pattern, err)
+			}
+		}
+	}
+	if excludePatterns != nil {
+		for _, pattern := range filter.ParsePatternList(*excludePatterns) {
+			if err := filter.ValidatePattern(pattern); err != nil {
+				return fmt.Errorf("invalid exclude pattern %q: %w", pattern, err)
+			}
+		}
+	}
+	return nil
+}
+
 // createFilter creates a new runtime filter
 func (s *Server) createFilter(c *gin.Context) {
 	db := database.Get()
@@ -469,7 +515,15 @@ func (s *Server) createFilter(c *gin.Context) {
 		return
 	}
 
-	filter := models.FilterConfig{
+	if err := validateFilterPatterns(req.IncludePatterns, req.ExcludePatterns); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_pattern",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	newFilter := models.FilterConfig{
 		Name:            req.Name,
 		Attribute:       req.Attribute,
 		IncludePatterns: req.IncludePatterns,
@@ -477,7 +531,14 @@ func (s *Server) createFilter(c *gin.Context) {
 		IsRuntime:       true,
 	}
 
-	if err := db.Create(&filter).Error; err != nil {
+	// Only one runtime filter may be active per attribute: replace any existing one.
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("is_runtime = ? AND attribute = ?", true, req.Attribute).Delete(&models.FilterConfig{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&newFilter).Error
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "filter_create_failed",
 			Message: "failed to create filter",
@@ -485,7 +546,7 @@ func (s *Server) createFilter(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, toFilterResponse(filter))
+	c.JSON(http.StatusCreated, toFilterResponse(newFilter))
 }
 
 // updateFilter updates an existing filter
@@ -522,6 +583,7 @@ func (s *Server) updateFilter(c *gin.Context) {
 	if req.Name != nil {
 		filter.Name = *req.Name
 	}
+	replacedAttribute := ""
 	if req.Attribute != nil {
 		if *req.Attribute != "group_title" && *req.Attribute != "tvg_name" {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -529,6 +591,9 @@ func (s *Server) updateFilter(c *gin.Context) {
 				Message: "attribute must be 'group_title' or 'tvg_name'",
 			})
 			return
+		}
+		if *req.Attribute != filter.Attribute {
+			replacedAttribute = *req.Attribute
 		}
 		filter.Attribute = *req.Attribute
 	}
@@ -539,7 +604,25 @@ func (s *Server) updateFilter(c *gin.Context) {
 		filter.ExcludePatterns = req.ExcludePatterns
 	}
 
-	if err := db.Save(&filter).Error; err != nil {
+	if err := validateFilterPatterns(filter.IncludePatterns, filter.ExcludePatterns); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_pattern",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Only one runtime filter may be active per attribute: replace any existing one
+	// when this filter is being moved onto a different attribute.
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if replacedAttribute != "" {
+			if err := tx.Where("is_runtime = ? AND attribute = ? AND id <> ?", true, replacedAttribute, filter.ID).Delete(&models.FilterConfig{}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Save(&filter).Error
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "database_error",
 			Message: "failed to update filter",

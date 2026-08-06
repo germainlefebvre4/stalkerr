@@ -120,3 +120,13 @@ export interface FilterConfig {
   exclude_patterns?: string;
   is_runtime: boolean;
 }
+
+export interface AttributeFilterPatterns {
+  include_patterns: string[];
+  exclude_patterns: string[];
+}
+
+export interface SystemFilterConfig {
+  group_title: AttributeFilterPatterns;
+  tvg_name: AttributeFilterPatterns;
+}

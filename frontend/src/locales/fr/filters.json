@@ -3,9 +3,12 @@
   "subtitle": "Gérez les patterns de filtrage appliqués aux flux M3U lors de l'enrichissement",
   "configureButton": "+ Configurer un Filtre",
   "loading": "Chargement des filtres...",
-  "emptyTitle": "Aucun filtre de tri configuré",
-  "emptySubtitle": "Tous les flux M3U importés seront acceptés par défaut",
-  "attribute": "Attribut: {{attribute}}",
+  "attributeLabels": {
+    "group_title": "Group Title",
+    "tvg_name": "TVG Name"
+  },
+  "originBadge": "🔧 Origine (config.yml)",
+  "overrideBadge": "✏️ Surcharge active",
   "deleteTitle": "Supprimer ce filtre",
   "delete": "Supprimer 🗑️",
   "include": "🟢 Inclure : ",

@@ -56,6 +56,7 @@
     "move_failed": "Le déplacement du dossier a échoué. Veuillez réessayer.",
     "override_failed": "L'application de l'association manuelle a échoué. Veuillez réessayer.",
     "filter_create_failed": "La création du filtre a échoué. Veuillez réessayer.",
+    "invalid_pattern": "L'un des patterns n'est pas une expression régulière valide. Corrigez-le et réessayez.",
     "generic": "Une erreur est survenue. Veuillez réessayer."
   }
 }

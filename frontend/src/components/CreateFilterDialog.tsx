@@ -3,14 +3,17 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
+import { FilterConfig, SystemFilterConfig } from '../types';
 
 interface CreateFilterDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (message: string) => void;
+  filters: FilterConfig[];
+  systemFilters: SystemFilterConfig | null;
 }
 
-export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFilterDialogProps) {
+export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, systemFilters }: CreateFilterDialogProps) {
   const { t } = useTranslation('dialogs');
   const translateApiError = useApiErrorMessage();
   const [newFilterName, setNewFilterName] = useState('');
@@ -19,6 +22,21 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
   const [newFilterExcludes, setNewFilterExcludes] = useState('');
   const [isFilterCreating, setIsFilterCreating] = useState(false);
   const [filterError, setFilterError] = useState<string | null>(null);
+
+  const activeOverride = filters.find(f => f.attribute === newFilterAttribute) || null;
+
+  const handleLoadCurrentConfig = () => {
+    if (activeOverride) {
+      setNewFilterIncludes(activeOverride.include_patterns || '');
+      setNewFilterExcludes(activeOverride.exclude_patterns || '');
+      return;
+    }
+    const origin = systemFilters?.[newFilterAttribute as keyof SystemFilterConfig];
+    if (origin) {
+      setNewFilterIncludes(origin.include_patterns.join(', '));
+      setNewFilterExcludes(origin.exclude_patterns.join(', '));
+    }
+  };
 
   const handleCreateFilter = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +95,17 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.attributeLabel')}</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.attributeLabel')}</label>
+                <button
+                  type="button"
+                  onClick={handleLoadCurrentConfig}
+                  className="btn-secondary"
+                  style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                >
+                  {t('createFilter.loadCurrentConfig')}
+                </button>
+              </div>
               <select
                 value={newFilterAttribute}
                 onChange={e => setNewFilterAttribute(e.target.value)}
@@ -87,6 +115,12 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
                 <option value="tvg_name">{t('createFilter.attributeTvgName')}</option>
               </select>
             </div>
+
+            {activeOverride && (
+              <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--status-pending-bg)', color: 'var(--status-pending-text)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--status-pending-border)' }}>
+                ⚠️ {t('createFilter.replaceWarning', { name: activeOverride.name })}
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.includeLabel')}</label>

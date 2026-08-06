@@ -62,6 +62,18 @@ type TVShowResponse struct {
 	Episode   *int    `json:"episode,omitempty"`
 }
 
+// SystemFilterResponse represents the origin (config.yml) filter configuration per attribute
+type SystemFilterResponse struct {
+	GroupTitle AttributeFilterPatterns `json:"group_title"`
+	TvgName    AttributeFilterPatterns `json:"tvg_name"`
+}
+
+// AttributeFilterPatterns represents the include/exclude patterns for a single attribute
+type AttributeFilterPatterns struct {
+	IncludePatterns []string `json:"include_patterns"`
+	ExcludePatterns []string `json:"exclude_patterns"`
+}
+
 // FilterResponse represents a filter configuration
 type FilterResponse struct {
 	ID              uint    `json:"id"`

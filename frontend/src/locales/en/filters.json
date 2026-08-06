@@ -3,9 +3,12 @@
   "subtitle": "Manage the filtering patterns applied to M3U feeds during enrichment",
   "configureButton": "+ Configure a Filter",
   "loading": "Loading filters...",
-  "emptyTitle": "No sorting filter configured",
-  "emptySubtitle": "All imported M3U feeds will be accepted by default",
-  "attribute": "Attribute: {{attribute}}",
+  "attributeLabels": {
+    "group_title": "Group Title",
+    "tvg_name": "TVG Name"
+  },
+  "originBadge": "🔧 Origin (config.yml)",
+  "overrideBadge": "✏️ Active override",
   "deleteTitle": "Delete this filter",
   "delete": "Delete 🗑️",
   "include": "🟢 Include: ",

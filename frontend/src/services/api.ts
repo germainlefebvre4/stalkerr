@@ -5,7 +5,8 @@ import {
   DownloadEnriched,
   ConfigPaths,
   StatsResponse,
-  FilterConfig
+  FilterConfig,
+  SystemFilterConfig
 } from '../types';
 
 export class ApiError extends Error {
@@ -105,6 +106,12 @@ export const api = {
 
   async getFilters(): Promise<{ filters: FilterConfig[] }> {
     const res = await fetch('/api/v1/filters');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getSystemFilters(): Promise<SystemFilterConfig> {
+    const res = await fetch('/api/v1/filters/system');
     if (!res.ok) return throwApiError(res);
     return res.json();
   },
