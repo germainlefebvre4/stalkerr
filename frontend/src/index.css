@@ -436,10 +436,13 @@ input, select {
 .download-card {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 1.25rem;
+  padding: 1rem;
   background: #fff;
   box-shadow: var(--shadow-sm);
   margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .download-header {
@@ -588,4 +591,159 @@ input, select {
 
 .clickable-row:hover td {
   background-color: rgba(99, 102, 241, 0.04) !important;
+}
+
+/* Page container */
+.app-container {
+  padding-bottom: 2rem;
+}
+
+/* Mobile bottom tab bar navigation */
+.mobile-tab-bar {
+  display: none;
+}
+
+.mobile-tab-bar-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: var(--mobile-tab-bar-height);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.mobile-tab-bar-btn[data-state="active"] {
+  color: var(--primary-accent);
+}
+
+.mobile-tab-bar-icon {
+  font-size: 1.15rem;
+}
+
+/* Stacked card list used by Playlist/Logs on mobile instead of a table */
+.mobile-list-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-card);
+  margin-bottom: 0.75rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.mobile-list-card:last-child {
+  margin-bottom: 0;
+}
+
+.mobile-list-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.mobile-list-card-title {
+  font-weight: 600;
+  color: var(--primary-slate);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-list-card-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-list-empty {
+  padding: 4rem 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Drawer sidepanel section titles (shared across all detail sections) */
+.drawer-section-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.35rem;
+  margin: 0;
+}
+
+/* Full-width table on desktop, flush with the surrounding card's padding */
+@media (min-width: 768px) {
+  .table-flush {
+    margin-left: -2rem;
+    margin-right: -2rem;
+  }
+}
+
+/* Mobile-only layout adjustments */
+@media (max-width: 767.98px) {
+  .segmented-tabs-list {
+    display: none;
+  }
+
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background-color: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+    padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+  }
+
+  .app-container {
+    padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom));
+  }
+
+  .kpi-card {
+    padding: 1rem;
+  }
+
+  .kpi-card-value {
+    font-size: 1.4rem;
+  }
+
+  .filter-card {
+    padding: 1rem;
+  }
+
+  .download-card {
+    padding: 0.85rem;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    min-height: 44px;
+  }
+
+  .drawer-content {
+    padding: 1.25rem;
+  }
+
+  .drawer-section-title {
+    font-size: 0.8rem;
+  }
 }

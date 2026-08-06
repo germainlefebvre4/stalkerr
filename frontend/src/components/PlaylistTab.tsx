@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { PlaylistItem } from '../types';
 import { formatDate } from '../utils/date';
 import { getPipelineStateBadgeClass } from '../utils/pipelineState';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface PlaylistTabProps {
   playlist: PlaylistItem[];
@@ -50,6 +51,7 @@ export function PlaylistTab({
   onResetPipeline
 }: PlaylistTabProps) {
   const { t, i18n } = useTranslation('playlist');
+  const isMobile = useIsMobile();
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | 'hash' | null>(null);
   const [gotoPageInput, setGotoPageInput] = React.useState('');
@@ -168,80 +170,102 @@ export function PlaylistTab({
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-        <table className="custom-table">
-          <thead>
-            <tr>
-              <th>{t('table.headers.mediaName')}</th>
-              <th>{t('table.headers.groupCategory')}</th>
-              <th>{t('table.headers.tmdbEnrichment')}</th>
-              <th>{t('table.headers.pipelineState')}</th>
-              <th>{t('table.headers.createdAt')}</th>
-              <th style={{ textAlign: 'right' }}>{t('table.headers.actions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {playlistLoading ? (
+      {isMobile ? (
+        <div>
+          {playlistLoading ? (
+            <div className="mobile-list-empty">{t('table.loading')}</div>
+          ) : playlist.length === 0 ? (
+            <div className="mobile-list-empty">{t('table.empty')}</div>
+          ) : (
+            playlist.map(item => (
+              <div key={item.id} className="mobile-list-card" onClick={() => setSelectedItem(item)}>
+                <div className="mobile-list-card-main">
+                  <span className="mobile-list-card-title">{item.tvg_name}</span>
+                  <span className="mobile-list-card-subtitle">{item.group_title}</span>
+                </div>
+                <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
+                  {item.state}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+          <table className="custom-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  <span style={{ fontWeight: 600 }}>{t('table.loading')}</span>
-                </td>
+                <th>{t('table.headers.mediaName')}</th>
+                <th>{t('table.headers.groupCategory')}</th>
+                <th>{t('table.headers.tmdbEnrichment')}</th>
+                <th>{t('table.headers.pipelineState')}</th>
+                <th>{t('table.headers.createdAt')}</th>
+                <th style={{ textAlign: 'right' }}>{t('table.headers.actions')}</th>
               </tr>
-            ) : playlist.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
-              </tr>
-            ) : (
-              playlist.map(item => {
-                const isMovie = item.content_type === 'movies';
-                const tmdb = isMovie ? item.movie : item.tvshow;
-                return (
-                  <tr key={item.id} className="clickable-row" onClick={() => setSelectedItem(item)}>
-                    <td style={{ fontWeight: 600, color: 'var(--primary-slate)' }}>{item.tvg_name}</td>
-                    <td style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.group_title}</td>
-                    <td>
-                      {tmdb ? (
-                        <div>
-                          <strong style={{ color: 'var(--primary-accent)' }}>{tmdb.tmdb_title}</strong>{' '}
-                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>({tmdb.tmdb_year})</span>
+            </thead>
+            <tbody>
+              {playlistLoading ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <span style={{ fontWeight: 600 }}>{t('table.loading')}</span>
+                  </td>
+                </tr>
+              ) : playlist.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
+                </tr>
+              ) : (
+                playlist.map(item => {
+                  const isMovie = item.content_type === 'movies';
+                  const tmdb = isMovie ? item.movie : item.tvshow;
+                  return (
+                    <tr key={item.id} className="clickable-row" onClick={() => setSelectedItem(item)}>
+                      <td style={{ fontWeight: 600, color: 'var(--primary-slate)' }}>{item.tvg_name}</td>
+                      <td style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.group_title}</td>
+                      <td>
+                        {tmdb ? (
+                          <div>
+                            <strong style={{ color: 'var(--primary-accent)' }}>{tmdb.tmdb_title}</strong>{' '}
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>({tmdb.tmdb_year})</span>
+                          </div>
+                        ) : (
+                          <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{t('table.notEnriched')}</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
+                          {item.state}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at, i18n.language)}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onOpenOverride(item); }}
+                            className="btn-primary"
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                            title={t('table.actions.correctTitle')}
+                          >
+                            {item.override_by ? t('table.actions.correct') : t('table.actions.associate')}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onResetPipeline(item.id, item.content_type); }}
+                            className="btn-secondary"
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                            title={t('table.actions.resetTitle')}
+                          >
+                            {t('table.actions.reset')}
+                          </button>
                         </div>
-                      ) : (
-                        <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{t('table.notEnriched')}</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
-                        {item.state}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at, i18n.language)}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onOpenOverride(item); }}
-                          className="btn-primary"
-                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                          title={t('table.actions.correctTitle')}
-                        >
-                          {item.override_by ? t('table.actions.correct') : t('table.actions.associate')}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onResetPipeline(item.id, item.content_type); }}
-                          className="btn-secondary"
-                          style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                          title={t('table.actions.resetTitle')}
-                        >
-                          {t('table.actions.reset')}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Pagination & Limit Selector */}
       {playlistTotal > 0 && (
@@ -383,7 +407,7 @@ export function PlaylistTab({
                 
                 {/* Section 1: Enrichissement Métadonnées (TMDB) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
+                  <h3 className="drawer-section-title">
                     {t('drawer.tmdbSection')}
                   </h3>
                   {(() => {
@@ -430,7 +454,7 @@ export function PlaylistTab({
 
                 {/* Section 2: État du Pipeline d'Ingestion */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
+                  <h3 className="drawer-section-title">
                     {t('drawer.pipelineSection')}
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
@@ -467,7 +491,7 @@ export function PlaylistTab({
 
                 {/* Section 3: Informations de Provenance M3U */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
+                  <h3 className="drawer-section-title">
                     {t('drawer.m3uSection')}
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
@@ -509,7 +533,7 @@ export function PlaylistTab({
 
                 {/* Section 4: Ligne M3U d'origine complète (Copiable) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
+                  <h3 className="drawer-section-title">
                     {t('drawer.rawLineSection')}
                   </h3>
                   <div className="technical-block-container">
@@ -529,7 +553,7 @@ export function PlaylistTab({
                 {/* Section 5: URL Brute de streaming (Copiable) */}
                 {selectedItem.line_url && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem', margin: 0 }}>
+                    <h3 className="drawer-section-title">
                       {t('drawer.rawUrlSection')}
                     </h3>
                     <div className="technical-block-container">

@@ -50,4 +50,7 @@
   --radius-md: 12px;
   --radius-lg: 18px;
   --radius-xl: 24px;
+
+  /* Mobile responsive layout */
+  --mobile-tab-bar-height: 64px;
 }

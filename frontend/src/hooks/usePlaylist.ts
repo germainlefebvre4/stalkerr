@@ -4,7 +4,7 @@ import { PlaylistItem } from '../types';
 import { useURLState, URLStateSchema } from './useURLState';
 
 const VALID_LIMITS = [10, 50, 100];
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 10;
 const VALID_TMDB_FILTERS = ['all', 'yes', 'no'];
 const VALID_CONTENT_FILTERS = ['all', 'movies', 'tvshows'];
 const VALID_STATE_FILTERS = ['all', 'processed', 'pending', 'downloading', 'organizing', 'downloaded', 'failed'];
