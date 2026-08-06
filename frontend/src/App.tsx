@@ -8,8 +8,28 @@ import { usePlaylist } from './hooks/usePlaylist';
 import { useFilters } from './hooks/useFilters';
 import { useLogs } from './hooks/useLogs';
 import { useDownloads } from './hooks/useDownloads';
+import { useURLState, URLStateSchema } from './hooks/useURLState';
 import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem } from './types';
+
+const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads'];
+
+const TAB_URL_SCHEMA = {
+  tab: {
+    default: 'playlist',
+    parse: (raw: string) => raw,
+    serialize: (v: string) => v,
+    isValid: (v: string) => VALID_TABS.includes(v),
+  },
+} satisfies URLStateSchema;
+
+function readInitialActiveTab(): string {
+  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  if (urlTab && VALID_TABS.includes(urlTab)) return urlTab;
+
+  const storedTab = localStorage.getItem('stalkeer_active_tab');
+  return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'playlist';
+}
 
 import { FloatingHeader } from './components/FloatingHeader';
 import { StatsKPICards } from './components/StatsKPICards';
@@ -24,9 +44,8 @@ import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('stalkeer_active_tab') || 'playlist';
-  });
+  const [activeTab, setActiveTab] = useState(readInitialActiveTab);
+  const [, patchTabURLState] = useURLState(TAB_URL_SCHEMA);
 
   const { notification, showToast } = useToast();
   const { healthStatus, stats, fetchStats, getDownloadSuccessRatio } = useHealthAndStats();
@@ -57,7 +76,8 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('stalkeer_active_tab', activeTab);
-  }, [activeTab]);
+    patchTabURLState({ tab: activeTab });
+  }, [activeTab, patchTabURLState]);
 
   useEffect(() => {
     document.documentElement.lang = i18n.language;
