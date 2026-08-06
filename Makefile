@@ -159,17 +159,36 @@ dev-backend: build
 
 ## docker-build: Docker build (if needed later)
 docker-build:
+	@echo "Building Docker images..."
+	@echo "Backend image: $(REGISTRY)/$(BINARY_NAME)"
 	docker build -t $(REGISTRY)/$(BINARY_NAME) .
+
+	@echo "Frontend image: $(REGISTRY)/$(BINARY_NAME)-frontend"
+	cd frontend/ && docker build -t $(REGISTRY)/$(BINARY_NAME)-frontend .
 
 ## docker-build-versioned: Docker build with version
 docker-build-versioned:
 	docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(COMMIT) -t $(REGISTRY)/$(BINARY_NAME):latest .
+	echo "Docker images built:"
+	echo "  $(REGISTRY)/$(BINARY_NAME):$(VERSION)"
+	echo "  $(REGISTRY)/$(BINARY_NAME):$(COMMIT)"
+	echo "  $(REGISTRY)/$(BINARY_NAME):latest"
+
+	cd frontend/ && docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(BINARY_NAME)-frontend:$(VERSION) -t $(REGISTRY)/$(BINARY_NAME)-frontend:$(COMMIT) -t $(REGISTRY)/$(BINARY_NAME)-frontend:latest .
+	echo "Docker images built for frontend:"
+	echo "  $(REGISTRY)/$(BINARY_NAME)-frontend:$(VERSION)"
+	echo "  $(REGISTRY)/$(BINARY_NAME)-frontend:$(COMMIT)"
+	echo "  $(REGISTRY)/$(BINARY_NAME)-frontend:latest"
 
 ## docker-push: Docker push to registry
 docker-push:
 	docker push $(REGISTRY)/$(BINARY_NAME):$(VERSION)
 	docker push $(REGISTRY)/$(BINARY_NAME):$(COMMIT)
 	docker push $(REGISTRY)/$(BINARY_NAME):latest
+
+	docker push $(REGISTRY)/$(BINARY_NAME)-frontend:$(VERSION)
+	docker push $(REGISTRY)/$(BINARY_NAME)-frontend:$(COMMIT)
+	docker push $(REGISTRY)/$(BINARY_NAME)-frontend:latest
 
 ## docker-build-push: Docker build and push to registry
 docker-build-push: docker-build-versioned docker-push

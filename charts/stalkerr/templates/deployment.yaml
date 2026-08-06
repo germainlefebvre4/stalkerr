@@ -33,7 +33,7 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: {{ include "stalkerr.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.server.imagePullPolicy | default .Values.image.pullPolicy }}
           command:
             - ./stalkeer
             - server

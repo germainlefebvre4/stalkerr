@@ -228,7 +228,7 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: stalkerr-frontend
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
+      - "${FRONTEND_PORT:-5173}:8080"
     restart: unless-stopped
     networks:
       - stalkerr-network
