@@ -165,8 +165,8 @@ jobs:
     enabled: true
     schedule: "30 23 * * *"  # Daily at 23:30
     concurrencyPolicy: Forbid
-    successfulJobsHistoryLimit: 3
-    failedJobsHistoryLimit: 3
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
     restartPolicy: OnFailure
     resources:
       limits:
@@ -181,8 +181,8 @@ jobs:
     enabled: true
     schedule: "0 0 * * *"  # Daily at midnight
     concurrencyPolicy: Forbid
-    successfulJobsHistoryLimit: 3
-    failedJobsHistoryLimit: 3
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
     restartPolicy: OnFailure
     resources:
       limits:
@@ -197,8 +197,8 @@ jobs:
     enabled: true
     schedule: "0 */2 * * *"  # Every 2 hours
     concurrencyPolicy: Forbid
-    successfulJobsHistoryLimit: 3
-    failedJobsHistoryLimit: 3
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
     restartPolicy: OnFailure
     resources:
       limits:
@@ -218,8 +218,8 @@ jobs:
     enabled: true
     schedule: "0 1-23/2 * * *"  # Odd hours (1, 3, 5, ...)
     concurrencyPolicy: Forbid
-    successfulJobsHistoryLimit: 3
-    failedJobsHistoryLimit: 3
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
     restartPolicy: OnFailure
     resources:
       limits:
