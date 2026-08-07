@@ -561,9 +561,9 @@ func TestSearchTMDBProxy_And_OverrideItem(t *testing.T) {
 			w.Write([]byte(`{"results":[{"id":202,"name":"Mock Malcolm","original_name":"Malcolm","first_air_date":"2000-01-09","overview":"Malcolm in the middle.","poster_path":"/poster2.jpg"}]}`))
 		} else if strings.HasPrefix(r.URL.Path, "/movie/101") {
 			if strings.HasSuffix(r.URL.Path, "/external_ids") {
-				w.Write([]byte(`{"tvdb_id":12345}`))
+				w.Write([]byte(`{"imdb_id":"tt1375666","tvdb_id":12345}`))
 			} else {
-				w.Write([]byte(`{"id":101,"title":"Mock Inception","release_date":"2010-07-16","genres":[{"id":28,"name":"Action"}],"runtime":148}`))
+				w.Write([]byte(`{"id":101,"title":"Mock Inception","release_date":"2010-07-16","poster_path":"/poster1.jpg","overview":"A dream within a dream.","genres":[{"id":28,"name":"Action"}],"runtime":148}`))
 			}
 		} else if strings.HasPrefix(r.URL.Path, "/tv/202") {
 			if strings.HasSuffix(r.URL.Path, "/external_ids") {
@@ -662,6 +662,19 @@ func TestSearchTMDBProxy_And_OverrideItem(t *testing.T) {
 	}
 	if overrideResp.OverrideBy == nil || *overrideResp.OverrideBy != "manual" || overrideResp.OverrideAt == nil {
 		t.Errorf("missing override logging fields in response")
+	}
+	movie := overrideResp.Movie
+	if movie.PosterPath == nil || *movie.PosterPath != "/poster1.jpg" {
+		t.Errorf("expected movie PosterPath '/poster1.jpg', got %+v", movie.PosterPath)
+	}
+	if movie.Overview == nil || *movie.Overview != "A dream within a dream." {
+		t.Errorf("expected movie Overview to be persisted, got %+v", movie.Overview)
+	}
+	if movie.IMDBID == nil || *movie.IMDBID != "tt1375666" {
+		t.Errorf("expected movie IMDBID 'tt1375666', got %+v", movie.IMDBID)
+	}
+	if movie.TVDBID == nil || *movie.TVDBID != 12345 {
+		t.Errorf("expected movie TVDBID 12345, got %+v", movie.TVDBID)
 	}
 
 	// Verify manual mapping was persisted

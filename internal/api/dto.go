@@ -43,23 +43,31 @@ type ItemResponse struct {
 
 // MovieResponse represents movie data
 type MovieResponse struct {
-	ID        uint    `json:"id"`
-	TMDBID    int     `json:"tmdb_id"`
-	TMDBTitle string  `json:"tmdb_title"`
-	TMDBYear  int     `json:"tmdb_year"`
-	Genres    *string `json:"genres,omitempty"`
-	Duration  *int    `json:"duration,omitempty"`
+	ID         uint    `json:"id"`
+	TMDBID     int     `json:"tmdb_id"`
+	TMDBTitle  string  `json:"tmdb_title"`
+	TMDBYear   int     `json:"tmdb_year"`
+	Genres     *string `json:"genres,omitempty"`
+	Duration   *int    `json:"duration,omitempty"`
+	PosterPath *string `json:"poster_path,omitempty"`
+	Overview   *string `json:"overview,omitempty"`
+	IMDBID     *string `json:"imdb_id,omitempty"`
+	TVDBID     *int    `json:"tvdb_id,omitempty"`
 }
 
 // TVShowResponse represents TV show data
 type TVShowResponse struct {
-	ID        uint    `json:"id"`
-	TMDBID    int     `json:"tmdb_id"`
-	TMDBTitle string  `json:"tmdb_title"`
-	TMDBYear  int     `json:"tmdb_year"`
-	Genres    *string `json:"genres,omitempty"`
-	Season    *int    `json:"season,omitempty"`
-	Episode   *int    `json:"episode,omitempty"`
+	ID         uint    `json:"id"`
+	TMDBID     int     `json:"tmdb_id"`
+	TMDBTitle  string  `json:"tmdb_title"`
+	TMDBYear   int     `json:"tmdb_year"`
+	Genres     *string `json:"genres,omitempty"`
+	Season     *int    `json:"season,omitempty"`
+	Episode    *int    `json:"episode,omitempty"`
+	PosterPath *string `json:"poster_path,omitempty"`
+	Overview   *string `json:"overview,omitempty"`
+	IMDBID     *string `json:"imdb_id,omitempty"`
+	TVDBID     *int    `json:"tvdb_id,omitempty"`
 }
 
 // FilterResponse represents a filter configuration

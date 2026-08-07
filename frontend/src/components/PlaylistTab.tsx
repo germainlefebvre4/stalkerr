@@ -442,31 +442,76 @@ export function PlaylistTab({
                     const isMovie = selectedItem.content_type === 'movies';
                     const tmdb = isMovie ? selectedItem.movie : selectedItem.tvshow;
                     if (tmdb) {
+                      const tmdbMediaPath = isMovie ? 'movie' : 'tv';
                       return (
-                        <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.03)', border: '1px solid rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
-                            {tmdb.tmdb_title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({tmdb.tmdb_year})</span>
-                          </div>
-                          {tmdb.genres && (
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              <strong>{t('drawer.genres')}</strong> {tmdb.genres}
+                        <div style={{ backgroundColor: 'rgba(99, 102, 241, 0.03)', border: '1px solid rgba(99, 102, 241, 0.1)', borderRadius: 'var(--radius-md)', padding: '1rem', display: 'flex', gap: '1rem' }}>
+                          {tmdb.poster_path ? (
+                            <img
+                              src={`https://image.tmdb.org/t/p/w154${tmdb.poster_path}`}
+                              alt={tmdb.tmdb_title}
+                              style={{ width: '80px', height: '120px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', flexShrink: 0 }}
+                            />
+                          ) : null}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
+                              {tmdb.tmdb_title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({tmdb.tmdb_year})</span>
                             </div>
-                          )}
-                          {isMovie && selectedItem.movie?.duration && (
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              <strong>{t('drawer.duration')}</strong> {t('drawer.durationMinutes', { count: selectedItem.movie.duration })}
+                            {tmdb.genres && (
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                <strong>{t('drawer.genres')}</strong> {tmdb.genres}
+                              </div>
+                            )}
+                            {isMovie && selectedItem.movie?.duration && (
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                <strong>{t('drawer.duration')}</strong> {t('drawer.durationMinutes', { count: selectedItem.movie.duration })}
+                              </div>
+                            )}
+                            {!isMovie && (selectedItem.tvshow?.season !== undefined || (selectedItem as any).season !== undefined) && (
+                              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                <strong>{t('drawer.position')}</strong> {t('drawer.seasonEpisode', {
+                                  season: selectedItem.tvshow?.season ?? (selectedItem as any).season,
+                                  episode: selectedItem.tvshow?.episode ?? (selectedItem as any).episode,
+                                })}
+                              </div>
+                            )}
+                            {tmdb.overview && (
+                              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, margin: 0 }}>
+                                {tmdb.overview}
+                              </p>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
+                              <a
+                                href={`https://www.themoviedb.org/${tmdbMediaPath}/${tmdb.tmdb_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: '0.8rem', color: 'var(--primary-accent)', fontWeight: 600 }}
+                              >
+                                {t('drawer.viewOnTmdb')}
+                              </a>
+                              {tmdb.imdb_id && (
+                                <a
+                                  href={`https://www.imdb.com/title/${tmdb.imdb_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: '0.8rem', color: 'var(--primary-accent)', fontWeight: 600 }}
+                                >
+                                  {t('drawer.viewOnImdb')}
+                                </a>
+                              )}
+                              {tmdb.tvdb_id && (
+                                <a
+                                  href={`https://thetvdb.com/?tab=series&id=${tmdb.tvdb_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: '0.8rem', color: 'var(--primary-accent)', fontWeight: 600 }}
+                                >
+                                  {t('drawer.viewOnTvdb')}
+                                </a>
+                              )}
                             </div>
-                          )}
-                          {!isMovie && (selectedItem.tvshow?.season !== undefined || (selectedItem as any).season !== undefined) && (
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                              <strong>{t('drawer.position')}</strong> {t('drawer.seasonEpisode', {
-                                season: selectedItem.tvshow?.season ?? (selectedItem as any).season,
-                                episode: selectedItem.tvshow?.episode ?? (selectedItem as any).episode,
-                              })}
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.25rem' }}>
+                              <strong>{t('drawer.tmdbId')}</strong> {tmdb.tmdb_id}
                             </div>
-                          )}
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '0.25rem' }}>
-                            <strong>{t('drawer.tmdbId')}</strong> {tmdb.tmdb_id}
                           </div>
                         </div>
                       );

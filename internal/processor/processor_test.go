@@ -12,6 +12,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 )
 
@@ -575,5 +576,186 @@ func TestProcessWithManualMapping(t *testing.T) {
 
 	if movie.TMDBID != 27205 || movie.TMDBTitle != "Inception" {
 		t.Errorf("associated movie details are incorrect: %+v", movie)
+	}
+}
+
+func TestEnrichMovieWithTMDBIDPersistsRichMetadata(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	db := database.Get()
+
+	mockTMDB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/external_ids"):
+			w.Write([]byte(`{"imdb_id":"tt1375666","tvdb_id":12345}`))
+		case strings.HasPrefix(r.URL.Path, "/movie/27205"):
+			w.Write([]byte(`{"id":27205,"title":"Inception","release_date":"2010-07-16","poster_path":"/poster.jpg","overview":"A mind-bending heist.","genres":[{"id":28,"name":"Action"}],"runtime":148}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockTMDB.Close()
+
+	tmdb.SetBaseURL(mockTMDB.URL)
+	defer tmdb.SetBaseURL("https://api.themoviedb.org/3")
+
+	p := &Processor{
+		db:         db,
+		logger:     logger.AppLogger(),
+		tmdbClient: tmdb.NewClient(tmdb.Config{APIKey: "mock-key", Language: "en-US"}),
+	}
+
+	line := &models.ProcessedLine{TvgName: "Inception"}
+	stats := &Statistics{}
+
+	if err := p.enrichMovieWithTMDBID(line, 27205, "en-US", stats); err != nil {
+		t.Fatalf("enrichMovieWithTMDBID failed: %v", err)
+	}
+
+	if line.MovieID == nil {
+		t.Fatal("expected MovieID to be populated")
+	}
+
+	var movie models.Movie
+	if err := db.First(&movie, *line.MovieID).Error; err != nil {
+		t.Fatalf("failed to find associated movie in DB: %v", err)
+	}
+
+	if movie.PosterPath == nil || *movie.PosterPath != "/poster.jpg" {
+		t.Errorf("expected PosterPath '/poster.jpg', got %v", movie.PosterPath)
+	}
+	if movie.Overview == nil || *movie.Overview != "A mind-bending heist." {
+		t.Errorf("expected Overview to be persisted, got %v", movie.Overview)
+	}
+	if movie.IMDBID == nil || *movie.IMDBID != "tt1375666" {
+		t.Errorf("expected IMDBID 'tt1375666', got %v", movie.IMDBID)
+	}
+	if movie.TVDBID == nil || *movie.TVDBID != 12345 {
+		t.Errorf("expected TVDBID 12345, got %v", movie.TVDBID)
+	}
+}
+
+func TestEnrichMovieWithTMDBIDLeavesRichMetadataNilWhenUnavailable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	db := database.Get()
+
+	mockTMDB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/external_ids"):
+			// External IDs lookup fails - simulate unavailable external IDs.
+			w.WriteHeader(http.StatusInternalServerError)
+		case strings.HasPrefix(r.URL.Path, "/movie/27205"):
+			w.Write([]byte(`{"id":27205,"title":"Inception","release_date":"2010-07-16","poster_path":null,"overview":"","genres":[{"id":28,"name":"Action"}],"runtime":148}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockTMDB.Close()
+
+	tmdb.SetBaseURL(mockTMDB.URL)
+	defer tmdb.SetBaseURL("https://api.themoviedb.org/3")
+
+	p := &Processor{
+		db:         db,
+		logger:     logger.AppLogger(),
+		tmdbClient: tmdb.NewClient(tmdb.Config{APIKey: "mock-key", Language: "en-US"}),
+	}
+
+	line := &models.ProcessedLine{TvgName: "Inception"}
+	stats := &Statistics{}
+
+	if err := p.enrichMovieWithTMDBID(line, 27205, "en-US", stats); err != nil {
+		t.Fatalf("enrichMovieWithTMDBID failed: %v", err)
+	}
+
+	var movie models.Movie
+	if err := db.First(&movie, *line.MovieID).Error; err != nil {
+		t.Fatalf("failed to find associated movie in DB: %v", err)
+	}
+
+	if movie.PosterPath != nil {
+		t.Errorf("expected PosterPath nil, got %v", *movie.PosterPath)
+	}
+	if movie.IMDBID != nil {
+		t.Errorf("expected IMDBID nil, got %v", *movie.IMDBID)
+	}
+	if movie.TVDBID != nil {
+		t.Errorf("expected TVDBID nil, got %v", *movie.TVDBID)
+	}
+}
+
+func TestEnrichTVShowWithTMDBIDPersistsRichMetadata(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	db := database.Get()
+
+	mockTMDB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/external_ids"):
+			w.Write([]byte(`{"imdb_id":"tt0903747","tvdb_id":81189}`))
+		case strings.HasPrefix(r.URL.Path, "/tv/1396"):
+			w.Write([]byte(`{"id":1396,"name":"Breaking Bad","first_air_date":"2008-01-20","poster_path":"/bb-poster.jpg","overview":"A chemistry teacher turns to crime.","genres":[{"id":18,"name":"Drama"}]}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer mockTMDB.Close()
+
+	tmdb.SetBaseURL(mockTMDB.URL)
+	defer tmdb.SetBaseURL("https://api.themoviedb.org/3")
+
+	p := &Processor{
+		db:         db,
+		logger:     logger.AppLogger(),
+		tmdbClient: tmdb.NewClient(tmdb.Config{APIKey: "mock-key", Language: "en-US"}),
+	}
+
+	season, episode := 1, 1
+	line := &models.ProcessedLine{TvgName: "Breaking Bad S01E01"}
+	stats := &Statistics{}
+
+	if err := p.enrichTVShowWithTMDBID(line, 1396, &season, &episode, "en-US", stats); err != nil {
+		t.Fatalf("enrichTVShowWithTMDBID failed: %v", err)
+	}
+
+	if line.TVShowID == nil {
+		t.Fatal("expected TVShowID to be populated")
+	}
+
+	var tvshow models.TVShow
+	if err := db.First(&tvshow, *line.TVShowID).Error; err != nil {
+		t.Fatalf("failed to find associated tv show in DB: %v", err)
+	}
+
+	if tvshow.PosterPath == nil || *tvshow.PosterPath != "/bb-poster.jpg" {
+		t.Errorf("expected PosterPath '/bb-poster.jpg', got %v", tvshow.PosterPath)
+	}
+	if tvshow.Overview == nil || *tvshow.Overview != "A chemistry teacher turns to crime." {
+		t.Errorf("expected Overview to be persisted, got %v", tvshow.Overview)
+	}
+	if tvshow.IMDBID == nil || *tvshow.IMDBID != "tt0903747" {
+		t.Errorf("expected IMDBID 'tt0903747', got %v", tvshow.IMDBID)
+	}
+	if tvshow.TVDBID == nil || *tvshow.TVDBID != 81189 {
+		t.Errorf("expected TVDBID 81189, got %v", tvshow.TVDBID)
 	}
 }
