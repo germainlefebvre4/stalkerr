@@ -32,7 +32,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	// Set global database instance
-	database.Initialize()
+	database.SetDB(db)
 	return db
 }
 
@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 			name:          "with zero values uses defaults",
 			timeout:       0,
 			retryAttempts: 0,
-			wantTimeout:   300 * time.Second,
+			wantTimeout:   600 * time.Second,
 			wantRetries:   3,
 		},
 	}
