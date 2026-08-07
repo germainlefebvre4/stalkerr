@@ -12,7 +12,7 @@ The frontend SHALL render a comprehensive M3U playlist item table allowing:
 - Filtering by TMDB enrichment state (`all`, `yes`, `no`).
 - Paginated navigation.
 
-The frontend SHALL allow configuring the page size (10, 50, 100 entries per page), default to 50 entries, and persist this choice in the browser's `localStorage` under the key `stalkeer_playlist_limit`.
+The frontend SHALL allow configuring the page size (10, 50, 100 entries per page), default to 10 entries, and persist this choice in the browser's `localStorage` under the key `stalkeer_playlist_limit`.
 
 The frontend SHALL render an interactive pagination bar with page numbers, smart ellipsis (`...`) for navigation in large page counts, and quick jump buttons to the first (`<<`) and last (`>>`) pages, plus a direct "go to page" input allowing the user to type a page number and jump straight to it.
 
@@ -21,6 +21,10 @@ The frontend SHALL reflect the current page, page size, and all active filters (
 #### Scenario: Filter items by Content Type, State, TMDB Enrichment and Search Title
 - **WHEN** the user selects the "Movies" content tab, "Failed" status filter, "Non (Non Enrichi)" TMDB filter, types "Matrix" in the media name search, and types "ACTION" in the group search
 - **THEN** the frontend SHALL fetch and display only playlist items of content type `movies`, in a `failed` state, not enriched by TMDB, whose media name contains "Matrix", and whose group contains "ACTION".
+
+#### Scenario: Default to 10 entries per page with no stored preference
+- **WHEN** the user opens the Playlist view for the first time, with no `stalkeer_playlist_limit` value in `localStorage` and no `limit` value in the URL query string
+- **THEN** the frontend SHALL fetch and display 10 playlist items per page.
 
 #### Scenario: Change page size configuration and persist preference
 - **WHEN** the user selects "50" as the size from the page size dropdown
