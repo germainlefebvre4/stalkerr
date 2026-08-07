@@ -22,7 +22,6 @@ var serverCmd = &cobra.Command{
 parsed M3U playlist data. The server provides endpoints for items, movies, TV shows,
 filters, and statistics.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		port, _ := cmd.Flags().GetInt("port")
 		address, _ := cmd.Flags().GetString("address")
 
 		// Load configuration
@@ -31,6 +30,12 @@ filters, and statistics.`,
 			os.Exit(1)
 		}
 		cfg := config.Get()
+
+		// An explicit --port flag always takes precedence over config.yml / API_PORT / STALKEER_API_PORT.
+		port := cfg.API.Port
+		if cmd.Flags().Changed("port") {
+			port, _ = cmd.Flags().GetInt("port")
+		}
 
 		// Initialize loggers with configured levels and format
 		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)

@@ -84,7 +84,7 @@ services:
     container_name: stalkerr-server
     command: ["./stalkeer", "server"]
     ports:
-      - "${API_PORT:-8080}:8080"
+      - "${API_PORT:-8080}:${API_PORT:-8080}"
       - "${ADMIN_PORT:-8081}:8081"
     depends_on: *stalkerr-depends-on
     volumes: *stalkerr-volumes

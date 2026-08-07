@@ -10,6 +10,8 @@ CMD_DIR=cmd
 MAIN_FILE=$(CMD_DIR)/main.go
 VERSION ?= dev
 REGISTRY ?= docker.io/germainlefebvre4
+API_PORT ?= 8080
+export API_PORT
 COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS := -ldflags "-w -s -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
@@ -140,21 +142,21 @@ front-lint:
 ## dev: Compile backend and run both API server and Frontend dev server in parallel
 dev: build
 	@echo "Starting stalkeer development environment (Backend + Frontend)..."
-	@echo "API server: http://localhost:8080"
+	@echo "API server: http://localhost:$(API_PORT)"
 	@echo "Frontend dashboard: http://localhost:5173"
 	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server & cd frontend && npm run dev)
 
 ## dev-frontend: Run only the Frontend dev server
 dev-frontend:
 	@echo "Starting stalkeer development environment (Backend + Frontend)..."
-	@echo "API server: http://localhost:8080"
+	@echo "API server: http://localhost:$(API_PORT)"
 	@echo "Frontend dashboard: http://localhost:5173"
 	(trap 'kill 0' SIGINT; cd frontend && npm run dev)
 
 ## dev-backend: Run only the Backend API server
 dev-backend: build
 	@echo "Starting stalkeer development environment (Backend + Frontend)..."
-	@echo "API server: http://localhost:8080"
+	@echo "API server: http://localhost:$(API_PORT)"
 	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server)
 
 ## docker-build: Docker build (if needed later)
