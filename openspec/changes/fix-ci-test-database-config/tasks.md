@@ -18,5 +18,5 @@
 
 ## 4. Verify in CI
 
-- [ ] 4.1 Push the fix and confirm the `Test` job's `internal/downloader` and `internal/processor` packages report `ok` on PR #6 (the `Lint` job failure is out of scope - tracked separately).
+- [x] 4.1 Push the fix and confirm the `Test` job's `internal/downloader` and `internal/processor` packages report `ok` on PR #6 (the `Lint` job failure is out of scope - tracked separately).
 - [x] 4.2 Confirm no other package's tests regressed as a side effect (full `go test ./...` green aside from the already-tracked `Lint` issue). Verified locally, package by package (excluding the gitignored local `data/` docker volume, which `go test ./...` cannot even list due to filesystem permissions on this machine - unrelated to CI, which has no such directory): all packages pass. `internal/config`'s `TestLoad_WithDefaults` only failed when run with `STALKEER_DATABASE_PORT=5433` exported for the local Postgres in this sandbox - a self-inflicted collision with this local run's env, not a code regression; it passes cleanly on its own or with the CI's actual `STALKEER_DATABASE_PORT=5432`.
