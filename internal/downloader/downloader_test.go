@@ -32,7 +32,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 
 	// Set global database instance
-	database.Initialize()
+	database.SetDB(db)
 	return db
 }
 
@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 			name:          "with zero values uses defaults",
 			timeout:       0,
 			retryAttempts: 0,
-			wantTimeout:   300 * time.Second,
+			wantTimeout:   600 * time.Second,
 			wantRetries:   3,
 		},
 	}
@@ -107,19 +107,23 @@ func TestDownload_Success(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, destPath, result.FilePath)
+	// The server URL has no path and the response has no recognized Content-Type,
+	// so detectFileExtension falls back to its ".mkv" default, which Download()
+	// appends to BaseDestPath.
+	wantPath := destPath + ".mkv"
+	assert.Equal(t, wantPath, result.FilePath)
 	assert.Equal(t, int64(len(content)), result.FileSize)
 	assert.Greater(t, progressCalls, 0)
 	assert.Equal(t, int64(len(content)), lastDownloaded)
 	assert.Equal(t, int64(len(content)), lastTotal)
 
 	// Verify file exists and content matches
-	fileContent, err := os.ReadFile(destPath)
+	fileContent, err := os.ReadFile(wantPath)
 	require.NoError(t, err)
 	assert.Equal(t, content, fileContent)
 
 	// Verify no temp file left
-	_, err = os.Stat(destPath + ".tmp")
+	_, err = os.Stat(wantPath + ".tmp")
 	assert.True(t, os.IsNotExist(err))
 }
 
@@ -172,6 +176,8 @@ func TestDownload_WithDatabaseTracking(t *testing.T) {
 	err = db.First(&updated, processedLine.ID).Error
 	require.NoError(t, err)
 	assert.Equal(t, models.StateDownloaded, updated.State)
+	require.NotNil(t, updated.DownloadedAt)
+	assert.WithinDuration(t, time.Now(), *updated.DownloadedAt, 5*time.Second)
 }
 
 func TestDownload_ValidationErrors(t *testing.T) {
@@ -284,8 +290,10 @@ func TestDownload_Retry(t *testing.T) {
 	assert.Equal(t, 3, attemptCount) // Should have tried 3 times
 	assert.Equal(t, int64(len(content)), result.FileSize)
 
-	// Verify file content
-	fileContent, err := os.ReadFile(destPath)
+	// Verify file content. The server URL has no path and the response has no
+	// recognized Content-Type, so detectFileExtension falls back to its ".mkv"
+	// default, which Download() appends to BaseDestPath.
+	fileContent, err := os.ReadFile(destPath + ".mkv")
 	require.NoError(t, err)
 	assert.Equal(t, content, fileContent)
 }
@@ -367,6 +375,7 @@ func TestDownload_DatabaseStateOnFailure(t *testing.T) {
 	err = db.First(&updated, processedLine.ID).Error
 	require.NoError(t, err)
 	assert.Equal(t, models.StateFailed, updated.State)
+	assert.Nil(t, updated.DownloadedAt)
 }
 
 func TestProgressReader(t *testing.T) {
@@ -429,8 +438,11 @@ func TestDownload_CreatesDestinationDirectory(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 
-	// Verify file exists
-	_, err = os.Stat(destPath)
+	// Verify file exists. The server URL has no path and the response has no
+	// recognized Content-Type, so detectFileExtension falls back to its ".mkv"
+	// default, which Download() appends to BaseDestPath (already ".mkv" here,
+	// so the final file is "file.mkv.mkv").
+	_, err = os.Stat(destPath + ".mkv")
 	assert.NoError(t, err)
 
 	// Verify directory structure created

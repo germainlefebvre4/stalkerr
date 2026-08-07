@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -347,6 +348,9 @@ func (d *Downloader) downloadFileWithResume(ctx context.Context, url, destPath s
 	} else {
 		// Normal download - check status
 		if resp.StatusCode != http.StatusOK {
+			if resp.StatusCode >= 500 {
+				return nil, "", apperrors.New(apperrors.CodeServiceUnavailable, fmt.Sprintf("unexpected status code: %d", resp.StatusCode))
+			}
 			return nil, "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
 	}
@@ -484,6 +488,10 @@ func (d *Downloader) updateProcessedLineState(processedLineID uint, state models
 		"updated_at": time.Now(),
 	}
 
+	if state == models.StateDownloaded {
+		updates["downloaded_at"] = time.Now()
+	}
+
 	if err := db.Model(&models.ProcessedLine{}).
 		Where("id = ?", processedLineID).
 		Updates(updates).Error; err != nil {
@@ -564,14 +572,10 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 }
 
 // detectFileExtension detects file extension from URL or Content-Type header
-func detectFileExtension(url string, contentType string) string {
+func detectFileExtension(rawURL string, contentType string) string {
 	// 1. Try URL path
-	if ext := filepath.Ext(url); ext != "" {
-		// Clean up query parameters if present
-		if idx := strings.Index(ext, "?"); idx != -1 {
-			ext = ext[:idx]
-		}
-		if ext != "" {
+	if parsed, err := url.Parse(rawURL); err == nil {
+		if ext := filepath.Ext(parsed.Path); ext != "" {
 			return ext
 		}
 	}

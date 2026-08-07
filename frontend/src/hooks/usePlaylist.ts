@@ -8,6 +8,10 @@ const DEFAULT_LIMIT = 10;
 const VALID_TMDB_FILTERS = ['all', 'yes', 'no'];
 const VALID_CONTENT_FILTERS = ['all', 'movies', 'tvshows'];
 const VALID_STATE_FILTERS = ['all', 'processed', 'pending', 'downloading', 'organizing', 'downloaded', 'failed'];
+const VALID_SORT_FIELDS = ['tvg_name', 'group_title', 'state', 'created_at', 'downloaded_at', 'tmdb_title'];
+const VALID_SORT_ORDERS = ['asc', 'desc'];
+const DEFAULT_SORT = 'created_at';
+const DEFAULT_ORDER = 'desc';
 
 const PLAYLIST_URL_SCHEMA = {
   page: {
@@ -41,6 +45,18 @@ const PLAYLIST_URL_SCHEMA = {
     parse: (raw: string) => raw,
     serialize: (v: string) => v,
     isValid: (v: string) => VALID_STATE_FILTERS.includes(v),
+  },
+  sort: {
+    default: DEFAULT_SORT,
+    parse: (raw: string) => raw,
+    serialize: (v: string) => v,
+    isValid: (v: string) => VALID_SORT_FIELDS.includes(v),
+  },
+  order: {
+    default: DEFAULT_ORDER,
+    parse: (raw: string) => raw,
+    serialize: (v: string) => v,
+    isValid: (v: string) => VALID_SORT_ORDERS.includes(v),
   },
 } satisfies URLStateSchema;
 
@@ -98,6 +114,17 @@ export function usePlaylist() {
     [patchURLState]
   );
 
+  const setPlaylistSort = useCallback(
+    (column: string) => {
+      if (urlState.sort === column) {
+        patchURLState({ order: urlState.order === 'asc' ? 'desc' : 'asc', page: 1 });
+      } else {
+        patchURLState({ sort: column, order: 'asc', page: 1 });
+      }
+    },
+    [patchURLState, urlState.sort, urlState.order]
+  );
+
   // Reset to page 1 when any filter actually changes value, but not on the
   // initial mount (which would otherwise clobber a page number restored from
   // the URL). Compares against the previous values rather than a boolean
@@ -139,7 +166,9 @@ export function usePlaylist() {
       urlState.state,
       urlState.search,
       urlState.searchName,
-      urlState.tmdb
+      urlState.tmdb,
+      urlState.sort,
+      urlState.order
     )
       .then(data => {
         setPlaylist(data.data || []);
@@ -147,7 +176,7 @@ export function usePlaylist() {
       })
       .catch(() => {})
       .finally(() => setPlaylistLoading(false));
-  }, [urlState.page, urlState.limit, urlState.type, urlState.state, urlState.search, urlState.searchName, urlState.tmdb]);
+  }, [urlState.page, urlState.limit, urlState.type, urlState.state, urlState.search, urlState.searchName, urlState.tmdb, urlState.sort, urlState.order]);
 
   useEffect(() => {
     fetchPlaylist();
@@ -170,6 +199,9 @@ export function usePlaylist() {
     setPlaylistPage,
     playlistLimit: urlState.limit,
     setPlaylistLimit,
+    playlistSort: urlState.sort,
+    playlistOrder: urlState.order,
+    setPlaylistSort,
     playlistLoading,
     fetchPlaylist,
   };

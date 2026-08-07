@@ -1,4 +1,5 @@
 # golangci-lint configuration
+version: "2"
 
 run:
   timeout: 5m
@@ -7,41 +8,39 @@ run:
 
 linters:
   enable:
-    - gofmt
-    - goimports
     - govet
     - errcheck
     - staticcheck
     - unused
-    - gosimple
     - ineffassign
-    - typecheck
     - bodyclose
-    - exportloopref
     - gocritic
     - gocyclo
     - gosec
     - misspell
     - unconvert
     - unparam
+  settings:
+    gocyclo:
+      min-complexity: 15
 
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-    disabled-checks:
-      - paramTypeCombine
-  
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - paramTypeCombine
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0

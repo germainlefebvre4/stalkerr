@@ -18,24 +18,9 @@ import (
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
-	// Set test configuration with defaults matching docker-compose.yml
-	if os.Getenv("DB_HOST") == "" {
-		os.Setenv("DB_HOST", "localhost")
-	}
-	if os.Getenv("DB_PORT") == "" {
-		os.Setenv("DB_PORT", "5433")
-	}
-	if os.Getenv("DB_USER") == "" {
-		os.Setenv("DB_USER", "stalkerr")
-	}
-	if os.Getenv("DB_PASSWORD") == "" {
-		os.Setenv("DB_PASSWORD", "stalkerr")
-	}
-	if os.Getenv("DB_NAME") == "" {
-		os.Setenv("DB_NAME", "stalkerr")
-	}
-
-	// Load config
+	// Load config. Database connection settings come from whatever STALKEER_DATABASE_*
+	// (or DB_*) environment variables are already set (see .github/workflows/ci.yml
+	// for CI, or export them locally to match your own Postgres instance).
 	if err := config.Load(); err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}

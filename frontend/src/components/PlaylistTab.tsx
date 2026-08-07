@@ -24,6 +24,9 @@ interface PlaylistTabProps {
   setPlaylistPage: React.Dispatch<React.SetStateAction<number>>;
   playlistLimit: number;
   setPlaylistLimit: (limit: number) => void;
+  playlistSort: string;
+  playlistOrder: string;
+  setPlaylistSort: (column: string) => void;
   playlistLoading: boolean;
   onOpenOverride: (item: PlaylistItem) => void;
   onResetPipeline: (id: number, contentType: string) => void;
@@ -46,6 +49,9 @@ export function PlaylistTab({
   setPlaylistPage,
   playlistLimit,
   setPlaylistLimit,
+  playlistSort,
+  playlistOrder,
+  setPlaylistSort,
   playlistLoading,
   onOpenOverride,
   onResetPipeline
@@ -71,6 +77,24 @@ export function PlaylistTab({
       setCopiedText(type);
       setTimeout(() => setCopiedText(null), 2000);
     });
+  };
+
+  const renderSortableHeader = (column: string, label: string, style?: React.CSSProperties) => {
+    const isActive = playlistSort === column;
+    return (
+      <th
+        onClick={() => setPlaylistSort(column)}
+        style={{ cursor: 'pointer', userSelect: 'none', ...style }}
+        title={t('table.sortBy', { column: label })}
+      >
+        {label}
+        {isActive && (
+          <span style={{ marginLeft: '0.35rem', display: 'inline-block' }}>
+            {playlistOrder === 'asc' ? '▲' : '▼'}
+          </span>
+        )}
+      </th>
+    );
   };
 
   return (
@@ -195,24 +219,25 @@ export function PlaylistTab({
           <table className="custom-table">
             <thead>
               <tr>
-                <th>{t('table.headers.mediaName')}</th>
-                <th>{t('table.headers.groupCategory')}</th>
-                <th>{t('table.headers.tmdbEnrichment')}</th>
-                <th>{t('table.headers.pipelineState')}</th>
-                <th>{t('table.headers.createdAt')}</th>
+                {renderSortableHeader('tvg_name', t('table.headers.mediaName'))}
+                {renderSortableHeader('group_title', t('table.headers.groupCategory'))}
+                {renderSortableHeader('tmdb_title', t('table.headers.tmdbEnrichment'))}
+                {renderSortableHeader('state', t('table.headers.pipelineState'))}
+                {renderSortableHeader('created_at', t('table.headers.createdAt'))}
+                {renderSortableHeader('downloaded_at', t('table.headers.downloadedAt'))}
                 <th style={{ textAlign: 'right' }}>{t('table.headers.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {playlistLoading ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     <span style={{ fontWeight: 600 }}>{t('table.loading')}</span>
                   </td>
                 </tr>
               ) : playlist.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
+                  <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
                 </tr>
               ) : (
                 playlist.map(item => {
@@ -238,6 +263,9 @@ export function PlaylistTab({
                         </span>
                       </td>
                       <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at, i18n.language)}</td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        {item.downloaded_at ? formatDate(item.downloaded_at, i18n.language) : '—'}
+                      </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
                           <button

@@ -51,7 +51,9 @@ export const api = {
     stateFilter?: string,
     search?: string,
     searchName?: string,
-    tmdbEnriched?: string
+    tmdbEnriched?: string,
+    sort?: string,
+    order?: string
   ): Promise<PaginatedResponse<PlaylistItem>> {
     let url = `/api/v1/items?limit=${limit}&offset=${(page - 1) * limit}`;
     if (contentType && contentType !== 'all') {
@@ -68,6 +70,12 @@ export const api = {
     }
     if (tmdbEnriched && tmdbEnriched !== 'all') {
       url += `&tmdb_enriched=${tmdbEnriched}`;
+    }
+    if (sort) {
+      url += `&sort=${encodeURIComponent(sort)}`;
+    }
+    if (order) {
+      url += `&order=${encodeURIComponent(order)}`;
     }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);

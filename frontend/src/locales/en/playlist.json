@@ -35,8 +35,10 @@
       "tmdbEnrichment": "TMDB Enrichment",
       "pipelineState": "Pipeline State",
       "createdAt": "Created On",
+      "downloadedAt": "Downloaded on",
       "actions": "Actions"
     },
+    "sortBy": "Sort by {{column}}",
     "loading": "Loading playlist...",
     "empty": "No items found",
     "notEnriched": "Not enriched",
