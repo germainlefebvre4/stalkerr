@@ -55,15 +55,31 @@ func (s *Server) listItems(c *gin.Context) {
 
 	// Validate sort field
 	validSortFields := map[string]bool{
-		"tvg_name":     true,
-		"created_at":   true,
-		"processed_at": true,
-		"group_title":  true,
+		"tvg_name":      true,
+		"group_title":   true,
+		"state":         true,
+		"created_at":    true,
+		"downloaded_at": true,
+		"tmdb_title":    true,
 	}
 	if !validSortFields[sortBy] {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error:   "invalid_sort_field",
 			Message: fmt.Sprintf("invalid sort field: %s", sortBy),
+		})
+		return
+	}
+
+	// Validate sort order
+	sortOrder = strings.ToLower(sortOrder)
+	validSortOrders := map[string]bool{
+		"asc":  true,
+		"desc": true,
+	}
+	if !validSortOrders[sortOrder] {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "invalid_sort_order",
+			Message: fmt.Sprintf("invalid sort order: %s", sortOrder),
 		})
 		return
 	}
@@ -102,8 +118,27 @@ func (s *Server) listItems(c *gin.Context) {
 	}
 
 	// Apply sorting and pagination
-	orderClause := fmt.Sprintf("%s %s", sortBy, strings.ToUpper(sortOrder))
-	query = query.Order(orderClause).Limit(limit).Offset(offset)
+	switch sortBy {
+	case "tmdb_title":
+		query = query.
+			Select("processed_lines.*").
+			Joins("LEFT JOIN movies ON movies.id = processed_lines.movie_id").
+			Joins("LEFT JOIN tvshows ON tvshows.id = processed_lines.tv_show_id").
+			Order("COALESCE(movies.tmdb_title, tvshows.tmdb_title) IS NULL").
+			Order(fmt.Sprintf("COALESCE(movies.tmdb_title, tvshows.tmdb_title) %s", strings.ToUpper(sortOrder)))
+	case "downloaded_at":
+		// PostgreSQL's default NULL ordering places NULLs first on DESC, which
+		// would bury every never-downloaded item's absence at the top of a
+		// "most recently downloaded" sort. Force NULLs last regardless of
+		// direction, independent of the database's default NULL ordering.
+		query = query.
+			Order("downloaded_at IS NULL").
+			Order(fmt.Sprintf("downloaded_at %s", strings.ToUpper(sortOrder)))
+	default:
+		orderClause := fmt.Sprintf("%s %s", sortBy, strings.ToUpper(sortOrder))
+		query = query.Order(orderClause)
+	}
+	query = query.Limit(limit).Offset(offset)
 
 	// Fetch items
 	var items []models.ProcessedLine
@@ -700,22 +735,29 @@ func toItemResponse(item models.ProcessedLine) ItemResponse {
 		overrideAtStr = &formatted
 	}
 
+	var downloadedAtStr *string
+	if item.DownloadedAt != nil {
+		formatted := item.DownloadedAt.Format("2006-01-02T15:04:05Z07:00")
+		downloadedAtStr = &formatted
+	}
+
 	resp := ItemResponse{
-		ID:          item.ID,
-		TvgName:     item.TvgName,
-		GroupTitle:  item.GroupTitle,
-		ContentType: item.ContentType,
-		State:       item.State,
-		Resolution:  item.Resolution,
-		OverrideBy:  item.OverrideBy,
-		OverrideAt:  overrideAtStr,
-		LineContent: item.LineContent,
-		LineURL:     item.LineURL,
-		LineHash:    item.LineHash,
-		LineNumber:  item.LineNumber,
-		ProcessedAt: item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),
-		CreatedAt:   item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:   item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:           item.ID,
+		TvgName:      item.TvgName,
+		GroupTitle:   item.GroupTitle,
+		ContentType:  item.ContentType,
+		State:        item.State,
+		Resolution:   item.Resolution,
+		OverrideBy:   item.OverrideBy,
+		OverrideAt:   overrideAtStr,
+		LineContent:  item.LineContent,
+		LineURL:      item.LineURL,
+		LineHash:     item.LineHash,
+		LineNumber:   item.LineNumber,
+		ProcessedAt:  item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),
+		DownloadedAt: downloadedAtStr,
+		CreatedAt:    item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:    item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if item.Movie != nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -864,4 +865,182 @@ func TestListItemsFiltering(t *testing.T) {
 	if respNotEnriched.Total != 1 {
 		t.Errorf("Expected 1 item, got %d", respNotEnriched.Total)
 	}
+}
+
+// typedPaginatedResponse mirrors PaginatedResponse but decodes Data into typed ItemResponse values.
+type typedPaginatedResponse struct {
+	Data       []ItemResponse `json:"data"`
+	Total      int64          `json:"total"`
+	Limit      int            `json:"limit"`
+	Offset     int            `json:"offset"`
+	TotalPages int            `json:"total_pages"`
+}
+
+func listItemsSorted(t *testing.T, server *Server, query string) typedPaginatedResponse {
+	t.Helper()
+	req, _ := http.NewRequest("GET", "/api/v1/items"+query, nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200 for query %q, got %d: %s", query, w.Code, w.Body.String())
+	}
+
+	var resp typedPaginatedResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	return resp
+}
+
+func TestListItemsSorting(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 111, TMDBTitle: "Zebra"}
+	db.Create(&movie)
+
+	tvshow := models.TVShow{TMDBID: 222, TMDBTitle: "Alpha"}
+	db.Create(&tvshow)
+
+	downloadedAt := time.Now()
+	items := []models.ProcessedLine{
+		{
+			LineContent: "line-a", LineHash: "hash-a", TvgName: "Bravo", GroupTitle: "Zeta",
+			ContentType: "movies", State: "downloaded", MovieID: &movie.ID,
+			DownloadedAt: &downloadedAt, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		},
+		{
+			LineContent: "line-b", LineHash: "hash-b", TvgName: "Alfa", GroupTitle: "Alpha",
+			ContentType: "tvshows", State: "processed", TVShowID: &tvshow.ID,
+			CreatedAt: time.Now().Add(time.Second), UpdatedAt: time.Now().Add(time.Second),
+		},
+		{
+			LineContent: "line-c", LineHash: "hash-c", TvgName: "Charlie", GroupTitle: "Beta",
+			ContentType: "movies", State: "failed",
+			CreatedAt: time.Now().Add(2 * time.Second), UpdatedAt: time.Now().Add(2 * time.Second),
+		},
+		{
+			LineContent: "line-d", LineHash: "hash-d", TvgName: "Delta", GroupTitle: "Gamma",
+			ContentType: "movies", State: "downloaded",
+			CreatedAt: time.Now().Add(3 * time.Second), UpdatedAt: time.Now().Add(3 * time.Second),
+		},
+	}
+	for i := range items {
+		if err := db.Create(&items[i]).Error; err != nil {
+			t.Fatalf("failed to seed item: %v", err)
+		}
+	}
+
+	server := NewServer()
+
+	// Default sort (no sort/order params) matches prior behavior: created_at desc.
+	respDefault := listItemsSorted(t, server, "")
+	if len(respDefault.Data) != 4 || respDefault.Data[0].LineHash != "hash-d" {
+		t.Fatalf("expected default sort by created_at desc with hash-d first, got %+v", respDefault.Data)
+	}
+
+	// Sort by tvg_name ascending.
+	respTvgName := listItemsSorted(t, server, "?sort=tvg_name&order=asc")
+	if len(respTvgName.Data) != 4 || respTvgName.Data[0].LineHash != "hash-b" {
+		t.Fatalf("expected tvg_name asc with hash-b first, got %+v", respTvgName.Data)
+	}
+
+	// Sort by group_title ascending.
+	respGroup := listItemsSorted(t, server, "?sort=group_title&order=asc")
+	if len(respGroup.Data) != 4 || respGroup.Data[0].LineHash != "hash-b" {
+		t.Fatalf("expected group_title asc with hash-b first, got %+v", respGroup.Data)
+	}
+
+	// Sort by state ascending (alphabetical: downloaded < failed < processed).
+	respState := listItemsSorted(t, server, "?sort=state&order=asc")
+	if len(respState.Data) != 4 || respState.Data[0].State != "downloaded" || respState.Data[3].State != "processed" {
+		t.Fatalf("expected state asc ordered downloaded..processed, got %+v", respState.Data)
+	}
+
+	// Sort by downloaded_at across both "downloaded" items: hash-a has a real
+	// timestamp, hash-d (never re-processed since this field shipped) is NULL.
+	// Regardless of direction, the NULL must sort last so it never buries a
+	// genuinely recent download underneath legacy, unset rows.
+	respDownloadedAtDesc := listItemsSorted(t, server, "?state=downloaded&sort=downloaded_at&order=desc")
+	if len(respDownloadedAtDesc.Data) != 2 || respDownloadedAtDesc.Data[0].LineHash != "hash-a" || respDownloadedAtDesc.Data[1].LineHash != "hash-d" {
+		t.Fatalf("expected downloaded_at desc order [hash-a, hash-d], got %+v", respDownloadedAtDesc.Data)
+	}
+	if respDownloadedAtDesc.Data[0].DownloadedAt == nil {
+		t.Errorf("expected downloaded_at to be populated for hash-a")
+	}
+	if respDownloadedAtDesc.Data[1].DownloadedAt != nil {
+		t.Errorf("expected downloaded_at to be null for hash-d")
+	}
+
+	respDownloadedAtAsc := listItemsSorted(t, server, "?state=downloaded&sort=downloaded_at&order=asc")
+	if len(respDownloadedAtAsc.Data) != 2 || respDownloadedAtAsc.Data[0].LineHash != "hash-a" || respDownloadedAtAsc.Data[1].LineHash != "hash-d" {
+		t.Fatalf("expected downloaded_at asc order [hash-a, hash-d] (NULL still last), got %+v", respDownloadedAtAsc.Data)
+	}
+
+	// tmdb_title ascending: enriched items ordered Alpha, Zebra, then the two
+	// non-enriched items (hash-c, hash-d) last, in either relative order.
+	respTmdbAsc := listItemsSorted(t, server, "?sort=tmdb_title&order=asc")
+	if len(respTmdbAsc.Data) != 4 {
+		t.Fatalf("expected 4 items, got %d", len(respTmdbAsc.Data))
+	}
+	if respTmdbAsc.Data[0].LineHash != "hash-b" || respTmdbAsc.Data[1].LineHash != "hash-a" {
+		t.Fatalf("expected tmdb_title asc order to start with [hash-b, hash-a], got %+v", respTmdbAsc.Data)
+	}
+	if !isNonEnrichedPair(respTmdbAsc.Data[2].LineHash, respTmdbAsc.Data[3].LineHash) {
+		t.Fatalf("expected non-enriched items [hash-c, hash-d] last, got %+v", respTmdbAsc.Data)
+	}
+
+	// tmdb_title descending: enriched items ordered Zebra, Alpha, then the two
+	// non-enriched items still last.
+	respTmdbDesc := listItemsSorted(t, server, "?sort=tmdb_title&order=desc")
+	if len(respTmdbDesc.Data) != 4 {
+		t.Fatalf("expected 4 items, got %d", len(respTmdbDesc.Data))
+	}
+	if respTmdbDesc.Data[0].LineHash != "hash-a" || respTmdbDesc.Data[1].LineHash != "hash-b" {
+		t.Fatalf("expected tmdb_title desc order to start with [hash-a, hash-b], got %+v", respTmdbDesc.Data)
+	}
+	if !isNonEnrichedPair(respTmdbDesc.Data[2].LineHash, respTmdbDesc.Data[3].LineHash) {
+		t.Fatalf("expected non-enriched items [hash-c, hash-d] last, got %+v", respTmdbDesc.Data)
+	}
+
+	// Unknown sort field is rejected.
+	reqInvalidField, _ := http.NewRequest("GET", "/api/v1/items?sort=line_hash", nil)
+	wInvalidField := httptest.NewRecorder()
+	server.router.ServeHTTP(wInvalidField, reqInvalidField)
+	if wInvalidField.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid sort field, got %d", wInvalidField.Code)
+	}
+	var errInvalidField ErrorResponse
+	if err := json.Unmarshal(wInvalidField.Body.Bytes(), &errInvalidField); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+	if errInvalidField.Error != "invalid_sort_field" {
+		t.Errorf("expected invalid_sort_field, got %q", errInvalidField.Error)
+	}
+
+	// Malformed / injection-style order value is rejected and never reaches the query.
+	reqInvalidOrder, _ := http.NewRequest("GET", "/api/v1/items?sort=created_at&order="+url.QueryEscape("created_at;DROP TABLE processed_lines"), nil)
+	wInvalidOrder := httptest.NewRecorder()
+	server.router.ServeHTTP(wInvalidOrder, reqInvalidOrder)
+	if wInvalidOrder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid sort order, got %d", wInvalidOrder.Code)
+	}
+	var errInvalidOrder ErrorResponse
+	if err := json.Unmarshal(wInvalidOrder.Body.Bytes(), &errInvalidOrder); err != nil {
+		t.Fatalf("failed to unmarshal error: %v", err)
+	}
+	if errInvalidOrder.Error != "invalid_sort_order" {
+		t.Errorf("expected invalid_sort_order, got %q", errInvalidOrder.Error)
+	}
+
+	// Confirm the table survived the injection attempt.
+	var total int64
+	db.Model(&models.ProcessedLine{}).Count(&total)
+	if total != 4 {
+		t.Fatalf("expected processed_lines table to still have 4 rows, got %d", total)
+	}
+}
+
+func isNonEnrichedPair(a, b string) bool {
+	return (a == "hash-c" && b == "hash-d") || (a == "hash-d" && b == "hash-c")
 }

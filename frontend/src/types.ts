@@ -40,6 +40,7 @@ export interface PlaylistItem {
   line_hash: string;
   line_number: number;
   created_at: string;
+  downloaded_at: string | null;
 }
 
 export interface ProcessingLog {

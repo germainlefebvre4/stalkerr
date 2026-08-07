@@ -29,15 +29,16 @@ type ItemResponse struct {
 	Resolution  *string                `json:"resolution,omitempty"`
 	Movie       *MovieResponse         `json:"movie,omitempty"`
 	TVShow      *TVShowResponse        `json:"tvshow,omitempty"`
-	OverrideBy  *string                `json:"override_by,omitempty"`
-	OverrideAt  *string                `json:"override_at,omitempty"`
-	LineContent string                 `json:"line_content"`
-	LineURL     *string                `json:"line_url,omitempty"`
-	LineHash    string                 `json:"line_hash"`
-	LineNumber  int                    `json:"line_number"`
-	ProcessedAt string                 `json:"processed_at"`
-	CreatedAt   string                 `json:"created_at"`
-	UpdatedAt   string                 `json:"updated_at"`
+	OverrideBy   *string                `json:"override_by,omitempty"`
+	OverrideAt   *string                `json:"override_at,omitempty"`
+	LineContent  string                 `json:"line_content"`
+	LineURL      *string                `json:"line_url,omitempty"`
+	LineHash     string                 `json:"line_hash"`
+	LineNumber   int                    `json:"line_number"`
+	ProcessedAt  string                 `json:"processed_at"`
+	DownloadedAt *string                `json:"downloaded_at"`
+	CreatedAt    string                 `json:"created_at"`
+	UpdatedAt    string                 `json:"updated_at"`
 }
 
 // MovieResponse represents movie data

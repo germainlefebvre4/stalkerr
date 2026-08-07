@@ -172,6 +172,8 @@ func TestDownload_WithDatabaseTracking(t *testing.T) {
 	err = db.First(&updated, processedLine.ID).Error
 	require.NoError(t, err)
 	assert.Equal(t, models.StateDownloaded, updated.State)
+	require.NotNil(t, updated.DownloadedAt)
+	assert.WithinDuration(t, time.Now(), *updated.DownloadedAt, 5*time.Second)
 }
 
 func TestDownload_ValidationErrors(t *testing.T) {
@@ -367,6 +369,7 @@ func TestDownload_DatabaseStateOnFailure(t *testing.T) {
 	err = db.First(&updated, processedLine.ID).Error
 	require.NoError(t, err)
 	assert.Equal(t, models.StateFailed, updated.State)
+	assert.Nil(t, updated.DownloadedAt)
 }
 
 func TestProgressReader(t *testing.T) {

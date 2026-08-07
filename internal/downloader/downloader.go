@@ -484,6 +484,10 @@ func (d *Downloader) updateProcessedLineState(processedLineID uint, state models
 		"updated_at": time.Now(),
 	}
 
+	if state == models.StateDownloaded {
+		updates["downloaded_at"] = time.Now()
+	}
+
 	if err := db.Model(&models.ProcessedLine{}).
 		Where("id = ?", processedLineID).
 		Updates(updates).Error; err != nil {

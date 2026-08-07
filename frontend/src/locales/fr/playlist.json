@@ -35,8 +35,10 @@
       "tmdbEnrichment": "Enrichissement TMDB",
       "pipelineState": "État Pipeline",
       "createdAt": "Créé le",
+      "downloadedAt": "Téléchargé le",
       "actions": "Actions"
     },
+    "sortBy": "Trier par {{column}}",
     "loading": "Chargement de la playlist en cours...",
     "empty": "Aucun item trouvé",
     "notEnriched": "Non enrichi",
