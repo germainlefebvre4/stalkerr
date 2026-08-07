@@ -49,19 +49,13 @@ export function ManualOverrideDialog({
       setOverrideMediaType(isTV ? 'tvshow' : 'movie');
 
       // Extract Season & Episode
-      const seMatch = overrideItemData.tvg_name.match(/S(\d+)E(\d+)/i);
+      const seMatch = overrideItemData.tvg_name.match(/S(\d+)[\s-]*E(\d+)/i);
       if (seMatch) {
         setOverrideSeason(parseInt(seMatch[1], 10).toString());
         setOverrideEpisode(parseInt(seMatch[2], 10).toString());
       } else {
-        const epMatch = overrideItemData.tvg_name.match(/E(\d+)/i);
-        if (epMatch) {
-          setOverrideSeason('1');
-          setOverrideEpisode(parseInt(epMatch[1], 10).toString());
-        } else {
-          setOverrideSeason('');
-          setOverrideEpisode('');
-        }
+        setOverrideSeason('');
+        setOverrideEpisode('');
       }
 
       const existingYear = isTV ? overrideItemData.tvshow?.tmdb_year : overrideItemData.movie?.tmdb_year;
