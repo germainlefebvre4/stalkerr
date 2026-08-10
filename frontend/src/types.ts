@@ -13,6 +13,10 @@ export interface MovieResponse {
   tmdb_year: number;
   genres?: string;
   duration?: number;
+  poster_path?: string;
+  overview?: string;
+  imdb_id?: string;
+  tvdb_id?: number;
 }
 
 export interface TVShowResponse {
@@ -23,6 +27,10 @@ export interface TVShowResponse {
   genres?: string;
   season?: number;
   episode?: number;
+  poster_path?: string;
+  overview?: string;
+  imdb_id?: string;
+  tvdb_id?: number;
 }
 
 export interface PlaylistItem {

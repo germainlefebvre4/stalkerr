@@ -31,20 +31,22 @@ type ProcessOptions struct {
 
 // Statistics holds processing statistics
 type Statistics struct {
-	TotalLines      int
-	Processed       int
-	DuplicatesFound int
-	FilteredOut     int
-	Errors          int
-	Movies          int
-	TVShows         int
-	Channels        int
-	Uncategorized   int
-	TMDBMatched     int
-	TMDBNotFound    int
-	TMDBErrors      int
-	Duration        time.Duration
-	ErrorMessages   []string
+	TotalLines             int
+	Processed              int
+	DuplicatesFound        int
+	FilteredOut            int
+	Errors                 int
+	Movies                 int
+	TVShows                int
+	Channels               int
+	Uncategorized          int
+	TMDBMatched            int
+	TMDBNotFound           int
+	TMDBErrors             int
+	MetadataBackfilled     int
+	MetadataBackfillErrors int
+	Duration               time.Duration
+	ErrorMessages          []string
 }
 
 // Processor handles M3U playlist processing
@@ -215,6 +217,21 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 		}
 	}
 
+	// Backfill rich TMDB metadata (poster, overview, external IDs) on legacy
+	// records that predate this metadata being tracked. Silent and automatic;
+	// gated by the same TMDB-enabled/SkipTMDB checks as the main enrichment flow.
+	if !opts.SkipTMDB && p.tmdbClient != nil {
+		backfillStats, err := BackfillRichMetadata(p.db, p.tmdbClient, p.logger)
+		if err != nil {
+			p.logger.WithFields(map[string]interface{}{
+				"error": err,
+			}).Warn("failed to backfill rich TMDB metadata")
+		} else {
+			stats.MetadataBackfilled = backfillStats.Updated
+			stats.MetadataBackfillErrors = backfillStats.Errors
+		}
+	}
+
 	stats.Duration = time.Since(startTime)
 
 	// Update processing log
@@ -370,8 +387,10 @@ func (p *Processor) enrichMovieWithTMDBID(line *models.ProcessedLine, tmdbID int
 	genres := tmdb.FormatGenres(details.Genres)
 
 	var tvdbID *int
+	var imdbID *string
 	if externalIDs != nil {
 		tvdbID = externalIDs.TVDBID
+		imdbID = externalIDs.IMDBID
 	}
 	attrs := models.Movie{
 		TMDBID:     details.ID,
@@ -380,6 +399,9 @@ func (p *Processor) enrichMovieWithTMDBID(line *models.ProcessedLine, tmdbID int
 		TMDBYear:   tmdbYear,
 		TMDBGenres: &genres,
 		Duration:   details.Runtime,
+		PosterPath: details.PosterPath,
+		Overview:   &details.Overview,
+		IMDBID:     imdbID,
 	}
 	if result := p.db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).
 		Attrs(attrs).
@@ -446,8 +468,10 @@ func (p *Processor) enrichTVShowWithTMDBID(line *models.ProcessedLine, tmdbID in
 	genres := tmdb.FormatGenres(details.Genres)
 
 	var tvdbID *int
+	var imdbID *string
 	if externalIDs != nil {
 		tvdbID = externalIDs.TVDBID
+		imdbID = externalIDs.IMDBID
 	}
 	attrs := models.TVShow{
 		TMDBID:     details.ID,
@@ -457,6 +481,9 @@ func (p *Processor) enrichTVShowWithTMDBID(line *models.ProcessedLine, tmdbID in
 		TMDBGenres: &genres,
 		Season:     season,
 		Episode:    episode,
+		PosterPath: details.PosterPath,
+		Overview:   &details.Overview,
+		IMDBID:     imdbID,
 	}
 
 	query := p.db.Where("tmdb_id = ?", details.ID)
