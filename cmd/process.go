@@ -126,6 +126,10 @@ extraction.`,
 				matchRate := float64(stats.TMDBMatched) / float64(stats.TMDBMatched+stats.TMDBNotFound) * 100
 				fmt.Printf("  Match rate:    %.1f%%\n", matchRate)
 			}
+			if stats.MetadataBackfilled > 0 || stats.MetadataBackfillErrors > 0 {
+				fmt.Printf("  Metadata backfilled: %d\n", stats.MetadataBackfilled)
+				fmt.Printf("  Metadata backfill errors: %d\n", stats.MetadataBackfillErrors)
+			}
 		}
 
 		fmt.Printf("\nProcessing time: %v\n", stats.Duration)

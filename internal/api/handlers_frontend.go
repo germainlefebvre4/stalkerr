@@ -760,8 +760,10 @@ func (s *Server) overrideItem(c *gin.Context) {
 		genres := tmdb.FormatGenres(details.Genres)
 
 		var tvdbID *int
+		var imdbID *string
 		if externalIDs != nil {
 			tvdbID = externalIDs.TVDBID
+			imdbID = externalIDs.IMDBID
 		}
 
 		attrs := models.Movie{
@@ -771,6 +773,9 @@ func (s *Server) overrideItem(c *gin.Context) {
 			TMDBYear:   tmdbYear,
 			TMDBGenres: &genres,
 			Duration:   details.Runtime,
+			PosterPath: details.PosterPath,
+			Overview:   &details.Overview,
+			IMDBID:     imdbID,
 		}
 
 		if err := db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).Attrs(attrs).FirstOrCreate(&movie).Error; err != nil {
@@ -827,8 +832,10 @@ func (s *Server) overrideItem(c *gin.Context) {
 		genres := tmdb.FormatGenres(details.Genres)
 
 		var tvdbID *int
+		var imdbID *string
 		if externalIDs != nil {
 			tvdbID = externalIDs.TVDBID
+			imdbID = externalIDs.IMDBID
 		}
 
 		attrs := models.TVShow{
@@ -839,6 +846,9 @@ func (s *Server) overrideItem(c *gin.Context) {
 			TMDBGenres: &genres,
 			Season:     season,
 			Episode:    episode,
+			PosterPath: details.PosterPath,
+			Overview:   &details.Overview,
+			IMDBID:     imdbID,
 		}
 
 		query := db.Where("tmdb_id = ?", details.ID)

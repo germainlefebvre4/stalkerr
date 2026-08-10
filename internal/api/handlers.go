@@ -777,24 +777,32 @@ func toItemResponse(item models.ProcessedLine) ItemResponse {
 
 func toMovieResponse(movie models.Movie) MovieResponse {
 	return MovieResponse{
-		ID:        movie.ID,
-		TMDBID:    movie.TMDBID,
-		TMDBTitle: movie.TMDBTitle,
-		TMDBYear:  movie.TMDBYear,
-		Genres:    movie.TMDBGenres,
-		Duration:  movie.Duration,
+		ID:         movie.ID,
+		TMDBID:     movie.TMDBID,
+		TMDBTitle:  movie.TMDBTitle,
+		TMDBYear:   movie.TMDBYear,
+		Genres:     movie.TMDBGenres,
+		Duration:   movie.Duration,
+		PosterPath: movie.PosterPath,
+		Overview:   movie.Overview,
+		IMDBID:     movie.IMDBID,
+		TVDBID:     movie.TVDBID,
 	}
 }
 
 func toTVShowResponse(tvShow models.TVShow) TVShowResponse {
 	return TVShowResponse{
-		ID:        tvShow.ID,
-		TMDBID:    tvShow.TMDBID,
-		TMDBTitle: tvShow.TMDBTitle,
-		TMDBYear:  tvShow.TMDBYear,
-		Genres:    tvShow.TMDBGenres,
-		Season:    tvShow.Season,
-		Episode:   tvShow.Episode,
+		ID:         tvShow.ID,
+		TMDBID:     tvShow.TMDBID,
+		TMDBTitle:  tvShow.TMDBTitle,
+		TMDBYear:   tvShow.TMDBYear,
+		Genres:     tvShow.TMDBGenres,
+		Season:     tvShow.Season,
+		Episode:    tvShow.Episode,
+		PosterPath: tvShow.PosterPath,
+		Overview:   tvShow.Overview,
+		IMDBID:     tvShow.IMDBID,
+		TVDBID:     tvShow.TVDBID,
 	}
 }
 

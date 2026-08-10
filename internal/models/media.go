@@ -11,6 +11,9 @@ type Movie struct {
 	TMDBYear   int       `gorm:"not null;uniqueIndex:idx_movies_unique,composite:tmdb_title_year" json:"tmdb_year"`
 	TMDBGenres *string   `gorm:"type:text" json:"tmdb_genres,omitempty"`
 	Duration   *int      `json:"duration,omitempty"`
+	PosterPath *string   `gorm:"type:varchar(255)" json:"poster_path,omitempty"`
+	Overview   *string   `gorm:"type:text" json:"overview,omitempty"`
+	IMDBID     *string   `gorm:"type:varchar(20)" json:"imdb_id,omitempty"`
 	CreatedAt  time.Time `gorm:"not null" json:"created_at"`
 	UpdatedAt  time.Time `gorm:"not null" json:"updated_at"`
 
@@ -33,6 +36,9 @@ type TVShow struct {
 	TMDBGenres *string   `gorm:"type:text" json:"tmdb_genres,omitempty"`
 	Season     *int      `gorm:"index:idx_tvshows_season_episode" json:"season,omitempty"`
 	Episode    *int      `gorm:"index:idx_tvshows_season_episode" json:"episode,omitempty"`
+	PosterPath *string   `gorm:"type:varchar(255)" json:"poster_path,omitempty"`
+	Overview   *string   `gorm:"type:text" json:"overview,omitempty"`
+	IMDBID     *string   `gorm:"type:varchar(20)" json:"imdb_id,omitempty"`
 	CreatedAt  time.Time `gorm:"not null" json:"created_at"`
 	UpdatedAt  time.Time `gorm:"not null" json:"updated_at"`
 
