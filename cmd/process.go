@@ -132,6 +132,12 @@ extraction.`,
 			}
 		}
 
+		if stats.FileSizeBackfilled > 0 || stats.FileSizeBackfillErrors > 0 {
+			fmt.Printf("\nRemote File Size Backfill:\n")
+			fmt.Printf("  Backfilled:    %d\n", stats.FileSizeBackfilled)
+			fmt.Printf("  Errors:        %d\n", stats.FileSizeBackfillErrors)
+		}
+
 		fmt.Printf("\nProcessing time: %v\n", stats.Duration)
 
 		if stats.Errors > 0 {

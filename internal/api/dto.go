@@ -19,26 +19,27 @@ type PaginatedResponse struct {
 
 // ItemResponse represents a processed line response
 type ItemResponse struct {
-	ID           uint                   `json:"id"`
-	TvgName      string                 `json:"tvg_name"`
-	GroupTitle   string                 `json:"group_title"`
-	ContentType  models.ContentType     `json:"content_type"`
-	State        models.ProcessingState `json:"state"`
-	Season       *int                   `json:"season,omitempty"`
-	Episode      *int                   `json:"episode,omitempty"`
-	Resolution   *string                `json:"resolution,omitempty"`
-	Movie        *MovieResponse         `json:"movie,omitempty"`
-	TVShow       *TVShowResponse        `json:"tvshow,omitempty"`
-	OverrideBy   *string                `json:"override_by,omitempty"`
-	OverrideAt   *string                `json:"override_at,omitempty"`
-	LineContent  string                 `json:"line_content"`
-	LineURL      *string                `json:"line_url,omitempty"`
-	LineHash     string                 `json:"line_hash"`
-	LineNumber   int                    `json:"line_number"`
-	ProcessedAt  string                 `json:"processed_at"`
-	DownloadedAt *string                `json:"downloaded_at"`
-	CreatedAt    string                 `json:"created_at"`
-	UpdatedAt    string                 `json:"updated_at"`
+	ID             uint                   `json:"id"`
+	TvgName        string                 `json:"tvg_name"`
+	GroupTitle     string                 `json:"group_title"`
+	ContentType    models.ContentType     `json:"content_type"`
+	State          models.ProcessingState `json:"state"`
+	Season         *int                   `json:"season,omitempty"`
+	Episode        *int                   `json:"episode,omitempty"`
+	Resolution     *string                `json:"resolution,omitempty"`
+	Movie          *MovieResponse         `json:"movie,omitempty"`
+	TVShow         *TVShowResponse        `json:"tvshow,omitempty"`
+	OverrideBy     *string                `json:"override_by,omitempty"`
+	OverrideAt     *string                `json:"override_at,omitempty"`
+	LineContent    string                 `json:"line_content"`
+	LineURL        *string                `json:"line_url,omitempty"`
+	LineHash       string                 `json:"line_hash"`
+	LineNumber     int                    `json:"line_number"`
+	RemoteFileSize *int64                 `json:"remote_file_size,omitempty"`
+	ProcessedAt    string                 `json:"processed_at"`
+	DownloadedAt   *string                `json:"downloaded_at"`
+	CreatedAt      string                 `json:"created_at"`
+	UpdatedAt      string                 `json:"updated_at"`
 }
 
 // MovieResponse represents movie data
