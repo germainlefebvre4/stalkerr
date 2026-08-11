@@ -10,6 +10,10 @@
     "tmdbEnrichment": "TMDB Enrichment",
     "pipelineState": "Pipeline State"
   },
+  "advancedFilters": {
+    "toggle": "Advanced filters",
+    "activeCount": "{{count}} active filters"
+  },
   "search": {
     "byTitlePlaceholder": "Search by title...",
     "byGroupPlaceholder": "Search by group..."

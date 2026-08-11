@@ -61,6 +61,14 @@ export function PlaylistTab({
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | 'hash' | null>(null);
   const [gotoPageInput, setGotoPageInput] = React.useState('');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
+
+  const activeAdvancedFilterCount = [
+    playlistSearchName,
+    playlistSearch,
+    playlistTMDBFilter !== 'all',
+    playlistStateFilter !== 'all',
+  ].filter(Boolean).length;
 
   const totalPages = Math.ceil(playlistTotal / playlistLimit);
 
@@ -126,72 +134,162 @@ export function PlaylistTab({
         </div>
 
         {/* Block Inférieur : Grille de 4 colonnes pour filtres avancés */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
-          alignItems: 'center'
-        }}>
-          {/* 1. Recherche VOD (Nom du Média) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.mediaName')}</label>
-            <input
-              type="text"
-              placeholder={t('search.byTitlePlaceholder')}
-              value={playlistSearchName}
-              onChange={e => { setPlaylistSearchName(e.target.value); setPlaylistPage(1); }}
-              className="custom-input"
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          {/* 2. Recherche Groupe / Catégorie */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.groupCategory')}</label>
-            <input
-              type="text"
-              placeholder={t('search.byGroupPlaceholder')}
-              value={playlistSearch}
-              onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }}
-              className="custom-input"
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          {/* 3. Filtrage d'enrichissement TMDB */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.tmdbEnrichment')}</label>
-            <select
-              value={playlistTMDBFilter}
-              onChange={e => { setPlaylistTMDBFilter(e.target.value as 'all' | 'yes' | 'no'); setPlaylistPage(1); }}
-              className="custom-select"
-              style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+        {isMobile ? (
+          <div>
+            <button
+              type="button"
+              className="advanced-filters-toggle"
+              onClick={() => setAdvancedFiltersOpen(open => !open)}
+              aria-expanded={advancedFiltersOpen}
             >
-              <option value="all">{t('tmdbFilter.all')}</option>
-              <option value="yes">{t('tmdbFilter.yes')}</option>
-              <option value="no">{t('tmdbFilter.no')}</option>
-            </select>
-          </div>
+              <span className="advanced-filters-toggle-label">
+                {t('advancedFilters.toggle')}
+                {activeAdvancedFilterCount > 0 && (
+                  <span className="advanced-filters-count-badge" title={t('advancedFilters.activeCount', { count: activeAdvancedFilterCount })}>
+                    {activeAdvancedFilterCount}
+                  </span>
+                )}
+              </span>
+              <span className={`advanced-filters-chevron${advancedFiltersOpen ? ' is-open' : ''}`}>▾</span>
+            </button>
 
-          {/* 4. État Pipeline */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.pipelineState')}</label>
-            <select
-              value={playlistStateFilter}
-              onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }}
-              className="custom-select"
-              style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
-            >
-              <option value="all">{t('stateFilter.all')}</option>
-              <option value="processed">{t('stateFilter.processed')}</option>
-              <option value="pending">{t('stateFilter.pending')}</option>
-              <option value="downloading">{t('stateFilter.downloading')}</option>
-              <option value="organizing">{t('stateFilter.organizing')}</option>
-              <option value="downloaded">{t('stateFilter.downloaded')}</option>
-              <option value="failed">{t('stateFilter.failed')}</option>
-            </select>
+            {advancedFiltersOpen && (
+              <div className="advanced-filters-grid" style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem',
+                alignItems: 'center'
+              }}>
+                {/* 1. Recherche VOD (Nom du Média) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.mediaName')}</label>
+                  <input
+                    type="text"
+                    placeholder={t('search.byTitlePlaceholder')}
+                    value={playlistSearchName}
+                    onChange={e => { setPlaylistSearchName(e.target.value); setPlaylistPage(1); }}
+                    className="custom-input"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* 2. Recherche Groupe / Catégorie */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.groupCategory')}</label>
+                  <input
+                    type="text"
+                    placeholder={t('search.byGroupPlaceholder')}
+                    value={playlistSearch}
+                    onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }}
+                    className="custom-input"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* 3. Filtrage d'enrichissement TMDB */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.tmdbEnrichment')}</label>
+                  <select
+                    value={playlistTMDBFilter}
+                    onChange={e => { setPlaylistTMDBFilter(e.target.value as 'all' | 'yes' | 'no'); setPlaylistPage(1); }}
+                    className="custom-select"
+                    style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+                  >
+                    <option value="all">{t('tmdbFilter.all')}</option>
+                    <option value="yes">{t('tmdbFilter.yes')}</option>
+                    <option value="no">{t('tmdbFilter.no')}</option>
+                  </select>
+                </div>
+
+                {/* 4. État Pipeline */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.pipelineState')}</label>
+                  <select
+                    value={playlistStateFilter}
+                    onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }}
+                    className="custom-select"
+                    style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+                  >
+                    <option value="all">{t('stateFilter.all')}</option>
+                    <option value="processed">{t('stateFilter.processed')}</option>
+                    <option value="pending">{t('stateFilter.pending')}</option>
+                    <option value="downloading">{t('stateFilter.downloading')}</option>
+                    <option value="organizing">{t('stateFilter.organizing')}</option>
+                    <option value="downloaded">{t('stateFilter.downloaded')}</option>
+                    <option value="failed">{t('stateFilter.failed')}</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem',
+            alignItems: 'center'
+          }}>
+            {/* 1. Recherche VOD (Nom du Média) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.mediaName')}</label>
+              <input
+                type="text"
+                placeholder={t('search.byTitlePlaceholder')}
+                value={playlistSearchName}
+                onChange={e => { setPlaylistSearchName(e.target.value); setPlaylistPage(1); }}
+                className="custom-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {/* 2. Recherche Groupe / Catégorie */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.groupCategory')}</label>
+              <input
+                type="text"
+                placeholder={t('search.byGroupPlaceholder')}
+                value={playlistSearch}
+                onChange={e => { setPlaylistSearch(e.target.value); setPlaylistPage(1); }}
+                className="custom-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            {/* 3. Filtrage d'enrichissement TMDB */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.tmdbEnrichment')}</label>
+              <select
+                value={playlistTMDBFilter}
+                onChange={e => { setPlaylistTMDBFilter(e.target.value as 'all' | 'yes' | 'no'); setPlaylistPage(1); }}
+                className="custom-select"
+                style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+              >
+                <option value="all">{t('tmdbFilter.all')}</option>
+                <option value="yes">{t('tmdbFilter.yes')}</option>
+                <option value="no">{t('tmdbFilter.no')}</option>
+              </select>
+            </div>
+
+            {/* 4. État Pipeline */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('fields.pipelineState')}</label>
+              <select
+                value={playlistStateFilter}
+                onChange={e => { setPlaylistStateFilter(e.target.value); setPlaylistPage(1); }}
+                className="custom-select"
+                style={{ width: '100%', padding: '0.4rem 1.5rem 0.4rem 1rem' }}
+              >
+                <option value="all">{t('stateFilter.all')}</option>
+                <option value="processed">{t('stateFilter.processed')}</option>
+                <option value="pending">{t('stateFilter.pending')}</option>
+                <option value="downloading">{t('stateFilter.downloading')}</option>
+                <option value="organizing">{t('stateFilter.organizing')}</option>
+                <option value="downloaded">{t('stateFilter.downloaded')}</option>
+                <option value="failed">{t('stateFilter.failed')}</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {isMobile ? (

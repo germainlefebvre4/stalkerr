@@ -703,6 +703,57 @@ input, select {
   color: var(--text-secondary);
 }
 
+/* Collapsible advanced-filters disclosure used by Playlist on mobile */
+.advanced-filters-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.85rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.advanced-filters-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.advanced-filters-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background-color: var(--primary-accent);
+  border-radius: 9999px;
+}
+
+.advanced-filters-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.advanced-filters-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.advanced-filters-grid {
+  margin-top: 0.75rem;
+}
+
 /* Drawer sidepanel section titles (shared across all detail sections) */
 .drawer-section-title {
   font-size: 0.9rem;
