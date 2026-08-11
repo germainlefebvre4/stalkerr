@@ -26,27 +26,29 @@ const (
 
 // ProcessedLine represents an M3U playlist line with polymorphic relationships
 type ProcessedLine struct {
-	ID              uint            `gorm:"primaryKey" json:"id"`
-	LineContent     string          `gorm:"type:text;not null" json:"line_content"`
-	LineURL         *string         `gorm:"type:text" json:"line_url,omitempty"`
-	LineHash        string          `gorm:"type:varchar(64);not null;uniqueIndex" json:"line_hash"`
-	LineNumber      int             `gorm:"type:integer;not null;default:0" json:"line_number"`
-	TvgName         string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"tvg_name"`
-	GroupTitle      string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"group_title"`
-	ProcessedAt     time.Time       `gorm:"not null" json:"processed_at"`
-	ContentType     ContentType     `gorm:"type:varchar(20);not null;index:idx_processed_lines_content" json:"content_type"`
-	Resolution      *string         `gorm:"type:varchar(10)" json:"resolution,omitempty"`
-	ChannelID       *uint           `gorm:"index" json:"channel_id,omitempty"`
-	MovieID         *uint           `gorm:"index" json:"movie_id,omitempty"`
-	TVShowID        *uint           `gorm:"index" json:"tvshow_id,omitempty"`
-	UncategorizedID *uint           `gorm:"index" json:"uncategorized_id,omitempty"`
-	DownloadInfoID  *uint           `gorm:"index:idx_processed_lines_download" json:"download_info_id,omitempty"`
-	State           ProcessingState `gorm:"type:varchar(50);not null;default:processed;index:idx_processed_lines_content" json:"state"`
-	OverrideBy      *string         `gorm:"type:varchar(50)" json:"override_by,omitempty"`
-	OverrideAt      *time.Time      `json:"override_at,omitempty"`
-	DownloadedAt    *time.Time      `json:"downloaded_at,omitempty"`
-	CreatedAt       time.Time       `gorm:"not null;index:idx_processed_lines_created_at" json:"created_at"`
-	UpdatedAt       time.Time       `gorm:"not null" json:"updated_at"`
+	ID                      uint            `gorm:"primaryKey" json:"id"`
+	LineContent             string          `gorm:"type:text;not null" json:"line_content"`
+	LineURL                 *string         `gorm:"type:text" json:"line_url,omitempty"`
+	LineHash                string          `gorm:"type:varchar(64);not null;uniqueIndex" json:"line_hash"`
+	LineNumber              int             `gorm:"type:integer;not null;default:0" json:"line_number"`
+	TvgName                 string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"tvg_name"`
+	GroupTitle              string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"group_title"`
+	ProcessedAt             time.Time       `gorm:"not null" json:"processed_at"`
+	ContentType             ContentType     `gorm:"type:varchar(20);not null;index:idx_processed_lines_content" json:"content_type"`
+	Resolution              *string         `gorm:"type:varchar(10)" json:"resolution,omitempty"`
+	ChannelID               *uint           `gorm:"index" json:"channel_id,omitempty"`
+	MovieID                 *uint           `gorm:"index" json:"movie_id,omitempty"`
+	TVShowID                *uint           `gorm:"index" json:"tvshow_id,omitempty"`
+	UncategorizedID         *uint           `gorm:"index" json:"uncategorized_id,omitempty"`
+	DownloadInfoID          *uint           `gorm:"index:idx_processed_lines_download" json:"download_info_id,omitempty"`
+	State                   ProcessingState `gorm:"type:varchar(50);not null;default:processed;index:idx_processed_lines_content" json:"state"`
+	OverrideBy              *string         `gorm:"type:varchar(50)" json:"override_by,omitempty"`
+	OverrideAt              *time.Time      `json:"override_at,omitempty"`
+	DownloadedAt            *time.Time      `json:"downloaded_at,omitempty"`
+	RemoteFileSize          *int64          `json:"remote_file_size,omitempty"`
+	RemoteFileSizeCheckedAt *time.Time      `json:"remote_file_size_checked_at,omitempty"`
+	CreatedAt               time.Time       `gorm:"not null;index:idx_processed_lines_created_at" json:"created_at"`
+	UpdatedAt               time.Time       `gorm:"not null" json:"updated_at"`
 
 	// Associations
 	Movie  *Movie  `gorm:"foreignKey:MovieID;constraint:OnDelete=CASCADE" json:"movie,omitempty"`

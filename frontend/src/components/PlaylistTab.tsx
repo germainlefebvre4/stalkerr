@@ -582,6 +582,16 @@ export function PlaylistTab({
                         )}
                       </span>
                     </div>
+                    {selectedItem.content_type !== 'channels' && (
+                      <div>
+                        <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.remoteFileSize')}</strong>{' '}
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                          {selectedItem.remote_file_size
+                            ? formatRemoteFileSize(selectedItem.remote_file_size)
+                            : t('drawer.remoteFileSizeUnavailable')}
+                        </span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.uniqueHash')}</strong>{' '}
                       <code style={{ fontFamily: 'monospace', fontSize: '0.75rem', backgroundColor: 'var(--bg-app)', padding: '0.15rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
@@ -645,6 +655,15 @@ export function PlaylistTab({
       </Dialog.Root>
     </Tabs.Content>
   );
+}
+
+function formatRemoteFileSize(bytes: number): string {
+  const GB = 1024 * 1024 * 1024;
+  const MB = 1024 * 1024;
+  if (bytes >= GB) {
+    return `${(bytes / GB).toFixed(1)} GB`;
+  }
+  return `${(bytes / MB).toFixed(1)} MB`;
 }
 
 function getPaginationRange(current: number, total: number): (number | string)[] {

@@ -45,6 +45,8 @@ type Statistics struct {
 	TMDBErrors             int
 	MetadataBackfilled     int
 	MetadataBackfillErrors int
+	FileSizeBackfilled     int
+	FileSizeBackfillErrors int
 	Duration               time.Duration
 	ErrorMessages          []string
 }
@@ -230,6 +232,20 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 			stats.MetadataBackfilled = backfillStats.Updated
 			stats.MetadataBackfillErrors = backfillStats.Errors
 		}
+	}
+
+	// Backfill remote file sizes for VOD entries whose size has never been
+	// checked. Silent and automatic; bounded per run and tolerant of individual
+	// probe failures so a slow/hostile IPTV endpoint never stalls or fails the run.
+	cfg := config.Get()
+	timeout := time.Duration(cfg.M3U.RemoteFileSize.TimeoutSeconds) * time.Second
+	if sizeStats, err := BackfillRemoteFileSize(p.db, p.logger, timeout, cfg.M3U.RemoteFileSize.PerRunCap); err != nil {
+		p.logger.WithFields(map[string]interface{}{
+			"error": err,
+		}).Warn("failed to backfill remote file sizes")
+	} else {
+		stats.FileSizeBackfilled = sizeStats.Found
+		stats.FileSizeBackfillErrors = sizeStats.Errors
 	}
 
 	stats.Duration = time.Since(startTime)

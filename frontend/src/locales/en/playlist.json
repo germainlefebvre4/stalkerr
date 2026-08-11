@@ -90,6 +90,8 @@
     "m3uLineNumber": "🔢 M3U line number:",
     "line": "Line {{number}}",
     "unknownLegacyImport": "Unknown (legacy import)",
+    "remoteFileSize": "💾 Remote file size:",
+    "remoteFileSizeUnavailable": "Unavailable",
     "uniqueHash": "🔑 Unique hash:",
     "copied": "✓ Copied",
     "copy": "📄 Copy",

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -876,6 +877,72 @@ func TestListItemsFiltering(t *testing.T) {
 	}
 	if respNotEnriched.Total != 1 {
 		t.Errorf("Expected 1 item, got %d", respNotEnriched.Total)
+	}
+}
+
+func TestGetItem_RemoteFileSizePresenceAndAbsence(t *testing.T) {
+	db := setupTestDB(t)
+
+	size := int64(4823123456)
+	checkedAt := time.Now()
+
+	withSize := models.ProcessedLine{
+		LineContent:             "with-size-m3u-line",
+		LineHash:                "hash-with-size",
+		TvgName:                 "Movie With Known Size",
+		GroupTitle:              "Movies",
+		ContentType:             "movies",
+		State:                   "processed",
+		RemoteFileSize:          &size,
+		RemoteFileSizeCheckedAt: &checkedAt,
+		CreatedAt:               time.Now(),
+		UpdatedAt:               time.Now(),
+	}
+	db.Create(&withSize)
+
+	withoutSize := models.ProcessedLine{
+		LineContent: "without-size-m3u-line",
+		LineHash:    "hash-without-size",
+		TvgName:     "Movie Never Checked",
+		GroupTitle:  "Movies",
+		ContentType: "movies",
+		State:       "processed",
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	db.Create(&withoutSize)
+
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/items/%d", withSize.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+	var respWithSize ItemResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &respWithSize); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respWithSize.RemoteFileSize == nil || *respWithSize.RemoteFileSize != size {
+		t.Errorf("expected remote_file_size=%d, got %v", size, respWithSize.RemoteFileSize)
+	}
+
+	reqNoSize, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/items/%d", withoutSize.ID), nil)
+	wNoSize := httptest.NewRecorder()
+	server.router.ServeHTTP(wNoSize, reqNoSize)
+	if wNoSize.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", wNoSize.Code)
+	}
+	if strings.Contains(wNoSize.Body.String(), "remote_file_size") {
+		t.Errorf("expected remote_file_size to be omitted for an unchecked item, got body: %s", wNoSize.Body.String())
+	}
+	var respNoSize ItemResponse
+	if err := json.Unmarshal(wNoSize.Body.Bytes(), &respNoSize); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respNoSize.RemoteFileSize != nil {
+		t.Errorf("expected remote_file_size=nil, got %v", *respNoSize.RemoteFileSize)
 	}
 }
 
