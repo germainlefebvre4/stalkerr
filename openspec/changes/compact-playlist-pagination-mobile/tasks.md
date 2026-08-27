@@ -6,7 +6,7 @@
 
 ## 2. Verification
 
-- [ ] 2.1 Run `npm run build` and `npm run lint` in `frontend/` and verify both succeed with no errors.
-- [ ] 2.2 Start the dev server (`npm run dev`), open the Playlist tab with a viewport narrower than `768px` and a result set spanning multiple pages, and verify visually that the pagination bar shows `<<  <  Page X / Y  >  >>` with no numbered buttons, no "go to page" input, and no horizontal scrollbar on the page.
-- [ ] 2.3 In the same narrow viewport, tap `>` and `<` and verify the current page changes, the fetched items update, and the `Page X / Y` indicator reflects the new page.
-- [ ] 2.4 Resize/switch to a viewport at or above `768px` and verify the pagination bar reverts to the full desktop layout (numbered buttons, ellipsis, first/last jump buttons, "go to page" input) with no visual regression.
+- [x] 2.1 Run `npm run build` and `npm run lint` in `frontend/` and verify both succeed with no errors.
+- [x] 2.2 Start the dev server (`npm run dev`), open the Playlist tab with a viewport narrower than `768px` and a result set spanning multiple pages, and verify visually that the pagination bar shows `<<  <  Page X / Y  >  >>` with no numbered buttons, no "go to page" input, and no horizontal scrollbar on the page.
+- [x] 2.3 In the same narrow viewport, tap `>` and `<` and verify the current page changes, the fetched items update, and the `Page X / Y` indicator reflects the new page.
+- [x] 2.4 Resize/switch to a viewport at or above `768px` and verify the pagination bar reverts to the full desktop layout (numbered buttons, ellipsis, first/last jump buttons, "go to page" input) with no visual regression.
