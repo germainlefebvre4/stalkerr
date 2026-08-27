@@ -3,6 +3,7 @@ package processor
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/logger"
@@ -26,21 +27,32 @@ var remoteFileSizeEligibleContentTypes = []models.ContentType{
 }
 
 // BackfillRemoteFileSize queries ProcessedLine rows eligible for a remote file
-// size probe (movies/tvshows/uncategorized, line_url set, never checked before),
-// probes each one's line_url (HEAD, falling back to a ranged GET), and persists
-// the result. Every probed row has remote_file_size_checked_at set regardless of
-// outcome, so it is never retried by a later run. The number of rows probed in a
-// single call is bounded by perRunCap. A single row's probe failure is logged and
-// does not abort the run.
-func BackfillRemoteFileSize(db *gorm.DB, log *logger.Logger, timeout time.Duration, perRunCap int) (*RemoteFileSizeBackfillStats, error) {
+// size probe (movies/tvshows/uncategorized, line_url set, and either never
+// checked or checked without a usable size more than retryCooldown ago), probes
+// each one's line_url (HEAD, falling back to a ranged GET) concurrently across
+// up to concurrency probes in flight at once, and persists the result. A row
+// whose remote_file_size was successfully determined is never re-probed,
+// regardless of how old remote_file_size_checked_at is. The number of rows
+// probed in a single call is bounded by perRunCap. A single row's probe
+// failure is logged and does not abort the run or block sibling in-flight
+// probes.
+func BackfillRemoteFileSize(db *gorm.DB, log *logger.Logger, timeout time.Duration, perRunCap int, concurrency int, retryCooldown time.Duration) (*RemoteFileSizeBackfillStats, error) {
 	stats := &RemoteFileSizeBackfillStats{}
 
 	if perRunCap <= 0 {
 		return stats, nil
 	}
+	if concurrency <= 0 {
+		concurrency = 1
+	}
+
+	cooldownCutoff := time.Now().Add(-retryCooldown)
 
 	var lines []models.ProcessedLine
-	if err := db.Where("content_type IN ? AND line_url IS NOT NULL AND remote_file_size_checked_at IS NULL", remoteFileSizeEligibleContentTypes).
+	if err := db.Where(
+		"content_type IN ? AND line_url IS NOT NULL AND (remote_file_size_checked_at IS NULL OR (remote_file_size IS NULL AND remote_file_size_checked_at < ?))",
+		remoteFileSizeEligibleContentTypes, cooldownCutoff,
+	).
 		Limit(perRunCap).
 		Find(&lines).Error; err != nil {
 		return stats, fmt.Errorf("failed to query lines for remote file size backfill: %w", err)
@@ -52,35 +64,55 @@ func BackfillRemoteFileSize(db *gorm.DB, log *logger.Logger, timeout time.Durati
 
 	client := &http.Client{Timeout: timeout}
 
+	var statsMu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, concurrency)
+
 	for i := range lines {
 		line := &lines[i]
-		stats.Checked++
 
-		size, err := probeRemoteFileSize(client, *line.LineURL)
-		now := time.Now()
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(line *models.ProcessedLine) {
+			defer wg.Done()
+			defer func() { <-sem }()
 
-		updates := map[string]interface{}{
-			"remote_file_size_checked_at": now,
-		}
-		if err != nil {
-			stats.Errors++
-			log.WithFields(map[string]interface{}{
-				"line_id": line.ID,
-				"url":     *line.LineURL,
-				"error":   err,
-			}).Warn("failed to determine remote file size")
-		} else {
-			stats.Found++
-			updates["remote_file_size"] = size
-		}
+			size, err := probeRemoteFileSize(client, *line.LineURL)
+			now := time.Now()
 
-		if err := db.Model(&models.ProcessedLine{}).Where("id = ?", line.ID).Updates(updates).Error; err != nil {
-			log.WithFields(map[string]interface{}{
-				"line_id": line.ID,
-				"error":   err,
-			}).Warn("failed to persist remote file size probe result")
-		}
+			updates := map[string]interface{}{
+				"remote_file_size_checked_at": now,
+			}
+
+			statsMu.Lock()
+			stats.Checked++
+			if err != nil {
+				stats.Errors++
+			} else {
+				stats.Found++
+			}
+			statsMu.Unlock()
+
+			if err != nil {
+				log.WithFields(map[string]interface{}{
+					"line_id": line.ID,
+					"url":     *line.LineURL,
+					"error":   err,
+				}).Warn("failed to determine remote file size")
+			} else {
+				updates["remote_file_size"] = size
+			}
+
+			if err := db.Model(&models.ProcessedLine{}).Where("id = ?", line.ID).Updates(updates).Error; err != nil {
+				log.WithFields(map[string]interface{}{
+					"line_id": line.ID,
+					"error":   err,
+				}).Warn("failed to persist remote file size probe result")
+			}
+		}(line)
 	}
+
+	wg.Wait()
 
 	return stats, nil
 }

@@ -239,7 +239,8 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 	// probe failures so a slow/hostile IPTV endpoint never stalls or fails the run.
 	cfg := config.Get()
 	timeout := time.Duration(cfg.M3U.RemoteFileSize.TimeoutSeconds) * time.Second
-	if sizeStats, err := BackfillRemoteFileSize(p.db, p.logger, timeout, cfg.M3U.RemoteFileSize.PerRunCap); err != nil {
+	retryCooldown := time.Duration(cfg.M3U.RemoteFileSize.RetryCooldownHours) * time.Hour
+	if sizeStats, err := BackfillRemoteFileSize(p.db, p.logger, timeout, cfg.M3U.RemoteFileSize.PerRunCap, cfg.M3U.RemoteFileSize.Concurrency, retryCooldown); err != nil {
 		p.logger.WithFields(map[string]interface{}{
 			"error": err,
 		}).Warn("failed to backfill remote file sizes")
@@ -336,6 +337,7 @@ func (p *Processor) setContentType(line *models.ProcessedLine, classification cl
 				// Log error but don't fail the processing
 				p.logger.WithFields(map[string]interface{}{
 					"title": line.TvgName,
+					"group": line.GroupTitle,
 					"error": err,
 				}).Warn("failed to enrich movie with TMDB")
 			}

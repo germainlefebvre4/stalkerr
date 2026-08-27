@@ -13,12 +13,20 @@ Le modèle GORM `ProcessedLine` SHALL inclure deux colonnes nullable supplément
 - **WHEN** l'application exécute son auto-migration de base de données
 - **THEN** la table `processed_lines` SHALL contenir les colonnes `remote_file_size` et `remote_file_size_checked_at`, nullable, sans perte de données sur les lignes existantes
 
-### Requirement: Une seule tentative de vérification par ligne
-Dès que `remote_file_size_checked_at` est renseigné sur un `ProcessedLine`, le système SHALL ne plus jamais retenter de sonder la taille du fichier distant de cette ligne, que `remote_file_size` ait pu être obtenu ou non.
+### Requirement: Retry après délai de repos pour les lignes vérifiées sans résultat
+Une `ProcessedLine` dont `remote_file_size_checked_at` est renseigné mais dont `remote_file_size` est resté `NULL` (sondage échoué) SHALL redevenir éligible au sondage une fois qu'un délai de repos configurable (cooldown) s'est écoulé depuis `remote_file_size_checked_at`. Une `ProcessedLine` dont `remote_file_size` a été obtenu avec succès SHALL rester exclue du sondage : elle SHALL NOT être re-sondée, même après l'écoulement du cooldown.
 
-#### Scenario: Une ligne déjà vérifiée n'est pas re-sondée
-- **WHEN** un `ProcessedLine` a `remote_file_size_checked_at` renseigné (sonde réussie ou échouée)
-- **THEN** les exécutions ultérieures du sondage SHALL ignorer entièrement cette ligne
+#### Scenario: Ligne échouée, cooldown écoulé
+- **WHEN** une `ProcessedLine` a `remote_file_size_checked_at` renseigné, `remote_file_size` à `NULL`, et que le délai de repos configuré s'est écoulé depuis `remote_file_size_checked_at`
+- **THEN** cette ligne SHALL redevenir éligible à la requête d'éligibilité du backfill et SHALL pouvoir être re-sondée lors d'une exécution ultérieure
+
+#### Scenario: Ligne échouée, cooldown non écoulé
+- **WHEN** une `ProcessedLine` a `remote_file_size_checked_at` renseigné, `remote_file_size` à `NULL`, et que le délai de repos configuré ne s'est pas encore écoulé depuis `remote_file_size_checked_at`
+- **THEN** cette ligne SHALL NOT être sélectionnée par la requête d'éligibilité du backfill
+
+#### Scenario: Ligne vérifiée avec succès n'est jamais re-sondée
+- **WHEN** une `ProcessedLine` a `remote_file_size` renseigné avec une valeur exploitable
+- **THEN** cette ligne SHALL NOT être re-sondée, quel que soit le temps écoulé depuis `remote_file_size_checked_at`
 
 ### Requirement: L'API expose la taille du fichier distant
 `ItemResponse` SHALL inclure le champ `remote_file_size` (entier 64 bits nullable). Il SHALL être `null`/omis lorsque la valeur n'a pas été renseignée, que la ligne n'ait jamais été vérifiée ou qu'elle ait été vérifiée sans résultat exploitable.

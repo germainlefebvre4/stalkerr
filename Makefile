@@ -59,6 +59,21 @@ run: build
 	@echo "Running $(BINARY_NAME)..."
 	./$(BIN_DIR)/$(BINARY_NAME) server
 
+## run-server: Run the application server
+run-server: build
+	@echo "Running $(BINARY_NAME) server..."
+	./$(BIN_DIR)/$(BINARY_NAME) server
+
+## run-m3u-download: Run the m3u-download command
+run-m3u-download: build
+	@echo "Running $(BINARY_NAME) m3u-download..."
+	./$(BIN_DIR)/$(BINARY_NAME) m3u-download
+
+## run-process: Run the process command
+run-process: build
+	@echo "Running $(BINARY_NAME) process..."
+	./$(BIN_DIR)/$(BINARY_NAME) process
+
 ## lint: Run linters
 lint:
 	@echo "Running linters..."

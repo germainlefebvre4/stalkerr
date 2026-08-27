@@ -6,12 +6,22 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+)
+
+// testRemoteFileSizeConcurrency/testRemoteFileSizeCooldown are the config
+// values tests use unless the test is specifically exercising concurrency or
+// cooldown behavior; they mirror the production defaults.
+const (
+	testRemoteFileSizeConcurrency = 10
+	testRemoteFileSizeCooldown    = 168 * time.Hour
 )
 
 // newRemoteFileSizeTestLine creates and persists a ProcessedLine eligible (by
@@ -73,7 +83,7 @@ func TestBackfillRemoteFileSize_HeadSuccess(t *testing.T) {
 
 	line := newRemoteFileSizeTestLine(t, models.ContentTypeMovies, srv.URL, nil)
 
-	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200)
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, testRemoteFileSizeCooldown)
 	if err != nil {
 		t.Fatalf("BackfillRemoteFileSize error: %v", err)
 	}
@@ -124,7 +134,7 @@ func TestBackfillRemoteFileSize_HeadFailureFallsBackToRangeGet(t *testing.T) {
 
 	line := newRemoteFileSizeTestLine(t, models.ContentTypeTVShows, srv.URL, nil)
 
-	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200)
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, testRemoteFileSizeCooldown)
 	if err != nil {
 		t.Fatalf("BackfillRemoteFileSize error: %v", err)
 	}
@@ -140,7 +150,9 @@ func TestBackfillRemoteFileSize_HeadFailureFallsBackToRangeGet(t *testing.T) {
 }
 
 // TestBackfillRemoteFileSize_BothProbesFail verifies that a line whose HEAD and
-// ranged GET probes both fail is marked as checked, with no size and no abort.
+// ranged GET probes both fail is marked as checked, with no size and no abort,
+// that it is not retried while the cooldown window has not elapsed, and that
+// it becomes eligible again (and can succeed) once the cooldown has elapsed.
 func TestBackfillRemoteFileSize_BothProbesFail(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -149,18 +161,28 @@ func TestBackfillRemoteFileSize_BothProbesFail(t *testing.T) {
 	setupTestDB(t)
 	defer teardownTestDB(t)
 
+	var failing atomic.Bool
+	failing.Store(true)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		if failing.Load() {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Length", "42")
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
 
 	line := newRemoteFileSizeTestLine(t, models.ContentTypeUncategorized, srv.URL, nil)
 
-	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200)
+	const shortCooldown = 1 * time.Hour
+
+	// First run: both probes fail; the row is marked as checked but not
+	// permanently excluded.
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, shortCooldown)
 	if err != nil {
 		t.Fatalf("BackfillRemoteFileSize error: %v", err)
 	}
-
 	if stats.Errors != 1 {
 		t.Errorf("expected Errors=1, got %d", stats.Errors)
 	}
@@ -173,7 +195,155 @@ func TestBackfillRemoteFileSize_BothProbesFail(t *testing.T) {
 		t.Errorf("expected remote_file_size to remain nil, got %v", *updated.RemoteFileSize)
 	}
 	if updated.RemoteFileSizeCheckedAt == nil {
-		t.Error("expected remote_file_size_checked_at to be set even on failure, so the line is never retried")
+		t.Fatal("expected remote_file_size_checked_at to be set even on failure")
+	}
+
+	// Second run, immediately after: still within the cooldown window, so the
+	// row must not be retried yet.
+	stats, err = BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, shortCooldown)
+	if err != nil {
+		t.Fatalf("BackfillRemoteFileSize error: %v", err)
+	}
+	if stats.Checked != 0 {
+		t.Errorf("expected Checked=0 within the cooldown window, got %d", stats.Checked)
+	}
+
+	// Simulate the cooldown having elapsed and the server recovering: the row
+	// must become eligible again and get a size.
+	staleCheckedAt := time.Now().Add(-shortCooldown - time.Minute)
+	if err := database.Get().Model(&models.ProcessedLine{}).Where("id = ?", line.ID).
+		Update("remote_file_size_checked_at", staleCheckedAt).Error; err != nil {
+		t.Fatalf("failed to backdate remote_file_size_checked_at: %v", err)
+	}
+	failing.Store(false)
+
+	stats, err = BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, shortCooldown)
+	if err != nil {
+		t.Fatalf("BackfillRemoteFileSize error: %v", err)
+	}
+	if stats.Checked != 1 {
+		t.Errorf("expected Checked=1 after the cooldown elapsed, got %d", stats.Checked)
+	}
+	if stats.Found != 1 {
+		t.Errorf("expected Found=1 after the cooldown elapsed, got %d", stats.Found)
+	}
+
+	updated = reloadProcessedLine(t, line.ID)
+	if updated.RemoteFileSize == nil || *updated.RemoteFileSize != 42 {
+		t.Errorf("expected remote_file_size=42 after a successful retry, got %v", updated.RemoteFileSize)
+	}
+}
+
+// TestBackfillRemoteFileSize_SuccessfulRowNeverRetried verifies that a line
+// whose remote_file_size was already determined is never re-probed, no matter
+// how old remote_file_size_checked_at is (i.e. cooldown does not apply to it).
+func TestBackfillRemoteFileSize_SuccessfulRowNeverRetried(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Length", "111")
+	}))
+	defer srv.Close()
+
+	longAgo := time.Now().Add(-365 * 24 * time.Hour)
+	line := newRemoteFileSizeTestLine(t, models.ContentTypeMovies, srv.URL, &longAgo)
+	knownSize := int64(555)
+	if err := database.Get().Model(&models.ProcessedLine{}).Where("id = ?", line.ID).
+		Update("remote_file_size", knownSize).Error; err != nil {
+		t.Fatalf("failed to set remote_file_size: %v", err)
+	}
+
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, 1*time.Hour)
+	if err != nil {
+		t.Fatalf("BackfillRemoteFileSize error: %v", err)
+	}
+
+	if stats.Checked != 0 {
+		t.Errorf("expected Checked=0 for a successfully-checked line, got %d", stats.Checked)
+	}
+	if calls != 0 {
+		t.Errorf("expected no HTTP calls for a successfully-checked line, got %d", calls)
+	}
+
+	updated := reloadProcessedLine(t, line.ID)
+	if updated.RemoteFileSize == nil || *updated.RemoteFileSize != knownSize {
+		t.Errorf("expected remote_file_size to remain %d, got %v", knownSize, updated.RemoteFileSize)
+	}
+}
+
+// TestBackfillRemoteFileSize_ConcurrencyLimitRespected verifies that no more
+// than `concurrency` probes are in flight simultaneously, and that a failing
+// probe does not abort or block sibling in-flight probes.
+func TestBackfillRemoteFileSize_ConcurrencyLimitRespected(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	const concurrency = 3
+	const total = 9
+
+	var inFlight int32
+	var maxInFlight int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		current := atomic.AddInt32(&inFlight, 1)
+		for {
+			max := atomic.LoadInt32(&maxInFlight)
+			if current <= max {
+				break
+			}
+			if atomic.CompareAndSwapInt32(&maxInFlight, max, current) {
+				break
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+		atomic.AddInt32(&inFlight, -1)
+
+		if strings.Contains(r.URL.Path, "/fail") {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Length", "10")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	expectedFailures := 0
+	for i := 0; i < total; i++ {
+		url := srv.URL + "/ok"
+		if i%3 == 0 {
+			url = srv.URL + "/fail"
+			expectedFailures++
+		}
+		newRemoteFileSizeTestLine(t, models.ContentTypeMovies, url, nil)
+	}
+
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, concurrency, testRemoteFileSizeCooldown)
+	if err != nil {
+		t.Fatalf("BackfillRemoteFileSize error: %v", err)
+	}
+
+	if stats.Checked != total {
+		t.Errorf("expected Checked=%d, got %d", total, stats.Checked)
+	}
+	if got := int(atomic.LoadInt32(&maxInFlight)); got > concurrency {
+		t.Errorf("expected at most %d concurrent probes in flight, observed %d", concurrency, got)
+	}
+	if stats.Errors != expectedFailures {
+		t.Errorf("expected Errors=%d, got %d", expectedFailures, stats.Errors)
+	}
+	if stats.Found != total-expectedFailures {
+		t.Errorf("expected Found=%d, got %d", total-expectedFailures, stats.Found)
 	}
 }
 
@@ -196,7 +366,7 @@ func TestBackfillRemoteFileSize_ChannelsExcluded(t *testing.T) {
 
 	line := newRemoteFileSizeTestLine(t, models.ContentTypeChannels, srv.URL, nil)
 
-	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200)
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, testRemoteFileSizeCooldown)
 	if err != nil {
 		t.Fatalf("BackfillRemoteFileSize error: %v", err)
 	}
@@ -235,7 +405,7 @@ func TestBackfillRemoteFileSize_PerRunCapRespected(t *testing.T) {
 		newRemoteFileSizeTestLine(t, models.ContentTypeMovies, srv.URL, nil)
 	}
 
-	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, perRunCap)
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, perRunCap, testRemoteFileSizeConcurrency, testRemoteFileSizeCooldown)
 	if err != nil {
 		t.Fatalf("BackfillRemoteFileSize error: %v", err)
 	}
@@ -253,9 +423,11 @@ func TestBackfillRemoteFileSize_PerRunCapRespected(t *testing.T) {
 	}
 }
 
-// TestBackfillRemoteFileSize_AlreadyCheckedRowsSkipped verifies that a line with
-// remote_file_size_checked_at already set is never re-probed.
-func TestBackfillRemoteFileSize_AlreadyCheckedRowsSkipped(t *testing.T) {
+// TestBackfillRemoteFileSize_FailedRowNotRetriedWithinCooldown verifies that a
+// line whose remote_file_size_checked_at is set but remote_file_size is still
+// nil (a past failed probe) is not selected while the cooldown window has not
+// yet elapsed since that check.
+func TestBackfillRemoteFileSize_FailedRowNotRetriedWithinCooldown(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -273,16 +445,16 @@ func TestBackfillRemoteFileSize_AlreadyCheckedRowsSkipped(t *testing.T) {
 	alreadyChecked := time.Now().Add(-24 * time.Hour)
 	line := newRemoteFileSizeTestLine(t, models.ContentTypeMovies, srv.URL, &alreadyChecked)
 
-	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200)
+	stats, err := BackfillRemoteFileSize(database.Get(), logger.AppLogger(), 5*time.Second, 200, testRemoteFileSizeConcurrency, testRemoteFileSizeCooldown)
 	if err != nil {
 		t.Fatalf("BackfillRemoteFileSize error: %v", err)
 	}
 
 	if stats.Checked != 0 {
-		t.Errorf("expected Checked=0 for an already-checked line, got %d", stats.Checked)
+		t.Errorf("expected Checked=0 for a line checked within the cooldown window, got %d", stats.Checked)
 	}
 	if calls != 0 {
-		t.Errorf("expected no HTTP calls for an already-checked line, got %d", calls)
+		t.Errorf("expected no HTTP calls for a line checked within the cooldown window, got %d", calls)
 	}
 
 	updated := reloadProcessedLine(t, line.ID)
