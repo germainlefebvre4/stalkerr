@@ -31,6 +31,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	err = db.AutoMigrate(
 		&models.Movie{},
 		&models.TVShow{},
+		&models.Channel{},
 		&models.ProcessedLine{},
 		&models.ProcessingLog{},
 		&models.DownloadInfo{},
@@ -879,6 +880,77 @@ func TestListItemsFiltering(t *testing.T) {
 		t.Errorf("Expected 1 item, got %d", respNotEnriched.Total)
 	}
 }
+
+func TestListItemsFiltering_MovieIDAndTMDBID(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 111, TMDBTitle: "The Matrix"}
+	db.Create(&movie)
+	otherMovie := models.Movie{TMDBID: 999, TMDBTitle: "Inception"}
+	db.Create(&otherMovie)
+
+	// Two TVShow rows share the same tmdb_id (different episodes), a third has a
+	// different tmdb_id entirely.
+	tvshowEp1 := models.TVShow{TMDBID: 222, TMDBTitle: "Breaking Bad", Season: intPtr(1), Episode: intPtr(1)}
+	db.Create(&tvshowEp1)
+	tvshowEp2 := models.TVShow{TMDBID: 222, TMDBTitle: "Breaking Bad", Season: intPtr(2), Episode: intPtr(1)}
+	db.Create(&tvshowEp2)
+	otherShow := models.TVShow{TMDBID: 333, TMDBTitle: "Better Call Saul", Season: intPtr(1), Episode: intPtr(1)}
+	db.Create(&otherShow)
+
+	seed := []models.ProcessedLine{
+		{LineContent: "l1", LineHash: "h1", TvgName: "Matrix", GroupTitle: "g", ContentType: "movies", State: "processed", MovieID: &movie.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{LineContent: "l2", LineHash: "h2", TvgName: "Inception", GroupTitle: "g", ContentType: "movies", State: "processed", MovieID: &otherMovie.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{LineContent: "l3", LineHash: "h3", TvgName: "BB S01E01", GroupTitle: "g", ContentType: "tvshows", State: "processed", TVShowID: &tvshowEp1.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{LineContent: "l4", LineHash: "h4", TvgName: "BB S02E01", GroupTitle: "g", ContentType: "tvshows", State: "processed", TVShowID: &tvshowEp2.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{LineContent: "l5", LineHash: "h5", TvgName: "BCS S01E01", GroupTitle: "g", ContentType: "tvshows", State: "processed", TVShowID: &otherShow.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+	}
+	for i := range seed {
+		if err := db.Create(&seed[i]).Error; err != nil {
+			t.Fatalf("failed to seed item: %v", err)
+		}
+	}
+
+	server := NewServer()
+
+	// Filter by movie_id: only items linked to that movie.
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/items?movie_id=%d", movie.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp PaginatedResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if resp.Total != 1 {
+		t.Errorf("expected 1 item for movie_id filter, got %d", resp.Total)
+	}
+
+	// Filter by tmdb_id (content_type=tvshows): every episode sharing that tmdb_id,
+	// regardless of season/episode, and none from the other show.
+	reqTmdb, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/items?content_type=tvshows&tmdb_id=%d", tvshowEp1.TMDBID), nil)
+	wTmdb := httptest.NewRecorder()
+	server.router.ServeHTTP(wTmdb, reqTmdb)
+	if wTmdb.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", wTmdb.Code, wTmdb.Body.String())
+	}
+	var respTmdb typedPaginatedResponse
+	if err := json.Unmarshal(wTmdb.Body.Bytes(), &respTmdb); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respTmdb.Total != 2 {
+		t.Fatalf("expected 2 items across both episodes sharing tmdb_id, got %d: %+v", respTmdb.Total, respTmdb.Data)
+	}
+	for _, item := range respTmdb.Data {
+		if item.LineHash != "h3" && item.LineHash != "h4" {
+			t.Errorf("unexpected item %q returned for tmdb_id filter", item.LineHash)
+		}
+	}
+}
+
+func intPtr(v int) *int { return &v }
 
 func TestGetItem_RemoteFileSizePresenceAndAbsence(t *testing.T) {
 	db := setupTestDB(t)

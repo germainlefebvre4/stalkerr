@@ -2,10 +2,13 @@ import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { PlaylistItem } from '../types';
-import { formatDate, getDateGroupLabel, getDateGroupStarts } from '../utils/date';
+import { PlaylistItem, MediaGroupItem } from '../types';
+import { formatDate } from '../utils/date';
 import { getPipelineStateBadgeClass } from '../utils/pipelineState';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { PlaylistItemsTable } from './PlaylistItemsTable';
+import { PlaylistGroupedView } from './PlaylistGroupedView';
+import { Pagination } from './Pagination';
 
 interface PlaylistTabProps {
   playlist: PlaylistItem[];
@@ -30,6 +33,14 @@ interface PlaylistTabProps {
   playlistLoading: boolean;
   onOpenOverride: (item: PlaylistItem) => void;
   onResetPipeline: (id: number, contentType: string) => void;
+  playlistView: 'items' | 'grouped';
+  setPlaylistView: (view: 'items' | 'grouped') => void;
+  groups: MediaGroupItem[];
+  groupsLoading: boolean;
+  groupsTotal: number;
+  groupsPage: number;
+  setGroupsPage: React.Dispatch<React.SetStateAction<number>>;
+  groupsLimit: number;
 }
 
 export function PlaylistTab({
@@ -54,13 +65,20 @@ export function PlaylistTab({
   setPlaylistSort,
   playlistLoading,
   onOpenOverride,
-  onResetPipeline
+  onResetPipeline,
+  playlistView,
+  setPlaylistView,
+  groups,
+  groupsLoading,
+  groupsTotal,
+  groupsPage,
+  setGroupsPage,
+  groupsLimit,
 }: PlaylistTabProps) {
   const { t, i18n } = useTranslation('playlist');
   const isMobile = useIsMobile();
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | 'hash' | null>(null);
-  const [gotoPageInput, setGotoPageInput] = React.useState('');
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
 
   const activeAdvancedFilterCount = [
@@ -70,17 +88,6 @@ export function PlaylistTab({
     playlistStateFilter !== 'all',
   ].filter(Boolean).length;
 
-  const totalPages = Math.ceil(playlistTotal / playlistLimit);
-  const dateGroupStarts = playlistSort === 'created_at' ? getDateGroupStarts(playlist) : [];
-
-  const handleGotoPage = () => {
-    const parsed = parseInt(gotoPageInput, 10);
-    if (!isNaN(parsed)) {
-      setPlaylistPage(Math.min(Math.max(1, parsed), totalPages));
-    }
-    setGotoPageInput('');
-  };
-
   const handleCopy = (text: string, type: 'content' | 'url' | 'hash') => {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedText(type);
@@ -88,27 +95,27 @@ export function PlaylistTab({
     });
   };
 
-  const renderSortableHeader = (column: string, label: string, style?: React.CSSProperties) => {
-    const isActive = playlistSort === column;
-    return (
-      <th
-        onClick={() => setPlaylistSort(column)}
-        style={{ cursor: 'pointer', userSelect: 'none', ...style }}
-        title={t('table.sortBy', { column: label })}
-      >
-        {label}
-        {isActive && (
-          <span style={{ marginLeft: '0.35rem', display: 'inline-block' }}>
-            {playlistOrder === 'asc' ? '▲' : '▼'}
-          </span>
-        )}
-      </th>
-    );
-  };
-
   return (
     <Tabs.Content value="playlist" className="card tab-panel">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
+        {/* Sous-onglets : Items / Films & Séries */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={() => setPlaylistView('items')}
+            className={playlistView === 'items' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '0.45rem 1rem' }}
+          >
+            {t('view.items')}
+          </button>
+          <button
+            onClick={() => setPlaylistView('grouped')}
+            className={playlistView === 'grouped' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '0.45rem 1rem' }}
+          >
+            {t('view.grouped')}
+          </button>
+        </div>
+
         {/* Block Supérieur : Boutons de Type de Contenu */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
@@ -293,246 +300,38 @@ export function PlaylistTab({
         )}
       </div>
 
-      {isMobile ? (
-        <div>
-          {playlistLoading ? (
-            <div className="mobile-list-empty">{t('table.loading')}</div>
-          ) : playlist.length === 0 ? (
-            <div className="mobile-list-empty">{t('table.empty')}</div>
-          ) : (
-            playlist.map((item, index) => (
-              <React.Fragment key={item.id}>
-                {dateGroupStarts[index] && (
-                  <div className="date-group-header">
-                    {getDateGroupLabel(new Date(item.created_at), t, i18n.language)}
-                  </div>
-                )}
-                <div className="mobile-list-card" onClick={() => setSelectedItem(item)}>
-                  <div className="mobile-list-card-main">
-                    <span className="mobile-list-card-title">{item.tvg_name}</span>
-                    <span className="mobile-list-card-subtitle">{item.group_title}</span>
-                  </div>
-                  <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
-                    {item.state}
-                  </span>
-                </div>
-              </React.Fragment>
-            ))
-          )}
-        </div>
+      {playlistView === 'items' ? (
+        <>
+          <PlaylistItemsTable
+            items={playlist}
+            loading={playlistLoading}
+            onRowClick={setSelectedItem}
+            onOpenOverride={onOpenOverride}
+            onResetPipeline={onResetPipeline}
+            sort={playlistSort}
+            order={playlistOrder}
+            onSort={setPlaylistSort}
+          />
+          <Pagination
+            total={playlistTotal}
+            page={playlistPage}
+            setPage={setPlaylistPage}
+            limit={playlistLimit}
+            setLimit={setPlaylistLimit}
+            limitOptions={[10, 50, 100]}
+          />
+        </>
       ) : (
-        <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-          <table className="custom-table">
-            <thead>
-              <tr>
-                {renderSortableHeader('tvg_name', t('table.headers.mediaName'))}
-                {renderSortableHeader('group_title', t('table.headers.groupCategory'))}
-                {renderSortableHeader('tmdb_title', t('table.headers.tmdbEnrichment'))}
-                {renderSortableHeader('state', t('table.headers.pipelineState'))}
-                {renderSortableHeader('created_at', t('table.headers.createdAt'))}
-                {renderSortableHeader('downloaded_at', t('table.headers.downloadedAt'))}
-                <th style={{ textAlign: 'right' }}>{t('table.headers.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {playlistLoading ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    <span style={{ fontWeight: 600 }}>{t('table.loading')}</span>
-                  </td>
-                </tr>
-              ) : playlist.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
-                </tr>
-              ) : (
-                playlist.map((item, index) => {
-                  const isMovie = item.content_type === 'movies';
-                  const tmdb = isMovie ? item.movie : item.tvshow;
-                  return (
-                    <React.Fragment key={item.id}>
-                    {dateGroupStarts[index] && (
-                      <tr>
-                        <td colSpan={7} className="date-group-header">
-                          {getDateGroupLabel(new Date(item.created_at), t, i18n.language)}
-                        </td>
-                      </tr>
-                    )}
-                    <tr className="clickable-row" onClick={() => setSelectedItem(item)}>
-                      <td style={{ fontWeight: 600, color: 'var(--primary-slate)' }}>{item.tvg_name}</td>
-                      <td style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.group_title}</td>
-                      <td>
-                        {tmdb ? (
-                          <div>
-                            <strong style={{ color: 'var(--primary-accent)' }}>{tmdb.tmdb_title}</strong>{' '}
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 500 }}>({tmdb.tmdb_year})</span>
-                          </div>
-                        ) : (
-                          <span style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>{t('table.notEnriched')}</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
-                          {item.state}
-                        </span>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at, i18n.language)}</td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                        {item.downloaded_at ? formatDate(item.downloaded_at, i18n.language) : '—'}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onOpenOverride(item); }}
-                            className="btn-primary"
-                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                            title={t('table.actions.correctTitle')}
-                          >
-                            {item.override_by ? t('table.actions.correct') : t('table.actions.associate')}
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onResetPipeline(item.id, item.content_type); }}
-                            className="btn-secondary"
-                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
-                            title={t('table.actions.resetTitle')}
-                          >
-                            {t('table.actions.reset')}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination & Limit Selector */}
-      {playlistTotal > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-              {t('pagination.showing', {
-                from: playlistTotal === 0 ? 0 : (playlistPage - 1) * playlistLimit + 1,
-                to: Math.min(playlistPage * playlistLimit, playlistTotal),
-                total: playlistTotal,
-              })}
-            </span>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.show')}</span>
-              <select
-                value={playlistLimit}
-                onChange={e => {
-                  const limit = parseInt(e.target.value, 10);
-                  setPlaylistLimit(limit);
-                }}
-                className="custom-select"
-                style={{ padding: '0.2rem 1.5rem 0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto', height: 'auto' }}
-              >
-                <option value="10">10</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.perPage')}</span>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-              <button
-                disabled={playlistPage === 1}
-                onClick={() => setPlaylistPage(1)}
-                className="btn-secondary"
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
-                title={t('pagination.firstPage')}
-              >
-                &lt;&lt;
-              </button>
-              <button
-                disabled={playlistPage === 1}
-                onClick={() => setPlaylistPage(p => Math.max(1, p - 1))}
-                className="btn-secondary"
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === 1 ? 0.5 : 1 }}
-                title={t('pagination.prevPage')}
-              >
-                &lt;
-              </button>
-
-              {isMobile ? (
-                <span style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                  {t('pagination.page', { current: playlistPage, total: totalPages })}
-                </span>
-              ) : (
-                getPaginationRange(playlistPage, totalPages).map((page, index) => {
-                  if (page === '...') {
-                    return (
-                      <span key={`ellipsis-${index}`} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                        ...
-                      </span>
-                    );
-                  }
-                  return (
-                    <button
-                      key={`page-${page}`}
-                      onClick={() => setPlaylistPage(page as number)}
-                      className={playlistPage === page ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                    >
-                      {page}
-                    </button>
-                  );
-                })
-              )}
-
-              <button
-                disabled={playlistPage === totalPages}
-                onClick={() => setPlaylistPage(p => Math.min(totalPages, p + 1))}
-                className="btn-secondary"
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === totalPages ? 0.5 : 1 }}
-                title={t('pagination.nextPage')}
-              >
-                &gt;
-              </button>
-              <button
-                disabled={playlistPage === totalPages}
-                onClick={() => setPlaylistPage(totalPages)}
-                className="btn-secondary"
-                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', opacity: playlistPage === totalPages ? 0.5 : 1 }}
-                title={t('pagination.lastPage')}
-              >
-                &gt;&gt;
-              </button>
-
-              {!isMobile && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.4rem' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.goTo')}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={totalPages}
-                    value={gotoPageInput}
-                    onChange={e => setGotoPageInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleGotoPage(); }}
-                    placeholder={String(playlistPage)}
-                    className="custom-input"
-                    style={{ width: '4rem', padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
-                  />
-                  <button
-                    onClick={handleGotoPage}
-                    className="btn-secondary"
-                    style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
-                  >
-                    {t('pagination.go')}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <PlaylistGroupedView
+          groups={groups}
+          groupsLoading={groupsLoading}
+          groupsTotal={groupsTotal}
+          groupsPage={groupsPage}
+          setGroupsPage={setGroupsPage}
+          groupsLimit={groupsLimit}
+          onOpenOverride={onOpenOverride}
+          onResetPipeline={onResetPipeline}
+        />
       )}
 
       {/* Sidepanel de Détails Interactif (Drawer) */}
@@ -788,30 +587,4 @@ function formatRemoteFileSize(bytes: number): string {
     return `${(bytes / GB).toFixed(1)} GB`;
   }
   return `${(bytes / MB).toFixed(1)} MB`;
-}
-
-function getPaginationRange(current: number, total: number): (number | string)[] {
-  const range: number[] = [];
-  const delta = 1;
-
-  for (let i = 1; i <= total; i++) {
-    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
-      range.push(i);
-    }
-  }
-
-  const result: (number | string)[] = [];
-  let prev: number | null = null;
-  for (const i of range) {
-    if (prev !== null) {
-      if (i - prev === 2) {
-        result.push(prev + 1);
-      } else if (i - prev > 2) {
-        result.push('...');
-      }
-    }
-    result.push(i);
-    prev = i;
-  }
-  return result;
 }

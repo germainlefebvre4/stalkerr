@@ -71,6 +71,19 @@ type TVShowResponse struct {
 	TVDBID     *int    `json:"tvdb_id,omitempty"`
 }
 
+// ItemGroupResponse represents an aggregated movie/TV-show group entry in the
+// grouped ("Films & Séries") playlist view.
+type ItemGroupResponse struct {
+	Type           string  `json:"type"`
+	MovieID        *uint   `json:"movie_id,omitempty"`
+	TMDBID         *int    `json:"tmdb_id,omitempty"`
+	Title          *string `json:"title,omitempty"`
+	Year           *int    `json:"year,omitempty"`
+	SeasonStart    *int    `json:"season_start,omitempty"`
+	SeasonEnd      *int    `json:"season_end,omitempty"`
+	LatestActivity string  `json:"latest_activity"`
+}
+
 // FilterResponse represents a filter configuration
 type FilterResponse struct {
 	ID              uint    `json:"id"`

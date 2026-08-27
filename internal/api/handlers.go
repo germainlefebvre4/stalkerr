@@ -42,13 +42,6 @@ func (s *Server) listItems(c *gin.Context) {
 	// Parse pagination params
 	limit, offset := parsePagination(c)
 
-	// Parse filters
-	contentType := c.Query("content_type")
-	state := c.Query("state")
-	groupTitle := c.Query("group_title")
-	tvgName := c.Query("tvg_name")
-	tmdbEnriched := c.Query("tmdb_enriched")
-
 	// Parse sort
 	sortBy := c.DefaultQuery("sort", "created_at")
 	sortOrder := c.DefaultQuery("order", "desc")
@@ -87,24 +80,19 @@ func (s *Server) listItems(c *gin.Context) {
 	// Build query
 	query := db.Model(&models.ProcessedLine{}).Preload("Movie").Preload("TVShow")
 
-	likeOp := getLikeOp(db)
+	if filterSQL, filterArgs := buildItemFilterConditions(c, db); filterSQL != "" {
+		query = query.Where(filterSQL, filterArgs...)
+	}
 
-	if contentType != "" {
-		query = query.Where("content_type = ?", contentType)
+	if movieIDStr := c.Query("movie_id"); movieIDStr != "" {
+		if movieID, err := strconv.Atoi(movieIDStr); err == nil {
+			query = query.Where("movie_id = ?", movieID)
+		}
 	}
-	if state != "" {
-		query = query.Where("state = ?", state)
-	}
-	if groupTitle != "" {
-		query = query.Where(fmt.Sprintf("group_title %s ?", likeOp), "%"+groupTitle+"%")
-	}
-	if tvgName != "" {
-		query = query.Where(fmt.Sprintf("tvg_name %s ?", likeOp), "%"+tvgName+"%")
-	}
-	if tmdbEnriched == "yes" {
-		query = query.Where("(movie_id IS NOT NULL OR tv_show_id IS NOT NULL)")
-	} else if tmdbEnriched == "no" {
-		query = query.Where("(movie_id IS NULL AND tv_show_id IS NULL)")
+	if tmdbIDStr := c.Query("tmdb_id"); tmdbIDStr != "" {
+		if tmdbID, err := strconv.Atoi(tmdbIDStr); err == nil {
+			query = query.Where("tv_show_id IN (SELECT id FROM tvshows WHERE tmdb_id = ?)", tmdbID)
+		}
 	}
 
 	// Count total
@@ -890,6 +878,41 @@ func (s *Server) resetTVShow(c *gin.Context) {
 		"status":  "success",
 		"message": fmt.Sprintf("TV show with id %d was reset successfully, removed %d processed lines", id, rows),
 	})
+}
+
+// buildItemFilterConditions builds the shared content_type/state/group_title/tvg_name/
+// tmdb_enriched WHERE-clause fragment applied to processed_lines, used by both
+// listItems and the grouped listing handler. Returns an empty SQL string (and nil
+// args) when no filter query params are present.
+func buildItemFilterConditions(c *gin.Context, db *gorm.DB) (string, []interface{}) {
+	var conditions []string
+	var args []interface{}
+
+	likeOp := getLikeOp(db)
+
+	if contentType := c.Query("content_type"); contentType != "" {
+		conditions = append(conditions, "content_type = ?")
+		args = append(args, contentType)
+	}
+	if state := c.Query("state"); state != "" {
+		conditions = append(conditions, "state = ?")
+		args = append(args, state)
+	}
+	if groupTitle := c.Query("group_title"); groupTitle != "" {
+		conditions = append(conditions, fmt.Sprintf("group_title %s ?", likeOp))
+		args = append(args, "%"+groupTitle+"%")
+	}
+	if tvgName := c.Query("tvg_name"); tvgName != "" {
+		conditions = append(conditions, fmt.Sprintf("tvg_name %s ?", likeOp))
+		args = append(args, "%"+tvgName+"%")
+	}
+	if tmdbEnriched := c.Query("tmdb_enriched"); tmdbEnriched == "yes" {
+		conditions = append(conditions, "(movie_id IS NOT NULL OR tv_show_id IS NOT NULL)")
+	} else if tmdbEnriched == "no" {
+		conditions = append(conditions, "(movie_id IS NULL AND tv_show_id IS NULL)")
+	}
+
+	return strings.Join(conditions, " AND "), args
 }
 
 func getLikeOp(db *gorm.DB) string {

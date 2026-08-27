@@ -52,6 +52,17 @@ export interface PlaylistItem {
   downloaded_at: string | null;
 }
 
+export interface MediaGroupItem {
+  type: 'movie' | 'tvshow' | 'unmatched_movies' | 'unmatched_tvshows';
+  movie_id?: number;
+  tmdb_id?: number;
+  title?: string;
+  year?: number;
+  season_start?: number;
+  season_end?: number;
+  latest_activity: string;
+}
+
 export interface ProcessingLog {
   id: number;
   action: string;

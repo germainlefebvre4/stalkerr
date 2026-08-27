@@ -8,14 +8,19 @@ function isSameLocalDay(a: Date, b: Date): boolean {
 }
 
 /**
- * Given a sequence of items sorted by `created_at`, returns for each index whether
- * that item starts a new local-calendar-day group (the first item always does).
+ * Given a sequence of items sorted by timestamp (by default `created_at`, or
+ * another field via `getTimestamp`, e.g. a grouped row's `latest_activity`),
+ * returns for each index whether that item starts a new local-calendar-day
+ * group (the first item always does).
  */
-export function getDateGroupStarts<T extends { created_at: string }>(items: T[]): boolean[] {
+export function getDateGroupStarts<T extends { created_at: string }>(items: T[]): boolean[];
+export function getDateGroupStarts<T>(items: T[], getTimestamp: (item: T) => string): boolean[];
+export function getDateGroupStarts<T>(items: T[], getTimestamp?: (item: T) => string): boolean[] {
+  const extract = getTimestamp ?? ((item: T) => (item as unknown as { created_at: string }).created_at);
   return items.map((item, index) => {
     if (index === 0) return true;
-    const previous = new Date(items[index - 1].created_at);
-    const current = new Date(item.created_at);
+    const previous = new Date(extract(items[index - 1]));
+    const current = new Date(extract(item));
     return !isSameLocalDay(current, previous);
   });
 }

@@ -1,6 +1,7 @@
 import {
   PaginatedResponse,
   PlaylistItem,
+  MediaGroupItem,
   ProcessingLog,
   DownloadEnriched,
   ConfigPaths,
@@ -77,6 +78,61 @@ export const api = {
     }
     if (order) {
       url += `&order=${encodeURIComponent(order)}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getGroupedPlaylist(
+    page: number,
+    limit: number = 10,
+    contentType?: 'all' | 'movies' | 'tvshows',
+    stateFilter?: string,
+    search?: string,
+    searchName?: string,
+    tmdbEnriched?: string
+  ): Promise<PaginatedResponse<MediaGroupItem>> {
+    let url = `/api/v1/items/grouped?limit=${limit}&offset=${(page - 1) * limit}`;
+    if (contentType && contentType !== 'all') {
+      url += `&content_type=${contentType}`;
+    }
+    if (stateFilter && stateFilter !== 'all') {
+      url += `&state=${stateFilter}`;
+    }
+    if (search) {
+      url += `&group_title=${encodeURIComponent(search)}`;
+    }
+    if (searchName) {
+      url += `&tvg_name=${encodeURIComponent(searchName)}`;
+    }
+    if (tmdbEnriched && tmdbEnriched !== 'all') {
+      url += `&tmdb_enriched=${tmdbEnriched}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getGroupItems(
+    group: Pick<MediaGroupItem, 'type' | 'movie_id' | 'tmdb_id'>,
+    page: number,
+    limit: number = 10
+  ): Promise<PaginatedResponse<PlaylistItem>> {
+    let url = `/api/v1/items?limit=${limit}&offset=${(page - 1) * limit}`;
+    switch (group.type) {
+      case 'movie':
+        url += `&movie_id=${group.movie_id}`;
+        break;
+      case 'tvshow':
+        url += `&content_type=tvshows&tmdb_id=${group.tmdb_id}`;
+        break;
+      case 'unmatched_movies':
+        url += '&content_type=movies&tmdb_enriched=no';
+        break;
+      case 'unmatched_tvshows':
+        url += '&content_type=tvshows&tmdb_enriched=no';
+        break;
     }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);

@@ -26,6 +26,15 @@ describe('getDateGroupStarts', () => {
     ];
     expect(getDateGroupStarts(items)).toEqual([true, false, true, false, true]);
   });
+
+  it('supports a custom timestamp field, e.g. grouped rows keyed off latest_activity', () => {
+    const groups = [
+      { latest_activity: '2026-08-27T10:00:00' },
+      { latest_activity: '2026-08-27T12:00:00' },
+      { latest_activity: '2026-08-26T09:00:00' },
+    ];
+    expect(getDateGroupStarts(groups, g => g.latest_activity)).toEqual([true, false, true]);
+  });
 });
 
 describe('getDateGroupLabel', () => {

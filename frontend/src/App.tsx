@@ -5,6 +5,8 @@ import { useToast } from './hooks/useToast';
 import { useApiErrorMessage } from './hooks/useApiErrorMessage';
 import { useHealthAndStats } from './hooks/useHealthAndStats';
 import { usePlaylist } from './hooks/usePlaylist';
+import { usePlaylistView } from './hooks/usePlaylistView';
+import { usePlaylistGroups } from './hooks/usePlaylistGroups';
 import { useFilters } from './hooks/useFilters';
 import { useLogs } from './hooks/useLogs';
 import { useDownloads } from './hooks/useDownloads';
@@ -61,7 +63,19 @@ export default function App() {
     playlistLimit, setPlaylistLimit,
     playlistSort, playlistOrder, setPlaylistSort
   } = usePlaylist();
-  
+
+  const { playlistView, setPlaylistView } = usePlaylistView();
+  const {
+    groups, groupsLoading, groupsTotal, groupsPage, setGroupsPage, groupsLimit,
+  } = usePlaylistGroups(
+    activeTab === 'playlist' && playlistView === 'grouped',
+    playlistFilter,
+    playlistStateFilter,
+    playlistSearch,
+    playlistSearchName,
+    playlistTMDBFilter
+  );
+
   const { filters, filtersLoading, fetchFilters, deleteFilter } = useFilters();
   const { logs, logsLoading, fetchLogs } = useLogs(activeTab === 'logs');
   
@@ -176,6 +190,9 @@ export default function App() {
           playlistSort={playlistSort} playlistOrder={playlistOrder} setPlaylistSort={setPlaylistSort}
           playlistLoading={playlistLoading} onOpenOverride={(item) => { setOverrideItemData(item); setIsOverrideOpen(true); }}
           onResetPipeline={handleResetPipeline}
+          playlistView={playlistView} setPlaylistView={setPlaylistView}
+          groups={groups} groupsLoading={groupsLoading} groupsTotal={groupsTotal}
+          groupsPage={groupsPage} setGroupsPage={setGroupsPage} groupsLimit={groupsLimit}
         />
 
         <FiltersTab

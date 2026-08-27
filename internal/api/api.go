@@ -96,6 +96,7 @@ func (s *Server) setupRoutes() {
 		items := v1.Group("/items")
 		{
 			items.GET("", s.listItems)
+			items.GET("/grouped", s.listItemGroups)
 			items.GET("/:id", s.getItem)
 			items.PUT("/:id", s.updateItem)
 			items.POST("/search", s.searchItems)
