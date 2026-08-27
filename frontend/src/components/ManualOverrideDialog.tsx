@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { PlaylistItem, TMDBSearchResult } from '../types';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
+import { formatDate } from '../utils/date';
 
 interface ManualOverrideDialogProps {
   isOpen: boolean;
@@ -17,6 +18,13 @@ interface OverrideCandidate {
   item: PlaylistItem;
   preChecked: boolean;
   checked: boolean;
+  preview: { season: number; episode: number; source: 'current' | 'detected' } | null;
+}
+
+function extractSeasonEpisode(tvgName: string): { season: number | null; episode: number | null } {
+  const match = tvgName.match(/S(\d+)[\s-]*E(\d+)/i);
+  if (!match) return { season: null, episode: null };
+  return { season: parseInt(match[1], 10), episode: parseInt(match[2], 10) };
 }
 
 function cleanRawTitle(rawTitle: string): string {
@@ -38,7 +46,7 @@ export function ManualOverrideDialog({
   onSuccess,
   playlist
 }: ManualOverrideDialogProps) {
-  const { t } = useTranslation('dialogs');
+  const { t, i18n } = useTranslation('dialogs');
   const translateApiError = useApiErrorMessage();
   const [overrideSearchQuery, setOverrideSearchQuery] = useState('');
   const [overrideMediaType, setOverrideMediaType] = useState<'movie' | 'tvshow'>('movie');
@@ -67,14 +75,9 @@ export function ManualOverrideDialog({
       setOverrideMediaType(isTV ? 'tvshow' : 'movie');
 
       // Extract Season & Episode
-      const seMatch = itemData.tvg_name.match(/S(\d+)[\s-]*E(\d+)/i);
-      if (seMatch) {
-        setOverrideSeason(parseInt(seMatch[1], 10).toString());
-        setOverrideEpisode(parseInt(seMatch[2], 10).toString());
-      } else {
-        setOverrideSeason('');
-        setOverrideEpisode('');
-      }
+      const { season, episode } = extractSeasonEpisode(itemData.tvg_name);
+      setOverrideSeason(season !== null ? season.toString() : '');
+      setOverrideEpisode(episode !== null ? episode.toString() : '');
 
       const existingYear = isTV ? itemData.tvshow?.tmdb_year : itemData.movie?.tmdb_year;
       setOverrideSearchYear(existingYear ? existingYear.toString() : '');
@@ -108,7 +111,16 @@ export function ManualOverrideDialog({
           .filter(p => p.content_type === 'tvshows' && p.id !== overrideItemData.id)
           .map(p => {
             const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
-            return { item: p, preChecked, checked: preChecked };
+            let preview: OverrideCandidate['preview'] = null;
+            if (p.tvshow?.season != null && p.tvshow?.episode != null) {
+              preview = { season: p.tvshow.season, episode: p.tvshow.episode, source: 'current' };
+            } else {
+              const detected = extractSeasonEpisode(p.tvg_name);
+              if (detected.season !== null && detected.episode !== null) {
+                preview = { season: detected.season, episode: detected.episode, source: 'detected' };
+              }
+            }
+            return { item: p, preChecked, checked: preChecked, preview };
           });
         setCandidates(list);
       } else {
@@ -210,6 +222,41 @@ export function ManualOverrideDialog({
               <div><strong>{t('manualOverride.originalGroupLabel')}</strong> <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{overrideItemData.group_title}</span></div>
             </div>
           )}
+
+          {overrideItemData && (overrideItemData.tvshow || overrideItemData.movie) && (() => {
+            const currentMedia = overrideItemData.tvshow ?? overrideItemData.movie!;
+            return (
+              <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.8rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('manualOverride.currentMatchTitle')}</label>
+                <div>
+                  <strong>{t('manualOverride.currentTitleLabel')}</strong>{' '}
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                    {currentMedia.tmdb_title}{currentMedia.tmdb_year ? ` (${currentMedia.tmdb_year})` : ''}
+                  </span>
+                </div>
+                {overrideItemData.tvshow && overrideItemData.tvshow.season != null && overrideItemData.tvshow.episode != null && (
+                  <div>
+                    <strong>{t('manualOverride.currentSeasonEpisodeLabel')}</strong>{' '}
+                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      S{overrideItemData.tvshow.season} E{overrideItemData.tvshow.episode}
+                    </span>
+                  </div>
+                )}
+                {overrideItemData.override_by && (
+                  <div>
+                    <strong>{t('manualOverride.overrideByLabel')}</strong>{' '}
+                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{overrideItemData.override_by}</span>
+                  </div>
+                )}
+                {overrideItemData.override_at && (
+                  <div>
+                    <strong>{t('manualOverride.overrideAtLabel')}</strong>{' '}
+                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{formatDate(overrideItemData.override_at, i18n.language)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* MediaType Select & Year */}
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
@@ -321,7 +368,7 @@ export function ManualOverrideDialog({
           </div>
 
           {/* Optional Episode Fields for Series */}
-          {overrideMediaType === 'tvshow' && selectedResult && (
+          {overrideMediaType === 'tvshow' && (
             <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '1rem', display: 'flex', gap: '1rem' }}>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('manualOverride.seasonLabel')}</label>
@@ -364,6 +411,16 @@ export function ManualOverrideDialog({
                     aria-label={t('manualOverride.candidateCheckboxLabel', { title: candidate.item.tvg_name })}
                   />
                   <span style={{ fontFamily: 'monospace' }}>{candidate.item.tvg_name}</span>
+                  {candidate.preview && (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {t(
+                        candidate.preview.source === 'current'
+                          ? 'manualOverride.candidatePreviewCurrent'
+                          : 'manualOverride.candidatePreviewDetected',
+                        { season: candidate.preview.season, episode: candidate.preview.episode }
+                      )}
+                    </span>
+                  )}
                 </label>
               ))}
             </div>

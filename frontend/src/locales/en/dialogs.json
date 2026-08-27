@@ -60,8 +60,15 @@
     "successMessage": "TMDB association updated successfully!",
     "candidatesTitle": "Also associate these entries:",
     "candidateCheckboxLabel": "Also associate {{title}}",
+    "candidatePreviewCurrent": "current: S{{season}}E{{episode}}",
+    "candidatePreviewDetected": "detected: S{{season}}E{{episode}}",
     "batchProgress": "Associating {{current}}/{{total}}...",
     "batchSuccessMessage": "{{count}}/{{total}} associated",
-    "batchPartialFailureMessage": "{{count}}/{{total}} associated, see details below"
+    "batchPartialFailureMessage": "{{count}}/{{total}} associated, see details below",
+    "currentMatchTitle": "Current match:",
+    "currentTitleLabel": "Title:",
+    "currentSeasonEpisodeLabel": "Season/Episode:",
+    "overrideByLabel": "Corrected by:",
+    "overrideAtLabel": "Corrected on:"
   }
 }
