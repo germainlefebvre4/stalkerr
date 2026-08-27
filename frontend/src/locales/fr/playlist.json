@@ -54,6 +54,10 @@
       "reset": "Réinitialiser ↻"
     }
   },
+  "dateGroups": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier"
+  },
   "pagination": {
     "showing": "Affichage de {{from}} à {{to}} sur {{total}} entrées",
     "show": "Afficher :",
@@ -63,7 +67,8 @@
     "nextPage": "Page suivante",
     "lastPage": "Dernière page",
     "goTo": "Aller à :",
-    "go": "Go"
+    "go": "Go",
+    "page": "Page {{current}} / {{total}}"
   },
   "drawer": {
     "title": "📋 Détails de la Piste",

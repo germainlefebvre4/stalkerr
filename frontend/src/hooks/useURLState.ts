@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 export interface URLStateField<T> {
   default: T;
@@ -7,6 +7,10 @@ export interface URLStateField<T> {
   isValid?: (value: T) => boolean;
 }
 
+// `any` is required here (not `unknown`): each field's `parse`/`serialize`/`isValid`
+// take/return its own concrete `T` in a contravariant position, so a heterogeneous
+// map of fields with different `T`s can only be typed as assignable via `any`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type URLStateSchema = { [key: string]: URLStateField<any> };
 
 export type URLStateValues<S extends URLStateSchema> = {
@@ -72,8 +76,7 @@ function writeURLState<S extends URLStateSchema>(schema: S, values: URLStateValu
 export function useURLState<S extends URLStateSchema>(
   schema: S
 ): [URLStateValues<S>, (patch: Partial<URLStateValues<S>>) => void] {
-  const initial = useRef(readURLState(schema)).current;
-  const [state, setState] = useState<URLStateValues<S>>(initial);
+  const [state, setState] = useState<URLStateValues<S>>(() => readURLState(schema));
 
   const patchState = useCallback(
     (patch: Partial<URLStateValues<S>>) => {

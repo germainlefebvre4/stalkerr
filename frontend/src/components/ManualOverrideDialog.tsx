@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
-import { PlaylistItem } from '../types';
+import { PlaylistItem, TMDBSearchResult } from '../types';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
 
 interface ManualOverrideDialogProps {
@@ -21,12 +21,12 @@ interface OverrideCandidate {
 
 function cleanRawTitle(rawTitle: string): string {
   let cleaned = rawTitle;
-  cleaned = cleaned.replace(/^[a-zA-Z]{2,4}\s*[:\-]\s*/, '');
+  cleaned = cleaned.replace(/^[a-zA-Z]{2,4}\s*[:-]\s*/, '');
   cleaned = cleaned.replace(/\b(FHD|UHD|4K|1080p|720p|480p|HD|SD|MULTI|VF|VOSTFR|WEB|x264|H264|x265|HEVC|AAC|AC3)\b/ig, '');
   cleaned = cleaned.replace(/\bS\d+E\d+\b/ig, '');
   cleaned = cleaned.replace(/\bS\d+\b/ig, '');
   cleaned = cleaned.replace(/\bE\d+\b/ig, '');
-  cleaned = cleaned.replace(/[\(\)\-\[\]]/g, ' ');
+  cleaned = cleaned.replace(/[()\-[\]]/g, ' ');
   cleaned = cleaned.trim().replace(/\s+/g, ' ');
   return cleaned;
 }
@@ -45,9 +45,9 @@ export function ManualOverrideDialog({
   const [overrideYear, setOverrideSearchYear] = useState('');
   const [overrideSeason, setOverrideSeason] = useState('');
   const [overrideEpisode, setOverrideEpisode] = useState('');
-  const [overrideSearchResults, setOverrideSearchResults] = useState<any[]>([]);
+  const [overrideSearchResults, setOverrideSearchResults] = useState<TMDBSearchResult[]>([]);
   const [overrideSearchLoading, setOverrideSearchLoading] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<any | null>(null);
+  const [selectedResult, setSelectedResult] = useState<TMDBSearchResult | null>(null);
   const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
   const [overrideError, setOverrideError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<OverrideCandidate[]>([]);
@@ -55,16 +55,19 @@ export function ManualOverrideDialog({
   const [batchFailures, setBatchFailures] = useState<Array<{ title: string; error: string }>>([]);
 
   useEffect(() => {
-    if (overrideItemData) {
-      const cleaned = cleanRawTitle(overrideItemData.tvg_name);
+    if (!overrideItemData) return;
+    const itemData = overrideItemData;
+
+    void Promise.resolve().then(() => {
+      const cleaned = cleanRawTitle(itemData.tvg_name);
 
       setOverrideSearchQuery(cleaned);
 
-      const isTV = overrideItemData.content_type === 'tvshows';
+      const isTV = itemData.content_type === 'tvshows';
       setOverrideMediaType(isTV ? 'tvshow' : 'movie');
 
       // Extract Season & Episode
-      const seMatch = overrideItemData.tvg_name.match(/S(\d+)[\s-]*E(\d+)/i);
+      const seMatch = itemData.tvg_name.match(/S(\d+)[\s-]*E(\d+)/i);
       if (seMatch) {
         setOverrideSeason(parseInt(seMatch[1], 10).toString());
         setOverrideEpisode(parseInt(seMatch[2], 10).toString());
@@ -73,7 +76,7 @@ export function ManualOverrideDialog({
         setOverrideEpisode('');
       }
 
-      const existingYear = isTV ? overrideItemData.tvshow?.tmdb_year : overrideItemData.movie?.tmdb_year;
+      const existingYear = isTV ? itemData.tvshow?.tmdb_year : itemData.movie?.tmdb_year;
       setOverrideSearchYear(existingYear ? existingYear.toString() : '');
       setSelectedResult(null);
       setOverrideError(null);
@@ -93,23 +96,25 @@ export function ManualOverrideDialog({
         .finally(() => {
           setOverrideSearchLoading(false);
         });
-    }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrideItemData]);
 
   useEffect(() => {
-    if (overrideItemData && overrideMediaType === 'tvshow' && selectedResult) {
-      const openedCleaned = cleanRawTitle(overrideItemData.tvg_name);
-      const list: OverrideCandidate[] = playlist
-        .filter(p => p.content_type === 'tvshows' && p.id !== overrideItemData.id)
-        .map(p => {
-          const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
-          return { item: p, preChecked, checked: preChecked };
-        });
-      setCandidates(list);
-    } else {
-      setCandidates([]);
-    }
+    void Promise.resolve().then(() => {
+      if (overrideItemData && overrideMediaType === 'tvshow' && selectedResult) {
+        const openedCleaned = cleanRawTitle(overrideItemData.tvg_name);
+        const list: OverrideCandidate[] = playlist
+          .filter(p => p.content_type === 'tvshows' && p.id !== overrideItemData.id)
+          .map(p => {
+            const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
+            return { item: p, preChecked, checked: preChecked };
+          });
+        setCandidates(list);
+      } else {
+        setCandidates([]);
+      }
+    });
   }, [overrideItemData, overrideMediaType, selectedResult, playlist]);
 
   const toggleCandidate = (itemId: number) => {

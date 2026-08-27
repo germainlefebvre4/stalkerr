@@ -129,3 +129,11 @@ export interface FilterConfig {
   exclude_patterns?: string;
   is_runtime: boolean;
 }
+
+export interface TMDBSearchResult {
+  id: number;
+  title: string;
+  poster_path?: string;
+  release_date?: string;
+  overview?: string;
+}

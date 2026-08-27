@@ -179,7 +179,7 @@ export function usePlaylist() {
   }, [urlState.page, urlState.limit, urlState.type, urlState.state, urlState.search, urlState.searchName, urlState.tmdb, urlState.sort, urlState.order]);
 
   useEffect(() => {
-    fetchPlaylist();
+    void Promise.resolve().then(fetchPlaylist);
   }, [fetchPlaylist]);
 
   return {

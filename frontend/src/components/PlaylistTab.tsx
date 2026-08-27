@@ -3,7 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { PlaylistItem } from '../types';
-import { formatDate } from '../utils/date';
+import { formatDate, getDateGroupLabel, getDateGroupStarts } from '../utils/date';
 import { getPipelineStateBadgeClass } from '../utils/pipelineState';
 import { useIsMobile } from '../hooks/useMediaQuery';
 
@@ -71,6 +71,7 @@ export function PlaylistTab({
   ].filter(Boolean).length;
 
   const totalPages = Math.ceil(playlistTotal / playlistLimit);
+  const dateGroupStarts = playlistSort === 'created_at' ? getDateGroupStarts(playlist) : [];
 
   const handleGotoPage = () => {
     const parsed = parseInt(gotoPageInput, 10);
@@ -299,16 +300,23 @@ export function PlaylistTab({
           ) : playlist.length === 0 ? (
             <div className="mobile-list-empty">{t('table.empty')}</div>
           ) : (
-            playlist.map(item => (
-              <div key={item.id} className="mobile-list-card" onClick={() => setSelectedItem(item)}>
-                <div className="mobile-list-card-main">
-                  <span className="mobile-list-card-title">{item.tvg_name}</span>
-                  <span className="mobile-list-card-subtitle">{item.group_title}</span>
+            playlist.map((item, index) => (
+              <React.Fragment key={item.id}>
+                {dateGroupStarts[index] && (
+                  <div className="date-group-header">
+                    {getDateGroupLabel(new Date(item.created_at), t, i18n.language)}
+                  </div>
+                )}
+                <div className="mobile-list-card" onClick={() => setSelectedItem(item)}>
+                  <div className="mobile-list-card-main">
+                    <span className="mobile-list-card-title">{item.tvg_name}</span>
+                    <span className="mobile-list-card-subtitle">{item.group_title}</span>
+                  </div>
+                  <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
+                    {item.state}
+                  </span>
                 </div>
-                <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
-                  {item.state}
-                </span>
-              </div>
+              </React.Fragment>
             ))
           )}
         </div>
@@ -338,11 +346,19 @@ export function PlaylistTab({
                   <td colSpan={7} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('table.empty')}</td>
                 </tr>
               ) : (
-                playlist.map(item => {
+                playlist.map((item, index) => {
                   const isMovie = item.content_type === 'movies';
                   const tmdb = isMovie ? item.movie : item.tvshow;
                   return (
-                    <tr key={item.id} className="clickable-row" onClick={() => setSelectedItem(item)}>
+                    <React.Fragment key={item.id}>
+                    {dateGroupStarts[index] && (
+                      <tr>
+                        <td colSpan={7} className="date-group-header">
+                          {getDateGroupLabel(new Date(item.created_at), t, i18n.language)}
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="clickable-row" onClick={() => setSelectedItem(item)}>
                       <td style={{ fontWeight: 600, color: 'var(--primary-slate)' }}>{item.tvg_name}</td>
                       <td style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.group_title}</td>
                       <td>
@@ -385,6 +401,7 @@ export function PlaylistTab({
                         </div>
                       </td>
                     </tr>
+                    </React.Fragment>
                   );
                 })
               )}
@@ -445,25 +462,31 @@ export function PlaylistTab({
                 &lt;
               </button>
 
-              {getPaginationRange(playlistPage, totalPages).map((page, index) => {
-                if (page === '...') {
+              {isMobile ? (
+                <span style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  {t('pagination.page', { current: playlistPage, total: totalPages })}
+                </span>
+              ) : (
+                getPaginationRange(playlistPage, totalPages).map((page, index) => {
+                  if (page === '...') {
+                    return (
+                      <span key={`ellipsis-${index}`} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                        ...
+                      </span>
+                    );
+                  }
                   return (
-                    <span key={`ellipsis-${index}`} style={{ padding: '0.4rem 0.6rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
-                      ...
-                    </span>
+                    <button
+                      key={`page-${page}`}
+                      onClick={() => setPlaylistPage(page as number)}
+                      className={playlistPage === page ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                    >
+                      {page}
+                    </button>
                   );
-                }
-                return (
-                  <button
-                    key={`page-${page}`}
-                    onClick={() => setPlaylistPage(page as number)}
-                    className={playlistPage === page ? 'btn-primary' : 'btn-secondary'}
-                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
+                })
+              )}
 
               <button
                 disabled={playlistPage === totalPages}
@@ -484,27 +507,29 @@ export function PlaylistTab({
                 &gt;&gt;
               </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.4rem' }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.goTo')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  value={gotoPageInput}
-                  onChange={e => setGotoPageInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleGotoPage(); }}
-                  placeholder={String(playlistPage)}
-                  className="custom-input"
-                  style={{ width: '4rem', padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
-                />
-                <button
-                  onClick={handleGotoPage}
-                  className="btn-secondary"
-                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
-                >
-                  {t('pagination.go')}
-                </button>
-              </div>
+              {!isMobile && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.4rem' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('pagination.goTo')}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={gotoPageInput}
+                    onChange={e => setGotoPageInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleGotoPage(); }}
+                    placeholder={String(playlistPage)}
+                    className="custom-input"
+                    style={{ width: '4rem', padding: '0.35rem 0.5rem', fontSize: '0.8rem' }}
+                  />
+                  <button
+                    onClick={handleGotoPage}
+                    className="btn-secondary"
+                    style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                  >
+                    {t('pagination.go')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -539,6 +564,7 @@ export function PlaylistTab({
                   {(() => {
                     const isMovie = selectedItem.content_type === 'movies';
                     const tmdb = isMovie ? selectedItem.movie : selectedItem.tvshow;
+                    const legacySeasonEpisode = selectedItem as PlaylistItem & { season?: number; episode?: number };
                     if (tmdb) {
                       const posterUrl = tmdb.poster_path ? `https://image.tmdb.org/t/p/w342${tmdb.poster_path}` : null;
                       const tmdbUrl = tmdb.tmdb_id ? `https://www.themoviedb.org/${isMovie ? 'movie' : 'tv'}/${tmdb.tmdb_id}` : null;
@@ -568,11 +594,11 @@ export function PlaylistTab({
                                   <strong>{t('drawer.duration')}</strong> {t('drawer.durationMinutes', { count: selectedItem.movie.duration })}
                                 </div>
                               )}
-                              {!isMovie && (selectedItem.tvshow?.season !== undefined || (selectedItem as any).season !== undefined) && (
+                              {!isMovie && (selectedItem.tvshow?.season !== undefined || legacySeasonEpisode.season !== undefined) && (
                                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                                   <strong>{t('drawer.position')}</strong> {t('drawer.seasonEpisode', {
-                                    season: selectedItem.tvshow?.season ?? (selectedItem as any).season,
-                                    episode: selectedItem.tvshow?.episode ?? (selectedItem as any).episode,
+                                    season: selectedItem.tvshow?.season ?? legacySeasonEpisode.season,
+                                    episode: selectedItem.tvshow?.episode ?? legacySeasonEpisode.episode,
                                   })}
                                 </div>
                               )}

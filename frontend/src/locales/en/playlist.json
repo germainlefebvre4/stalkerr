@@ -54,6 +54,10 @@
       "reset": "Reset ↻"
     }
   },
+  "dateGroups": {
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
   "pagination": {
     "showing": "Showing {{from}} to {{to}} of {{total}} entries",
     "show": "Show:",
@@ -63,7 +67,8 @@
     "nextPage": "Next page",
     "lastPage": "Last page",
     "goTo": "Go to:",
-    "go": "Go"
+    "go": "Go",
+    "page": "Page {{current}} / {{total}}"
   },
   "drawer": {
     "title": "📋 Track Details",

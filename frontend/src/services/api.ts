@@ -5,7 +5,8 @@ import {
   DownloadEnriched,
   ConfigPaths,
   StatsResponse,
-  FilterConfig
+  FilterConfig,
+  TMDBSearchResult
 } from '../types';
 
 export class ApiError extends Error {
@@ -109,7 +110,7 @@ export const api = {
     return res.json();
   },
 
-  async resetPipeline(id: number, contentType: string): Promise<any> {
+  async resetPipeline(id: number, contentType: string): Promise<unknown> {
     const endpoint = contentType === 'movies'
       ? `/api/v1/movies/${id}/reset`
       : `/api/v1/tvshows/${id}/reset`;
@@ -119,7 +120,7 @@ export const api = {
     return res.json();
   },
 
-  async searchTMDB(query: string, type: 'movie' | 'tvshow', year?: string): Promise<any[]> {
+  async searchTMDB(query: string, type: 'movie' | 'tvshow', year?: string): Promise<TMDBSearchResult[]> {
     const res = await fetch(`/api/v1/tmdb/search?query=${encodeURIComponent(query)}&type=${type}&year=${year || ''}`);
     if (!res.ok) return throwApiError(res);
     return res.json();
@@ -128,7 +129,7 @@ export const api = {
   async forceOverride(
     id: number,
     payload: { tmdb_id: number; type: 'movie' | 'tvshow'; season: number | null; episode: number | null }
-  ): Promise<any> {
+  ): Promise<unknown> {
     const res = await fetch(`/api/v1/items/${id}/override`, {
       method: 'POST',
       headers: {
@@ -140,7 +141,7 @@ export const api = {
     return res.json();
   },
 
-  async moveFolder(id: number, type: 'movie' | 'tvshow', destDir: string): Promise<any> {
+  async moveFolder(id: number, type: 'movie' | 'tvshow', destDir: string): Promise<unknown> {
     const endpoint = type === 'movie'
       ? `/api/v1/movies/${id}/move`
       : `/api/v1/tvshows/${id}/move`;
@@ -159,7 +160,7 @@ export const api = {
     attribute: string;
     include_patterns?: string;
     exclude_patterns?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     const res = await fetch('/api/v1/filters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -169,7 +170,7 @@ export const api = {
     return res.json();
   },
 
-  async deleteFilter(id: number): Promise<any> {
+  async deleteFilter(id: number): Promise<unknown> {
     const res = await fetch(`/api/v1/filters/${id}`, { method: 'DELETE' });
     if (!res.ok) return throwApiError(res);
     return res.json();

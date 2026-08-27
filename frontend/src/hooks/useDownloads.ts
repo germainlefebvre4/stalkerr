@@ -38,7 +38,7 @@ export function useDownloads(isActive: boolean) {
 
   useEffect(() => {
     if (!isActive) return;
-    fetchDownloads();
+    void Promise.resolve().then(fetchDownloads);
     const interval = setInterval(fetchDownloads, 5000);
     return () => clearInterval(interval);
   }, [isActive, fetchDownloads]);

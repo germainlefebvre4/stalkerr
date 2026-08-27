@@ -16,7 +16,7 @@ export function useLogs(isActive: boolean) {
 
   useEffect(() => {
     if (!isActive) return;
-    fetchLogs();
+    void Promise.resolve().then(fetchLogs);
     const interval = setInterval(fetchLogs, 5000);
     return () => clearInterval(interval);
   }, [isActive, fetchLogs]);

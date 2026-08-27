@@ -29,12 +29,13 @@ export function MoveFolderDialog({
   const [moveSuccess, setMoveSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (moveItem) {
+    if (!moveItem) return;
+    void Promise.resolve().then(() => {
       setTargetDir(moveItem.type === 'movie' ? configPaths?.movies_path || '' : configPaths?.tvshows_path || '');
       setCustomDirInput('');
       setMoveError(null);
       setMoveSuccess(null);
-    }
+    });
   }, [moveItem, configPaths]);
 
   const handleMoveFolder = () => {

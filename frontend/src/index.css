@@ -703,6 +703,17 @@ input, select {
   color: var(--text-secondary);
 }
 
+/* Low-emphasis date-group divider shared by the desktop table and mobile card list */
+.date-group-header {
+  padding: 0.5rem 0.25rem 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color);
+}
+
 /* Collapsible advanced-filters disclosure used by Playlist on mobile */
 .advanced-filters-toggle {
   display: flex;
