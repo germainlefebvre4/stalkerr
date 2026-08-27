@@ -57,6 +57,11 @@
     "episodePlaceholder": "E.g.: 5",
     "associating": "Associating...",
     "forceAssociation": "✓ Force association",
-    "successMessage": "TMDB association updated successfully!"
+    "successMessage": "TMDB association updated successfully!",
+    "candidatesTitle": "Also associate these entries:",
+    "candidateCheckboxLabel": "Also associate {{title}}",
+    "batchProgress": "Associating {{current}}/{{total}}...",
+    "batchSuccessMessage": "{{count}}/{{total}} associated",
+    "batchPartialFailureMessage": "{{count}}/{{total}} associated, see details below"
   }
 }

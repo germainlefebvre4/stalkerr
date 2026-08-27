@@ -10,13 +10,33 @@ interface ManualOverrideDialogProps {
   onOpenChange: (open: boolean) => void;
   overrideItemData: PlaylistItem | null;
   onSuccess: (message: string) => void;
+  playlist: PlaylistItem[];
+}
+
+interface OverrideCandidate {
+  item: PlaylistItem;
+  preChecked: boolean;
+  checked: boolean;
+}
+
+function cleanRawTitle(rawTitle: string): string {
+  let cleaned = rawTitle;
+  cleaned = cleaned.replace(/^[a-zA-Z]{2,4}\s*[:\-]\s*/, '');
+  cleaned = cleaned.replace(/\b(FHD|UHD|4K|1080p|720p|480p|HD|SD|MULTI|VF|VOSTFR|WEB|x264|H264|x265|HEVC|AAC|AC3)\b/ig, '');
+  cleaned = cleaned.replace(/\bS\d+E\d+\b/ig, '');
+  cleaned = cleaned.replace(/\bS\d+\b/ig, '');
+  cleaned = cleaned.replace(/\bE\d+\b/ig, '');
+  cleaned = cleaned.replace(/[\(\)\-\[\]]/g, ' ');
+  cleaned = cleaned.trim().replace(/\s+/g, ' ');
+  return cleaned;
 }
 
 export function ManualOverrideDialog({
   isOpen,
   onOpenChange,
   overrideItemData,
-  onSuccess
+  onSuccess,
+  playlist
 }: ManualOverrideDialogProps) {
   const { t } = useTranslation('dialogs');
   const translateApiError = useApiErrorMessage();
@@ -30,18 +50,13 @@ export function ManualOverrideDialog({
   const [selectedResult, setSelectedResult] = useState<any | null>(null);
   const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
   const [overrideError, setOverrideError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<OverrideCandidate[]>([]);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [batchFailures, setBatchFailures] = useState<Array<{ title: string; error: string }>>([]);
 
   useEffect(() => {
     if (overrideItemData) {
-      // Clean raw tvg_name
-      let cleaned = overrideItemData.tvg_name;
-      cleaned = cleaned.replace(/^[a-zA-Z]{2,4}\s*[:\-]\s*/, '');
-      cleaned = cleaned.replace(/\b(FHD|UHD|4K|1080p|720p|480p|HD|SD|MULTI|VF|VOSTFR|WEB|x264|H264|x265|HEVC|AAC|AC3)\b/ig, '');
-      cleaned = cleaned.replace(/\bS\d+E\d+\b/ig, '');
-      cleaned = cleaned.replace(/\bS\d+\b/ig, '');
-      cleaned = cleaned.replace(/\bE\d+\b/ig, '');
-      cleaned = cleaned.replace(/[\(\)\-\[\]]/g, ' ');
-      cleaned = cleaned.trim().replace(/\s+/g, ' ');
+      const cleaned = cleanRawTitle(overrideItemData.tvg_name);
 
       setOverrideSearchQuery(cleaned);
 
@@ -63,6 +78,8 @@ export function ManualOverrideDialog({
       setSelectedResult(null);
       setOverrideError(null);
       setOverrideSearchResults([]);
+      setCandidates([]);
+      setBatchFailures([]);
 
       // Auto-trigger search immediately
       setOverrideSearchLoading(true);
@@ -79,6 +96,25 @@ export function ManualOverrideDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrideItemData]);
+
+  useEffect(() => {
+    if (overrideItemData && overrideMediaType === 'tvshow' && selectedResult) {
+      const openedCleaned = cleanRawTitle(overrideItemData.tvg_name);
+      const list: OverrideCandidate[] = playlist
+        .filter(p => p.content_type === 'tvshows' && p.id !== overrideItemData.id)
+        .map(p => {
+          const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
+          return { item: p, preChecked, checked: preChecked };
+        });
+      setCandidates(list);
+    } else {
+      setCandidates([]);
+    }
+  }, [overrideItemData, overrideMediaType, selectedResult, playlist]);
+
+  const toggleCandidate = (itemId: number) => {
+    setCandidates(prev => prev.map(c => (c.item.id === itemId ? { ...c, checked: !c.checked } : c)));
+  };
 
   const handleSearchTMDB = (queryOverride?: string, mediaTypeOverride?: 'movie' | 'tvshow', yearOverride?: string) => {
     const q = queryOverride !== undefined ? queryOverride : overrideSearchQuery;
@@ -102,29 +138,53 @@ export function ManualOverrideDialog({
       });
   };
 
-  const handleForceOverride = () => {
+  const handleForceOverride = async () => {
     if (!overrideItemData || !selectedResult) return;
     setIsSubmittingOverride(true);
     setOverrideError(null);
+    setBatchFailures([]);
 
-    const payload = {
-      tmdb_id: selectedResult.id,
-      type: overrideMediaType,
-      season: overrideMediaType === 'tvshow' && overrideSeason ? parseInt(overrideSeason, 10) : null,
-      episode: overrideMediaType === 'tvshow' && overrideEpisode ? parseInt(overrideEpisode, 10) : null,
-    };
+    const checkedCandidates = candidates.filter(c => c.checked);
+    const targets = [
+      {
+        item: overrideItemData,
+        season: overrideMediaType === 'tvshow' && overrideSeason ? parseInt(overrideSeason, 10) : null,
+        episode: overrideMediaType === 'tvshow' && overrideEpisode ? parseInt(overrideEpisode, 10) : null,
+      },
+      ...checkedCandidates.map(c => ({ item: c.item, season: null, episode: null })),
+    ];
 
-    api.forceOverride(overrideItemData.id, payload)
-      .then(() => {
-        onSuccess(t('manualOverride.successMessage'));
-        onOpenChange(false);
-      })
-      .catch((err: unknown) => {
-        setOverrideError(translateApiError(err));
-      })
-      .finally(() => {
-        setIsSubmittingOverride(false);
-      });
+    const total = targets.length;
+    let successCount = 0;
+    const failures: Array<{ title: string; error: string }> = [];
+
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
+      setBatchProgress({ current: i + 1, total });
+      try {
+        await api.forceOverride(target.item.id, {
+          tmdb_id: selectedResult.id,
+          type: overrideMediaType,
+          season: target.season,
+          episode: target.episode,
+        });
+        successCount++;
+      } catch (err: unknown) {
+        failures.push({ title: target.item.tvg_name, error: translateApiError(err) });
+      }
+    }
+
+    setBatchProgress(null);
+    setIsSubmittingOverride(false);
+
+    if (failures.length === 0) {
+      onSuccess(t('manualOverride.batchSuccessMessage', { count: successCount, total }));
+      onOpenChange(false);
+    } else {
+      setBatchFailures(failures);
+      setOverrideError(t('manualOverride.batchPartialFailureMessage', { count: successCount, total }));
+      onSuccess(t('manualOverride.batchSuccessMessage', { count: successCount, total }));
+    }
   };
 
   return (
@@ -283,9 +343,37 @@ export function ManualOverrideDialog({
             </div>
           )}
 
+          {/* Bulk candidate list for TV shows */}
+          {overrideMediaType === 'tvshow' && selectedResult && candidates.length > 0 && (
+            <div style={{ backgroundColor: 'var(--bg-app)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '160px', overflowY: 'auto' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('manualOverride.candidatesTitle')}</label>
+              {candidates.map(candidate => (
+                <label
+                  key={candidate.item.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={candidate.checked}
+                    onChange={() => toggleCandidate(candidate.item.id)}
+                    aria-label={t('manualOverride.candidateCheckboxLabel', { title: candidate.item.tvg_name })}
+                  />
+                  <span style={{ fontFamily: 'monospace' }}>{candidate.item.tvg_name}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
           {overrideError && (
             <div style={{ padding: '0.5rem 0.75rem', backgroundColor: 'var(--status-failed-bg)', color: 'var(--status-failed-text)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: 600, marginBottom: '1rem', border: '1px solid var(--status-failed-border)' }}>
               ⚠️ {overrideError}
+              {batchFailures.length > 0 && (
+                <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.25rem', fontWeight: 500 }}>
+                  {batchFailures.map(failure => (
+                    <li key={failure.title}>{failure.title}: {failure.error}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
@@ -305,7 +393,11 @@ export function ManualOverrideDialog({
               className="btn-primary"
               style={{ padding: '0.5rem 1.25rem' }}
             >
-              {isSubmittingOverride ? t('manualOverride.associating') : t('manualOverride.forceAssociation')}
+              {batchProgress
+                ? t('manualOverride.batchProgress', { current: batchProgress.current, total: batchProgress.total })
+                : isSubmittingOverride
+                ? t('manualOverride.associating')
+                : t('manualOverride.forceAssociation')}
             </button>
           </div>
         </Dialog.Content>

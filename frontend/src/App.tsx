@@ -213,7 +213,7 @@ export default function App() {
       
       <MoveFolderDialog isOpen={isMoveOpen} onOpenChange={setIsMoveOpen} moveItem={moveItem} configPaths={configPaths} onSuccess={(msg) => { showToast(msg); fetchDownloads(); fetchStats(); }} />
       
-      <ManualOverrideDialog isOpen={isOverrideOpen} onOpenChange={setIsOverrideOpen} overrideItemData={overrideItemData} onSuccess={(msg) => { showToast(msg); fetchPlaylist(); fetchStats(); }} />
+      <ManualOverrideDialog isOpen={isOverrideOpen} onOpenChange={setIsOverrideOpen} overrideItemData={overrideItemData} onSuccess={(msg) => { showToast(msg); fetchPlaylist(); fetchStats(); }} playlist={playlist} />
     </div>
   );
 }
