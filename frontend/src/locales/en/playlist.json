@@ -118,7 +118,6 @@
     "unknownLegacyImport": "Unknown (legacy import)",
     "remoteFileSize": "💾 Remote file size:",
     "remoteFileSizeUnavailable": "Unavailable",
-    "uniqueHash": "🔑 Unique hash:",
     "copied": "✓ Copied",
     "copy": "📄 Copy",
     "rawLineSection": "📄 Raw Line Content",

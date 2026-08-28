@@ -78,7 +78,7 @@ export function PlaylistTab({
   const { t, i18n } = useTranslation('playlist');
   const isMobile = useIsMobile();
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
-  const [copiedText, setCopiedText] = React.useState<'content' | 'url' | 'hash' | null>(null);
+  const [copiedText, setCopiedText] = React.useState<'content' | 'url' | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
 
   const activeAdvancedFilterCount = [
@@ -88,7 +88,7 @@ export function PlaylistTab({
     playlistStateFilter !== 'all',
   ].filter(Boolean).length;
 
-  const handleCopy = (text: string, type: 'content' | 'url' | 'hash') => {
+  const handleCopy = (text: string, type: 'content' | 'url') => {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedText(type);
       setTimeout(() => setCopiedText(null), 2000);
@@ -515,19 +515,6 @@ export function PlaylistTab({
                         </span>
                       </div>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.uniqueHash')}</strong>{' '}
-                      <code style={{ fontFamily: 'monospace', fontSize: '0.75rem', backgroundColor: 'var(--bg-app)', padding: '0.15rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                        {selectedItem.line_hash}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(selectedItem.line_hash, 'hash')}
-                        style={{ fontSize: '0.75rem', color: 'var(--primary-accent)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.15rem', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }}
-                      >
-                        {copiedText === 'hash' ? t('drawer.copied') : t('drawer.copy')}
-                      </button>
-                    </div>
                   </div>
                 </div>
 
