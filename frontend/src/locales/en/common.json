@@ -41,6 +41,9 @@
       "title": "Success Rate",
       "detail": "{{downloaded}} succeeded / {{failed}} failed",
       "fallback": "Downloads"
+    },
+    "toggle": {
+      "label": "📊 Statistics"
     }
   },
   "language": {

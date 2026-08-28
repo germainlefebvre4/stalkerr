@@ -136,6 +136,10 @@ input, select {
   color: var(--text-muted);
 }
 
+.kpi-toggle-row {
+  display: none;
+}
+
 /* Filter Card Layout */
 .filter-grid {
   display: grid;
@@ -842,10 +846,32 @@ input, select {
     display: none;
   }
 
+  .kpi-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.6rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary-slate);
+    cursor: pointer;
+  }
+
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.6rem;
     margin-bottom: 1rem;
+  }
+
+  .kpi-grid--collapsed {
+    display: none;
   }
 
   .kpi-card {

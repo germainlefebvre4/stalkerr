@@ -41,6 +41,9 @@
       "title": "Taux de Réussite",
       "detail": "{{downloaded}} réussis / {{failed}} échecs",
       "fallback": "Téléchargements"
+    },
+    "toggle": {
+      "label": "📊 Statistiques"
     }
   },
   "language": {
