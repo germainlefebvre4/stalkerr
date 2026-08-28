@@ -98,47 +98,49 @@ export function PlaylistTab({
   return (
     <Tabs.Content value="playlist" className="card tab-panel">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
-        {/* Sous-onglets : Items / Films & Séries */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            onClick={() => setPlaylistView('items')}
-            className={playlistView === 'items' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.45rem 1rem' }}
-          >
-            {t('view.items')}
-          </button>
-          <button
-            onClick={() => setPlaylistView('grouped')}
-            className={playlistView === 'grouped' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.45rem 1rem' }}
-          >
-            {t('view.grouped')}
-          </button>
-        </div>
+        {/* Block Supérieur : Boutons de Type de Contenu + Bascule Items / Films & Séries */}
+        <div style={{ display: 'flex', gap: isMobile ? '0.35rem' : '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: isMobile ? '0.35rem' : '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={() => { setPlaylistFilter('all'); setPlaylistPage(1); }}
+              className={playlistFilter === 'all' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: isMobile ? '0.35rem 0.6rem' : '0.45rem 1rem' }}
+            >
+              {t('contentFilter.all')}
+            </button>
+            <button
+              onClick={() => { setPlaylistFilter('movies'); setPlaylistPage(1); }}
+              className={playlistFilter === 'movies' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: isMobile ? '0.35rem 0.6rem' : '0.45rem 1rem' }}
+            >
+              {t('contentFilter.movies')}
+            </button>
+            <button
+              onClick={() => { setPlaylistFilter('tvshows'); setPlaylistPage(1); }}
+              className={playlistFilter === 'tvshows' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: isMobile ? '0.35rem 0.6rem' : '0.45rem 1rem' }}
+            >
+              {t('contentFilter.tvshows')}
+            </button>
+          </div>
 
-        {/* Block Supérieur : Boutons de Type de Contenu */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            onClick={() => { setPlaylistFilter('all'); setPlaylistPage(1); }}
-            className={playlistFilter === 'all' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.45rem 1rem' }}
+          <label
+            className="view-toggle-switch"
+            style={{ marginLeft: 'auto' }}
+            title={playlistView === 'grouped' ? t('view.switchToItems') : t('view.switchToGrouped')}
           >
-            {t('contentFilter.all')}
-          </button>
-          <button
-            onClick={() => { setPlaylistFilter('movies'); setPlaylistPage(1); }}
-            className={playlistFilter === 'movies' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.45rem 1rem' }}
-          >
-            {t('contentFilter.movies')}
-          </button>
-          <button
-            onClick={() => { setPlaylistFilter('tvshows'); setPlaylistPage(1); }}
-            className={playlistFilter === 'tvshows' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '0.45rem 1rem' }}
-          >
-            {t('contentFilter.tvshows')}
-          </button>
+            <span className={`view-toggle-switch-icon${playlistView === 'items' ? ' is-active' : ''}`} aria-hidden="true">☰</span>
+            <input
+              type="checkbox"
+              className="view-toggle-switch-input"
+              checked={playlistView === 'grouped'}
+              onChange={e => setPlaylistView(e.target.checked ? 'grouped' : 'items')}
+            />
+            <span className="view-toggle-switch-track">
+              <span className="view-toggle-switch-knob" />
+            </span>
+            <span className={`view-toggle-switch-icon${playlistView === 'grouped' ? ' is-active' : ''}`} aria-hidden="true">🎬</span>
+          </label>
         </div>
 
         {/* Block Inférieur : Grille de 4 colonnes pour filtres avancés */}

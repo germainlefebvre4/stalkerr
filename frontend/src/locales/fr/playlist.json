@@ -1,7 +1,7 @@
 {
   "view": {
-    "items": "Items",
-    "grouped": "Films & Séries"
+    "switchToGrouped": "Basculer vers Films & Séries",
+    "switchToItems": "Basculer vers Items"
   },
   "contentFilter": {
     "all": "Tous",
