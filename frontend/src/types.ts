@@ -97,7 +97,8 @@ export interface DownloadEnriched {
   retry_count: number;
   error_message?: string;
   updated_at: string;
-  
+  completed_at?: string;
+
   content?: {
     type: 'movies' | 'tvshows' | 'channels' | 'uncategorized';
     title: string;

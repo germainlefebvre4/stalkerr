@@ -17,6 +17,7 @@ type DownloadEnrichedResponse struct {
 	RetryCount      int                  `json:"retry_count"`
 	ErrorMessage    *string              `json:"error_message,omitempty"`
 	UpdatedAt       time.Time            `json:"updated_at"`
+	CompletedAt     *time.Time           `json:"completed_at,omitempty"`
 	Content         *ContentInfo         `json:"content,omitempty"`
 	FileInfo        *fileparser.FileInfo `json:"file_info,omitempty"`
 }

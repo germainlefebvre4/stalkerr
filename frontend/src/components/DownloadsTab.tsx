@@ -2,6 +2,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import * as Progress from '@radix-ui/react-progress';
 import { useTranslation } from 'react-i18next';
 import { DownloadEnriched } from '../types';
+import { formatDate } from '../utils/date';
 
 interface DownloadsTabProps {
   downloads: DownloadEnriched[];
@@ -28,7 +29,7 @@ export function DownloadsTab({
   onFetchDownloads,
   onOpenMoveDialog
 }: DownloadsTabProps) {
-  const { t } = useTranslation('downloads');
+  const { t, i18n } = useTranslation('downloads');
 
   const filepathBase = (path: string) => {
     const parts = path.split('/');
@@ -173,6 +174,12 @@ export function DownloadsTab({
                         <>
                           <span>•</span>
                           <span>{t('durationMin', { count: item.content.duration })}</span>
+                        </>
+                      )}
+                      {item.completed_at && (
+                        <>
+                          <span>•</span>
+                          <span>{t('completedAt', { date: formatDate(item.completed_at, i18n.language) })}</span>
                         </>
                       )}
                     </div>

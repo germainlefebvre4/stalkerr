@@ -37,6 +37,7 @@
   "unknownResolution": "Unknown resolution",
   "sizeMb": "{{size}} MB",
   "durationMin": "🕒 {{count}} min",
+  "completedAt": "📅 {{date}}",
   "lowQualityBadge": "⚠️ Low quality ({{resolution}})",
   "missingYearBadge": "⚠️ Missing year",
   "incorrectYearBadge": "⚠️ Incorrect year",

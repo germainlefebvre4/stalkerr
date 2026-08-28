@@ -174,6 +174,7 @@ func enrichDownloadInfo(dl models.DownloadInfo) DownloadEnrichedResponse {
 		RetryCount:      dl.RetryCount,
 		ErrorMessage:    dl.ErrorMessage,
 		UpdatedAt:       dl.UpdatedAt,
+		CompletedAt:     dl.CompletedAt,
 	}
 
 	var contentYear *int
