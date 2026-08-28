@@ -140,6 +140,17 @@ export const api = {
     return res.json();
   },
 
+  async getRunItems(
+    processingLogId: number,
+    page: number,
+    limit: number = 10
+  ): Promise<PaginatedResponse<PlaylistItem>> {
+    const url = `/api/v1/items?processing_log_id=${processingLogId}&limit=${limit}&offset=${(page - 1) * limit}`;
+    const res = await fetch(url);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
   async getLogs(limit: number = 20): Promise<PaginatedResponse<ProcessingLog>> {
     const res = await fetch(`/api/v1/processing-logs?limit=${limit}`);
     if (!res.ok) return throwApiError(res);

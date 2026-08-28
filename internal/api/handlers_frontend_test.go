@@ -1397,6 +1397,57 @@ func TestListItemsFiltering_MovieIDAndTMDBID(t *testing.T) {
 	}
 }
 
+func TestListItemsFiltering_ProcessingLogID(t *testing.T) {
+	db := setupTestDB(t)
+
+	logA := models.ProcessingLog{Action: "process_m3u", Status: "success", StartedAt: time.Now()}
+	db.Create(&logA)
+	logB := models.ProcessingLog{Action: "process_m3u", Status: "success", StartedAt: time.Now()}
+	db.Create(&logB)
+
+	seed := []models.ProcessedLine{
+		{LineContent: "l1", LineHash: "h1", TvgName: "Item A1", GroupTitle: "g", ContentType: "movies", State: "processed", ProcessingLogID: &logA.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{LineContent: "l2", LineHash: "h2", TvgName: "Item A2", GroupTitle: "g", ContentType: "movies", State: "processed", ProcessingLogID: &logA.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+		{LineContent: "l3", LineHash: "h3", TvgName: "Item B1", GroupTitle: "g", ContentType: "movies", State: "processed", ProcessingLogID: &logB.ID, CreatedAt: time.Now(), UpdatedAt: time.Now()},
+	}
+	for i := range seed {
+		if err := db.Create(&seed[i]).Error; err != nil {
+			t.Fatalf("failed to seed item: %v", err)
+		}
+	}
+
+	server := NewServer()
+
+	resp := listItemsSorted(t, server, fmt.Sprintf("?processing_log_id=%d", logA.ID))
+	if resp.Total != 2 {
+		t.Fatalf("expected 2 items for processing_log_id=%d, got %d: %+v", logA.ID, resp.Total, resp.Data)
+	}
+	for _, item := range resp.Data {
+		if item.LineHash != "h1" && item.LineHash != "h2" {
+			t.Errorf("unexpected item %q returned for processing_log_id filter", item.LineHash)
+		}
+	}
+}
+
+func TestListItemsFiltering_ProcessingLogIDUnknownOrUnattributedReturnsEmpty(t *testing.T) {
+	db := setupTestDB(t)
+
+	seed := models.ProcessedLine{LineContent: "l1", LineHash: "h1", TvgName: "Item", GroupTitle: "g", ContentType: "movies", State: "processed", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	if err := db.Create(&seed).Error; err != nil {
+		t.Fatalf("failed to seed item: %v", err)
+	}
+
+	server := NewServer()
+
+	resp := listItemsSorted(t, server, "?processing_log_id=999999")
+	if resp.Total != 0 {
+		t.Fatalf("expected 0 items for unknown processing_log_id, got %d: %+v", resp.Total, resp.Data)
+	}
+	if len(resp.Data) != 0 {
+		t.Errorf("expected empty data slice, got %d items", len(resp.Data))
+	}
+}
+
 func intPtr(v int) *int { return &v }
 
 func TestGetItem_RemoteFileSizePresenceAndAbsence(t *testing.T) {

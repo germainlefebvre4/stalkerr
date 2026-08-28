@@ -17,5 +17,9 @@
   },
   "loading": "Chargement en cours...",
   "empty": "Aucun log enregistré en base de données",
-  "noError": "Aucune erreur"
+  "noError": "Aucune erreur",
+  "runItemsDialog": {
+    "title": "Éléments du run",
+    "description": "Éléments traités ou mis à jour par ce run."
+  }
 }

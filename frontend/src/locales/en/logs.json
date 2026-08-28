@@ -17,5 +17,9 @@
   },
   "loading": "Loading...",
   "empty": "No logs recorded in the database",
-  "noError": "No error"
+  "noError": "No error",
+  "runItemsDialog": {
+    "title": "Run Items",
+    "description": "Items processed or updated by this run."
+  }
 }

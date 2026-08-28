@@ -194,7 +194,7 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 
 		// Process batch when full
 		if len(batch) >= opts.BatchSize {
-			if err := p.saveBatch(batch, stats); err != nil {
+			if err := p.saveBatch(batch, stats, logEntry.ID); err != nil {
 				stats.Errors++
 				errMsg := fmt.Sprintf("error saving batch: %v", err)
 				stats.ErrorMessages = append(stats.ErrorMessages, errMsg)
@@ -212,7 +212,7 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 
 	// Process remaining entries in batch
 	if len(batch) > 0 {
-		if err := p.saveBatch(batch, stats); err != nil {
+		if err := p.saveBatch(batch, stats, logEntry.ID); err != nil {
 			stats.Errors++
 			errMsg := fmt.Sprintf("error saving final batch: %v", err)
 			stats.ErrorMessages = append(stats.ErrorMessages, errMsg)
@@ -608,8 +608,9 @@ func (p *Processor) cleanTVShowTitle(title string) string {
 	return strings.TrimSpace(cleanTitle)
 }
 
-// saveBatch saves a batch of processed lines to the database
-func (p *Processor) saveBatch(batch []*models.ProcessedLine, stats *Statistics) error {
+// saveBatch saves a batch of processed lines to the database, attributing
+// each line to the given processing run.
+func (p *Processor) saveBatch(batch []*models.ProcessedLine, stats *Statistics, processingLogID uint) error {
 	return p.db.Transaction(func(tx *gorm.DB) error {
 		for _, line := range batch {
 			// Set timestamps
@@ -618,6 +619,7 @@ func (p *Processor) saveBatch(batch []*models.ProcessedLine, stats *Statistics) 
 			line.State = models.StateProcessed
 			line.CreatedAt = now
 			line.UpdatedAt = now
+			line.ProcessingLogID = &processingLogID
 
 			// Check if entry exists and handle based on force mode
 			var existing models.ProcessedLine

@@ -324,14 +324,189 @@ http://example.com/movie.mkv`
 	}
 }
 
+func TestProcessAttributesLineToRun(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
+http://example.com/movie.mkv`
+
+	tmpFile := createTestM3U(t, content)
+
+	proc, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	opts := ProcessOptions{
+		Force:            false,
+		Limit:            0,
+		BatchSize:        10,
+		ProgressInterval: 100,
+	}
+
+	if _, err := proc.Process(opts); err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	db := database.Get()
+
+	var log models.ProcessingLog
+	if err := db.Where("action = ?", "process_m3u").Order("created_at DESC").First(&log).Error; err != nil {
+		t.Fatalf("failed to load processing log: %v", err)
+	}
+
+	var line models.ProcessedLine
+	if err := db.Where("tvg_name = ?", "Test Movie").First(&line).Error; err != nil {
+		t.Fatalf("failed to load processed line: %v", err)
+	}
+
+	if line.ProcessingLogID == nil || *line.ProcessingLogID != log.ID {
+		t.Errorf("expected ProcessingLogID %d, got %v", log.ID, line.ProcessingLogID)
+	}
+}
+
+func TestProcessWithForceReattributesLineToNewerRun(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
+http://example.com/movie.mkv`
+
+	tmpFile := createTestM3U(t, content)
+
+	proc, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	opts := ProcessOptions{
+		Force:            false,
+		Limit:            0,
+		BatchSize:        10,
+		ProgressInterval: 100,
+	}
+
+	if _, err := proc.Process(opts); err != nil {
+		t.Fatalf("First Process failed: %v", err)
+	}
+
+	db := database.Get()
+
+	var firstLog models.ProcessingLog
+	if err := db.Where("action = ?", "process_m3u").Order("created_at DESC").First(&firstLog).Error; err != nil {
+		t.Fatalf("failed to load first processing log: %v", err)
+	}
+
+	proc2, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	optsForce := opts
+	optsForce.Force = true
+	if _, err := proc2.Process(optsForce); err != nil {
+		t.Fatalf("Second Process failed: %v", err)
+	}
+
+	var secondLog models.ProcessingLog
+	if err := db.Where("action = ?", "process_m3u").Order("created_at DESC").First(&secondLog).Error; err != nil {
+		t.Fatalf("failed to load second processing log: %v", err)
+	}
+
+	if secondLog.ID == firstLog.ID {
+		t.Fatal("expected a new processing log for the forced re-process")
+	}
+
+	var line models.ProcessedLine
+	if err := db.Where("tvg_name = ?", "Test Movie").First(&line).Error; err != nil {
+		t.Fatalf("failed to load processed line: %v", err)
+	}
+
+	if line.ProcessingLogID == nil || *line.ProcessingLogID != secondLog.ID {
+		t.Errorf("expected ProcessingLogID %d (newer run), got %v", secondLog.ID, line.ProcessingLogID)
+	}
+}
+
+func TestProcessSkippedDuplicateKeepsOriginalAttribution(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
+http://example.com/movie.mkv`
+
+	tmpFile := createTestM3U(t, content)
+
+	proc, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	opts := ProcessOptions{
+		Force:            false,
+		Limit:            0,
+		BatchSize:        10,
+		ProgressInterval: 100,
+	}
+
+	if _, err := proc.Process(opts); err != nil {
+		t.Fatalf("First Process failed: %v", err)
+	}
+
+	db := database.Get()
+
+	var firstLog models.ProcessingLog
+	if err := db.Where("action = ?", "process_m3u").Order("created_at DESC").First(&firstLog).Error; err != nil {
+		t.Fatalf("failed to load first processing log: %v", err)
+	}
+
+	// Second, non-forced run should skip the line as a duplicate.
+	proc2, err := NewProcessor(tmpFile)
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	stats2, err := proc2.Process(opts)
+	if err != nil {
+		t.Fatalf("Second Process failed: %v", err)
+	}
+	if stats2.DuplicatesFound == 0 {
+		t.Fatal("expected the second run to detect a duplicate")
+	}
+
+	var line models.ProcessedLine
+	if err := db.Where("tvg_name = ?", "Test Movie").First(&line).Error; err != nil {
+		t.Fatalf("failed to load processed line: %v", err)
+	}
+
+	if line.ProcessingLogID == nil || *line.ProcessingLogID != firstLog.ID {
+		t.Errorf("expected ProcessingLogID to remain %d, got %v", firstLog.ID, line.ProcessingLogID)
+	}
+}
+
 func TestExtractTitleAndYear(t *testing.T) {
 	p := &Processor{}
 
 	tests := []struct {
-		name        string
-		input       string
-		wantTitle   string
-		wantYear    *int
+		name      string
+		input     string
+		wantTitle string
+		wantYear  *int
 	}{
 		{
 			name:      "trailing SD suffix stripped",

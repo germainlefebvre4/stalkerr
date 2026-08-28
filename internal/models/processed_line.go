@@ -41,6 +41,7 @@ type ProcessedLine struct {
 	TVShowID                *uint           `gorm:"index" json:"tvshow_id,omitempty"`
 	UncategorizedID         *uint           `gorm:"index" json:"uncategorized_id,omitempty"`
 	DownloadInfoID          *uint           `gorm:"index:idx_processed_lines_download" json:"download_info_id,omitempty"`
+	ProcessingLogID         *uint           `gorm:"index" json:"processing_log_id,omitempty"`
 	State                   ProcessingState `gorm:"type:varchar(50);not null;default:processed;index:idx_processed_lines_content" json:"state"`
 	OverrideBy              *string         `gorm:"type:varchar(50)" json:"override_by,omitempty"`
 	OverrideAt              *time.Time      `json:"override_at,omitempty"`

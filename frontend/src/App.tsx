@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useTranslation } from 'react-i18next';
 import { useToast } from './hooks/useToast';
@@ -13,7 +13,7 @@ import { useDownloads } from './hooks/useDownloads';
 import { useURLState, URLStateSchema } from './hooks/useURLState';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { api } from './services/api';
-import { DownloadEnriched, PlaylistItem } from './types';
+import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
 
 const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads'];
 
@@ -45,6 +45,7 @@ import { CreateFilterDialog } from './components/CreateFilterDialog';
 import { MoveFolderDialog } from './components/MoveFolderDialog';
 import { RenameFolderDialog } from './components/RenameFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
+import { RunItemsDialog } from './components/RunItemsDialog';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -93,6 +94,9 @@ export default function App() {
   const [renameItem, setRenameItem] = useState<{ id: number; title: string; folderName: string } | null>(null);
   const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [overrideItemData, setOverrideItemData] = useState<PlaylistItem | null>(null);
+  const overrideExtraSuccessRef = useRef<(() => void) | null>(null);
+  const [isRunItemsOpen, setIsRunItemsOpen] = useState(false);
+  const [selectedRunLog, setSelectedRunLog] = useState<ProcessingLog | null>(null);
 
   useEffect(() => {
     localStorage.setItem('stalkeer_active_tab', activeTab);
@@ -118,14 +122,21 @@ export default function App() {
 
   const translateApiError = useApiErrorMessage();
 
-  const handleResetPipeline = (id: number, contentType: string) => {
+  const handleResetPipeline = (id: number, contentType: string, onDone?: () => void) => {
     api.resetPipeline(id, contentType)
       .then(() => {
         showToast(t('toasts.resetSuccess'));
         fetchPlaylist();
         fetchStats();
+        onDone?.();
       })
       .catch(err => showToast(translateApiError(err), 'error'));
+  };
+
+  const handleOpenOverride = (item: PlaylistItem, onSuccess?: () => void) => {
+    setOverrideItemData(item);
+    setIsOverrideOpen(true);
+    overrideExtraSuccessRef.current = onSuccess ?? null;
   };
 
   const handleDeleteFilter = (id: number) => {
@@ -207,7 +218,7 @@ export default function App() {
           playlistTotal={playlistTotal} playlistPage={playlistPage} setPlaylistPage={setPlaylistPage}
           playlistLimit={playlistLimit} setPlaylistLimit={setPlaylistLimit}
           playlistSort={playlistSort} playlistOrder={playlistOrder} setPlaylistSort={setPlaylistSort}
-          playlistLoading={playlistLoading} onOpenOverride={(item) => { setOverrideItemData(item); setIsOverrideOpen(true); }}
+          playlistLoading={playlistLoading} onOpenOverride={handleOpenOverride}
           onResetPipeline={handleResetPipeline}
           playlistView={playlistView} setPlaylistView={setPlaylistView}
           groups={groups} groupsLoading={groupsLoading} groupsTotal={groupsTotal}
@@ -219,7 +230,10 @@ export default function App() {
           onOpenCreate={() => setIsCreateFilterOpen(true)}
         />
 
-        <LogsTab logs={logs} logsLoading={logsLoading} onFetchLogs={fetchLogs} />
+        <LogsTab
+          logs={logs} logsLoading={logsLoading} onFetchLogs={fetchLogs}
+          onRowClick={(log) => { setSelectedRunLog(log); setIsRunItemsOpen(true); }}
+        />
 
         <DownloadsTab
           downloads={downloads} downloadsLoading={downloadsLoading} statusFilter={statusFilter} setStatusFilter={setStatusFilter}
@@ -252,7 +266,22 @@ export default function App() {
 
       <RenameFolderDialog isOpen={isRenameOpen} onOpenChange={setIsRenameOpen} renameItem={renameItem} onSuccess={handleRenameSuccess} />
 
-      <ManualOverrideDialog isOpen={isOverrideOpen} onOpenChange={setIsOverrideOpen} overrideItemData={overrideItemData} onSuccess={(msg) => { showToast(msg); fetchPlaylist(); fetchStats(); }} playlist={playlist} />
+      <ManualOverrideDialog
+        isOpen={isOverrideOpen} onOpenChange={setIsOverrideOpen} overrideItemData={overrideItemData}
+        onSuccess={(msg) => {
+          showToast(msg);
+          fetchPlaylist();
+          fetchStats();
+          overrideExtraSuccessRef.current?.();
+          overrideExtraSuccessRef.current = null;
+        }}
+        playlist={playlist}
+      />
+
+      <RunItemsDialog
+        isOpen={isRunItemsOpen} onOpenChange={setIsRunItemsOpen} log={selectedRunLog}
+        onOpenOverride={handleOpenOverride} onResetPipeline={handleResetPipeline}
+      />
     </div>
   );
 }

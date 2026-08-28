@@ -94,6 +94,11 @@ func (s *Server) listItems(c *gin.Context) {
 			query = query.Where("tv_show_id IN (SELECT id FROM tvshows WHERE tmdb_id = ?)", tmdbID)
 		}
 	}
+	if processingLogIDStr := c.Query("processing_log_id"); processingLogIDStr != "" {
+		if processingLogID, err := strconv.Atoi(processingLogIDStr); err == nil {
+			query = query.Where("processing_log_id = ?", processingLogID)
+		}
+	}
 
 	// Count total
 	var total int64
@@ -730,23 +735,24 @@ func toItemResponse(item models.ProcessedLine) ItemResponse {
 	}
 
 	resp := ItemResponse{
-		ID:             item.ID,
-		TvgName:        item.TvgName,
-		GroupTitle:     item.GroupTitle,
-		ContentType:    item.ContentType,
-		State:          item.State,
-		Resolution:     item.Resolution,
-		OverrideBy:     item.OverrideBy,
-		OverrideAt:     overrideAtStr,
-		LineContent:    item.LineContent,
-		LineURL:        item.LineURL,
-		LineHash:       item.LineHash,
-		LineNumber:     item.LineNumber,
-		RemoteFileSize: item.RemoteFileSize,
-		ProcessedAt:    item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),
-		DownloadedAt:   downloadedAtStr,
-		CreatedAt:      item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:      item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:              item.ID,
+		TvgName:         item.TvgName,
+		GroupTitle:      item.GroupTitle,
+		ContentType:     item.ContentType,
+		State:           item.State,
+		Resolution:      item.Resolution,
+		OverrideBy:      item.OverrideBy,
+		OverrideAt:      overrideAtStr,
+		LineContent:     item.LineContent,
+		LineURL:         item.LineURL,
+		LineHash:        item.LineHash,
+		LineNumber:      item.LineNumber,
+		RemoteFileSize:  item.RemoteFileSize,
+		ProcessingLogID: item.ProcessingLogID,
+		ProcessedAt:     item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),
+		DownloadedAt:    downloadedAtStr,
+		CreatedAt:       item.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if item.Movie != nil {

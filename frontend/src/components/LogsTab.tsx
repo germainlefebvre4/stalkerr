@@ -2,21 +2,20 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useTranslation } from 'react-i18next';
 import { ProcessingLog } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { getLogStatusBadgeClass } from '../utils/logState';
 
 interface LogsTabProps {
   logs: ProcessingLog[];
   logsLoading: boolean;
   onFetchLogs: () => void;
-}
-
-function getLogStatusBadgeClass(status: string): string {
-  return status === 'success' ? 'badge-success' : status === 'failed' ? 'badge-failed' : 'badge-progress';
+  onRowClick: (log: ProcessingLog) => void;
 }
 
 export function LogsTab({
   logs,
   logsLoading,
-  onFetchLogs
+  onFetchLogs,
+  onRowClick
 }: LogsTabProps) {
   const { t, i18n } = useTranslation('logs');
   const isMobile = useIsMobile();
@@ -38,7 +37,7 @@ export function LogsTab({
             <div className="mobile-list-empty">{t('empty')}</div>
           ) : (
             logs.map(log => (
-              <div key={log.id} className="mobile-list-card">
+              <div key={log.id} className="mobile-list-card" onClick={() => onRowClick(log)}>
                 <div className="mobile-list-card-main">
                   <span className="mobile-list-card-title">{log.action}</span>
                   <span className="mobile-list-card-subtitle">{new Date(log.started_at).toLocaleString(i18n.language)}</span>
@@ -73,7 +72,7 @@ export function LogsTab({
                 </tr>
               ) : (
                 logs.map(log => (
-                  <tr key={log.id}>
+                  <tr key={log.id} className="clickable-row" onClick={() => onRowClick(log)}>
                     <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{log.action}</td>
                     <td style={{ fontWeight: 600 }}>{t('itemsCount', { count: log.item_count })}</td>
                     <td>
