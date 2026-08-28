@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Progress from '@radix-ui/react-progress';
 import { useTranslation } from 'react-i18next';
@@ -30,10 +31,23 @@ export function DownloadsTab({
   onOpenMoveDialog
 }: DownloadsTabProps) {
   const { t, i18n } = useTranslation('downloads');
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
   const filepathBase = (path: string) => {
     const parts = path.split('/');
     return parts[parts.length - 1];
+  };
+
+  const toggleExpanded = (id: number) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   return (
@@ -93,6 +107,9 @@ export function DownloadsTab({
             const downloaded = item.bytes_downloaded || 0;
             const progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
             const isCompleted = item.status === 'completed';
+            const isExpanded = expandedIds.has(item.id);
+            const isProgressStatus = item.status === 'downloading' || item.status === 'retrying';
+            const mobilePath = item.download_path || item.url;
 
             // Metadata extraction
             const title = item.content?.title || (item.download_path ? filepathBase(item.download_path) : item.url);
@@ -134,7 +151,7 @@ export function DownloadsTab({
                       <span>{typeIcon}</span>
                       <span>{title} {year}</span>
                     </h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem', wordBreak: 'break-all', fontWeight: 500 }}>{item.url}</p>
+                    <p className="download-url-desktop" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem', wordBreak: 'break-all', fontWeight: 500 }}>{item.url}</p>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span className={`badge ${statusBadgeClass}`} style={{ fontSize: '0.8rem', padding: '0.25rem 0.6rem', fontWeight: 600 }}>
@@ -144,6 +161,49 @@ export function DownloadsTab({
                       <button onClick={() => onOpenMoveDialog(item)} className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
                         {t('move')}
                       </button>
+                    )}
+                    <button
+                      type="button"
+                      className="download-expand-btn"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? t('collapseDetails') : t('expandDetails')}
+                      onClick={e => {
+                        e.stopPropagation();
+                        toggleExpanded(item.id);
+                      }}
+                    >
+                      <span aria-hidden="true">{isExpanded ? '▲' : '▼'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mobile essential path line */}
+                <p className="download-path-mobile" style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', wordBreak: 'break-all', fontWeight: 500 }}>{mobilePath}</p>
+
+                {/* Mobile essential size/progress line */}
+                <div className="download-size-mobile">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {isProgressStatus ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          <span>{t('progress', { percent: progress })}</span>
+                          {item.file_size && (
+                            <span>{t('progressSize', {
+                              downloaded: (downloaded / 1024 / 1024).toFixed(1),
+                              total: (item.file_size / 1024 / 1024).toFixed(1),
+                            })}</span>
+                          )}
+                        </div>
+                        <Progress.Root value={progress} className="progress-root">
+                          <Progress.Indicator className="progress-indicator" style={{ width: `${progress}%` }} />
+                        </Progress.Root>
+                      </>
+                    ) : (
+                      item.file_size && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          {t('sizeMb', { size: (item.file_size / 1024 / 1024).toFixed(1) })}
+                        </span>
+                      )
                     )}
                   </div>
                 </div>
@@ -158,94 +218,100 @@ export function DownloadsTab({
                   </div>
                 )}
 
-                {/* Technical specs & Validation row */}
-                {item.file_info && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem' }}>
-                    {/* Technical values inline row */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', color: 'var(--primary-slate)', fontWeight: 500 }}>
-                      <span>{t('format', { format: item.file_info.extension.toUpperCase() || t('unknownFormat') })}</span>
-                      <span>•</span>
-                      <span>{item.file_info.detected_resolution || t('unknownResolution')}</span>
-                      <span>•</span>
-                      {item.file_size && (
-                        <span>{t('sizeMb', { size: (item.file_size / 1024 / 1024).toFixed(1) })}</span>
-                      )}
-                      {item.content?.duration && (
-                        <>
+                {/* Secondary technical details (mobile: collapsible; desktop: always visible) */}
+                {(item.file_info || item.content?.genres) && (
+                  <div className={`download-secondary${isExpanded ? ' download-secondary--expanded' : ''}`}>
+                    {item.file_info && (
+                      <div className="download-tech-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8rem' }}>
+                        {/* Technical values inline row */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', color: 'var(--primary-slate)', fontWeight: 500 }}>
+                          <span>{t('format', { format: item.file_info.extension.toUpperCase() || t('unknownFormat') })}</span>
                           <span>•</span>
-                          <span>{t('durationMin', { count: item.content.duration })}</span>
-                        </>
-                      )}
-                      {item.completed_at && (
-                        <>
+                          <span>{item.file_info.detected_resolution || t('unknownResolution')}</span>
                           <span>•</span>
-                          <span>{t('completedAt', { date: formatDate(item.completed_at, i18n.language) })}</span>
-                        </>
-                      )}
-                    </div>
+                          {item.file_size && (
+                            <span className="download-tech-size">{t('sizeMb', { size: (item.file_size / 1024 / 1024).toFixed(1) })}</span>
+                          )}
+                          {item.content?.duration && (
+                            <>
+                              <span>•</span>
+                              <span>{t('durationMin', { count: item.content.duration })}</span>
+                            </>
+                          )}
+                          {item.completed_at && (
+                            <>
+                              <span>•</span>
+                              <span>{t('completedAt', { date: formatDate(item.completed_at, i18n.language) })}</span>
+                            </>
+                          )}
+                        </div>
 
-                    {/* Validation chips row */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
-                      {/* Low quality check */}
-                      {isLowQuality && (
-                        <span className="badge badge-pending" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
-                          {t('lowQualityBadge', { resolution: item.file_info.detected_resolution })}
-                        </span>
-                      )}
+                        {/* Validation chips row */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center' }}>
+                          {/* Low quality check */}
+                          {isLowQuality && (
+                            <span className="badge badge-pending" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                              {t('lowQualityBadge', { resolution: item.file_info.detected_resolution })}
+                            </span>
+                          )}
 
-                      {/* Year validity */}
-                      {hasYearIssue ? (
-                        <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
-                          {t('missingYearBadge')}
-                        </span>
-                      ) : hasYearMismatch ? (
-                        <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }} title={t('incorrectYearTitle')}>
-                          {t('incorrectYearBadge')}
-                        </span>
-                      ) : (
-                        <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
-                          {t('yearOkBadge')}
-                        </span>
-                      )}
+                          {/* Year validity */}
+                          {hasYearIssue ? (
+                            <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                              {t('missingYearBadge')}
+                            </span>
+                          ) : hasYearMismatch ? (
+                            <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }} title={t('incorrectYearTitle')}>
+                              {t('incorrectYearBadge')}
+                            </span>
+                          ) : (
+                            <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                              {t('yearOkBadge')}
+                            </span>
+                          )}
 
-                      {/* Format validity */}
-                      {hasFormatIssue ? (
-                        <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
-                          {t('unknownFormatBadge')}
-                        </span>
-                      ) : (
-                        <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
-                          {t('formatOkBadge')}
-                        </span>
-                      )}
-                    </div>
+                          {/* Format validity */}
+                          {hasFormatIssue ? (
+                            <span className="badge badge-failed" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                              {t('unknownFormatBadge')}
+                            </span>
+                          ) : (
+                            <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', fontWeight: 600 }}>
+                              {t('formatOkBadge')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Genres Section */}
+                    {item.content?.genres && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 500 }}>
+                        <span>{t('genres')}</span>
+                        <span style={{ color: 'var(--primary-slate)', fontWeight: 600 }}>{item.content.genres}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {/* Genres Section */}
-                {item.content?.genres && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 500 }}>
-                    <span>{t('genres')}</span>
-                    <span style={{ color: 'var(--primary-slate)', fontWeight: 600 }}>{item.content.genres}</span>
-                  </div>
-                )}
-
-                {/* Progress Bar for Downloading / Retrying */}
+                {/* Progress Bar for Downloading / Retrying (desktop; mobile uses the essential size/progress line above) */}
                 {!isCompleted && item.status !== 'failed' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                      <span>{t('progress', { percent: progress })}</span>
-                      {item.file_size && (
-                        <span>{t('progressSize', {
-                          downloaded: (downloaded / 1024 / 1024).toFixed(1),
-                          total: (item.file_size / 1024 / 1024).toFixed(1),
-                        })}</span>
-                      )}
+                  <div className="download-progress-desktop">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        <span>{t('progress', { percent: progress })}</span>
+                        {item.file_size && (
+                          <span>{t('progressSize', {
+                            downloaded: (downloaded / 1024 / 1024).toFixed(1),
+                            total: (item.file_size / 1024 / 1024).toFixed(1),
+                          })}</span>
+                        )}
+                      </div>
+                      {/* Radix UI Progress Bar */}
+                      <Progress.Root value={progress} className="progress-root">
+                        <Progress.Indicator className="progress-indicator" style={{ width: `${progress}%` }} />
+                      </Progress.Root>
                     </div>
-                    {/* Radix UI Progress Bar */}
-                    <Progress.Root value={progress} className="progress-root">
-                      <Progress.Indicator className="progress-indicator" style={{ width: `${progress}%` }} />
-                    </Progress.Root>
                   </div>
                 )}
 

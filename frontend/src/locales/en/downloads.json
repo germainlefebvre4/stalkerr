@@ -47,5 +47,7 @@
   "formatOkBadge": "✅ Format OK",
   "genres": "🎭 Genres:",
   "progress": "Progress: {{percent}}%",
-  "progressSize": "{{downloaded}} MB / {{total}} MB"
+  "progressSize": "{{downloaded}} MB / {{total}} MB",
+  "expandDetails": "Show details",
+  "collapseDetails": "Hide details"
 }
