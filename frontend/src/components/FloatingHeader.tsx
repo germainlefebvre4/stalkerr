@@ -31,7 +31,6 @@ export function FloatingHeader({ healthStatus }: FloatingHeaderProps) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          <span className="sr-only">{t('language.label')}</span>
           <select
             aria-label={t('language.label')}
             value={activeLanguage}
@@ -50,16 +49,6 @@ export function FloatingHeader({ healthStatus }: FloatingHeaderProps) {
             ))}
           </select>
         </label>
-        <span
-          className={`badge ${healthStatus === 'healthy' ? 'badge-success' : healthStatus === 'unhealthy' ? 'badge-failed' : 'badge-pending'}`}
-          style={{ gap: '0.5rem' }}
-        >
-          <span
-            className="pulse-dot"
-            style={{ display: healthStatus === 'healthy' ? 'inline-block' : 'none' }}
-          ></span>
-          API: {statusLabel}
-        </span>
       </div>
     </header>
   );
