@@ -1,23 +1,13 @@
 import { useTranslation } from 'react-i18next';
 
-interface FloatingHeaderProps {
-  healthStatus: 'healthy' | 'unhealthy' | 'checking';
-}
-
 const LANGUAGES: { code: 'en' | 'fr'; labelKey: string }[] = [
   { code: 'en', labelKey: 'language.en' },
   { code: 'fr', labelKey: 'language.fr' },
 ];
 
-export function FloatingHeader({ healthStatus }: FloatingHeaderProps) {
+export function FloatingHeader() {
   const { t, i18n } = useTranslation();
   const activeLanguage = i18n.language.startsWith('fr') ? 'fr' : 'en';
-
-  const statusLabel = healthStatus === 'healthy'
-    ? t('apiStatus.online')
-    : healthStatus === 'unhealthy'
-      ? t('apiStatus.error')
-      : t('apiStatus.checking');
 
   return (
     <header className="glass-header">

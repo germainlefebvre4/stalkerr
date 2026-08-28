@@ -3,14 +3,8 @@ import { api } from '../services/api';
 import { StatsResponse } from '../types';
 
 export function useHealthAndStats() {
-  const [healthStatus, setHealthStatus] = useState<'healthy' | 'unhealthy' | 'checking'>('checking');
   const [stats, setStats] = useState<StatsResponse | null>(null);
 
-  const fetchHealth = useCallback(() => {
-    api.getHealth()
-      .then(data => setHealthStatus(data.status === 'healthy' ? 'healthy' : 'unhealthy'))
-      .catch(() => setHealthStatus('unhealthy'));
-  }, []);
 
   const fetchStats = useCallback(() => {
     api.getStats()
@@ -19,14 +13,12 @@ export function useHealthAndStats() {
   }, []);
 
   useEffect(() => {
-    fetchHealth();
     fetchStats();
     const interval = setInterval(() => {
-      fetchHealth();
       fetchStats();
     }, 10000);
     return () => clearInterval(interval);
-  }, [fetchHealth, fetchStats]);
+  }, [fetchStats]);
 
   const getDownloadSuccessRatio = useCallback(() => {
     if (!stats || !stats.by_state) return '100%';
@@ -38,7 +30,6 @@ export function useHealthAndStats() {
   }, [stats]);
 
   return {
-    healthStatus,
     stats,
     fetchStats,
     getDownloadSuccessRatio

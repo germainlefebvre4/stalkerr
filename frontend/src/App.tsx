@@ -54,7 +54,7 @@ export default function App() {
   const [, patchTabURLState] = useURLState(TAB_URL_SCHEMA);
 
   const { notification, showToast } = useToast();
-  const { healthStatus, stats, fetchStats, getDownloadSuccessRatio } = useHealthAndStats();
+  const { stats, fetchStats, getDownloadSuccessRatio } = useHealthAndStats();
   
   const {
     playlist, playlistSearch, setPlaylistSearch,
@@ -198,7 +198,7 @@ export default function App() {
         </div>
       )}
 
-      <FloatingHeader healthStatus={healthStatus} />
+      <FloatingHeader />
       <StatsKPICards stats={stats} getDownloadSuccessRatio={getDownloadSuccessRatio} />
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>

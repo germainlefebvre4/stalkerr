@@ -133,24 +133,19 @@ seed-test-data:
 	psql -h $$DB_HOST -p $$DB_PORT -U $$DB_USER -d $$DB_NAME -f scripts/seed-test-data.sql
 	@echo "Test data loaded successfully!"
 
-## front-install: Install Frontend Node/npm dependencies
-front-install:
+## build-front-install: Install Frontend Node/npm dependencies
+build-front-install:
 	@echo "Installing frontend dependencies..."
 	cd frontend && npm install
 	@echo "Frontend dependencies installed"
 
-## front-dev: Start Frontend Vite development server
-front-dev:
-	@echo "Starting frontend dev server..."
-	cd frontend && npm run dev
-
-## front-build: Build Frontend production-ready static assets
-front-build:
+## build-front: Build Frontend production-ready static assets
+build-front:
 	@echo "Building frontend static assets..."
 	cd frontend && npm run build
 
-## front-lint: Lint Frontend source code using ESLint
-front-lint:
+## lint-front: Lint Frontend source code using ESLint
+lint-front:
 	@echo "Linting frontend code..."
 	cd frontend && npm run lint
 
@@ -163,14 +158,13 @@ dev: build
 
 ## dev-frontend: Run only the Frontend dev server
 dev-frontend:
-	@echo "Starting stalkeer development environment (Backend + Frontend)..."
-	@echo "API server: http://localhost:$(API_PORT)"
+	@echo "Starting stalkeer development environment (Frontend)..."
 	@echo "Frontend dashboard: http://localhost:5173"
 	(trap 'kill 0' SIGINT; cd frontend && npm run dev)
 
 ## dev-backend: Run only the Backend API server
 dev-backend: build
-	@echo "Starting stalkeer development environment (Backend + Frontend)..."
+	@echo "Starting stalkeer development environment (Backend)..."
 	@echo "API server: http://localhost:$(API_PORT)"
 	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server)
 
