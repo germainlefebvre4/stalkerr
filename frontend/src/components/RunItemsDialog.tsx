@@ -58,7 +58,7 @@ export function RunItemsDialog({
     <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content" style={{ maxWidth: '90%', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }}>
+        <Dialog.Content className="dialog-content" style={{ maxWidth: '90%', display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflowY: 'auto' }}>
           <Dialog.Title style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-slate)', marginBottom: '0.5rem' }}>
             {t('runItemsDialog.title')}
           </Dialog.Title>
@@ -77,15 +77,13 @@ export function RunItemsDialog({
             </div>
           )}
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <PlaylistItemsTable
-              items={items}
-              loading={loading}
-              showDateGroups={false}
-              onOpenOverride={(item) => onOpenOverride(item, refetch)}
-              onResetPipeline={(id, contentType) => onResetPipeline(id, contentType, refetch)}
-            />
-          </div>
+          <PlaylistItemsTable
+            items={items}
+            loading={loading}
+            showDateGroups={false}
+            onOpenOverride={(item) => onOpenOverride(item, refetch)}
+            onResetPipeline={(id, contentType) => onResetPipeline(id, contentType, refetch)}
+          />
           <Pagination total={total} page={page} setPage={setPage} limit={RUN_ITEMS_LIMIT} />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem' }}>
