@@ -551,6 +551,453 @@ func TestMoveTVShowFolder(t *testing.T) {
 	}
 }
 
+func TestMoveSingleFile_RenameSuccess(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-move-single-file-rename")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	src := filepath.Join(tempDir, "src.mkv")
+	dst := filepath.Join(tempDir, "nested", "dst.mkv")
+
+	if err := os.WriteFile(src, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to write source file: %v", err)
+	}
+
+	if err := moveSingleFile(src, dst); err != nil {
+		t.Fatalf("expected moveSingleFile to succeed, got error: %v", err)
+	}
+
+	if _, err := os.Stat(dst); os.IsNotExist(err) {
+		t.Errorf("expected file to exist at %s", dst)
+	}
+	if _, err := os.Stat(src); err == nil {
+		t.Errorf("expected source file %s to be removed", src)
+	}
+}
+
+func TestMoveSingleFile_CopyFallback(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-move-single-file-fallback")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	src := filepath.Join(tempDir, "src.mkv")
+	dst := filepath.Join(tempDir, "nested", "dst.mkv")
+
+	if err := os.WriteFile(src, []byte("cross-device-content"), 0644); err != nil {
+		t.Fatalf("failed to write source file: %v", err)
+	}
+
+	original := osRename
+	osRename = func(string, string) error { return fmt.Errorf("simulated cross-device rename failure") }
+	defer func() { osRename = original }()
+
+	if err := moveSingleFile(src, dst); err != nil {
+		t.Fatalf("expected moveSingleFile to succeed via copy fallback, got error: %v", err)
+	}
+
+	if _, err := os.Stat(dst); os.IsNotExist(err) {
+		t.Errorf("expected file to exist at %s", dst)
+	}
+	if _, err := os.Stat(src); err == nil {
+		t.Errorf("expected source file %s to be removed after copy fallback", src)
+	}
+}
+
+func TestDetectTVSeasonPath_TVPath(t *testing.T) {
+	path := filepath.Join("/media/tvshows", "Breaking Bad (2008)", "Season 01", "Breaking Bad (2008) - S01E02.mkv")
+
+	info, ok := detectTVSeasonPath(path)
+	if !ok {
+		t.Fatalf("expected path to be detected as a TV season path")
+	}
+
+	expectedSeriesRoot := filepath.Join("/media/tvshows", "Breaking Bad (2008)")
+	expectedSeasonDir := filepath.Join(expectedSeriesRoot, "Season 01")
+	if info.SeriesRoot != expectedSeriesRoot {
+		t.Errorf("expected series root %s, got %s", expectedSeriesRoot, info.SeriesRoot)
+	}
+	if info.SeasonDir != expectedSeasonDir {
+		t.Errorf("expected season dir %s, got %s", expectedSeasonDir, info.SeasonDir)
+	}
+	if info.Season != 1 {
+		t.Errorf("expected season 1, got %d", info.Season)
+	}
+}
+
+func TestDetectTVSeasonPath_MoviePath(t *testing.T) {
+	path := filepath.Join("/media/movies", "Interstellar (2014)", "Interstellar (2014).mkv")
+
+	if _, ok := detectTVSeasonPath(path); ok {
+		t.Fatalf("expected movie path not to be detected as a TV season path")
+	}
+}
+
+func TestComputeRenameDestination_Movie(t *testing.T) {
+	oldPath := filepath.Join("/media/movies", "Interstelar (2014)", "Interstelar (2014).mkv")
+
+	dest := computeRenameDestination(oldPath, "Interstellar (2014)", nil)
+
+	expected := filepath.Join("/media/movies", "Interstellar (2014)", "Interstellar (2014).mkv")
+	if dest.NewFilePath != expected {
+		t.Errorf("expected new path %s, got %s", expected, dest.NewFilePath)
+	}
+	if dest.OldFolderPath != filepath.Join("/media/movies", "Interstelar (2014)") {
+		t.Errorf("unexpected old folder path: %s", dest.OldFolderPath)
+	}
+	if dest.TVInfo != nil {
+		t.Errorf("expected TVInfo to be nil for a movie path")
+	}
+}
+
+func TestComputeRenameDestination_TVEpisode_NoDestinationRoot(t *testing.T) {
+	oldPath := filepath.Join("/media/tvshows", "Series Name (2020)", "Season 01", "Series Name (2020) - S01E01.mkv")
+
+	dest := computeRenameDestination(oldPath, "Corrected Series Name (2021)", nil)
+
+	expected := filepath.Join("/media/tvshows", "Corrected Series Name (2021)", "Season 01", "Corrected Series Name (2021) - S01E01.mkv")
+	if dest.NewFilePath != expected {
+		t.Errorf("expected new path %s, got %s", expected, dest.NewFilePath)
+	}
+	if dest.TVInfo == nil {
+		t.Fatalf("expected TVInfo to be set for a TV episode path")
+	}
+	if dest.TVInfo.Season != 1 {
+		t.Errorf("expected season 1, got %d", dest.TVInfo.Season)
+	}
+}
+
+func TestComputeRenameDestination_TVEpisode_WithDestinationRoot(t *testing.T) {
+	oldPath := filepath.Join("/media/tvshows", "Series Name (2020)", "Season 01", "Series Name (2020) - S01E01.mkv")
+	destRoot := "/media/tv-archive"
+
+	dest := computeRenameDestination(oldPath, "Corrected Series Name (2021)", &destRoot)
+
+	expected := filepath.Join(destRoot, "Corrected Series Name (2021)", "Season 01", "Corrected Series Name (2021) - S01E01.mkv")
+	if dest.NewFilePath != expected {
+		t.Errorf("expected new path %s, got %s", expected, dest.NewFilePath)
+	}
+}
+
+func seedRenameDownload(t *testing.T, db *gorm.DB, path string, content string) models.DownloadInfo {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("failed to create directory for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file %s: %v", path, err)
+	}
+
+	dl := models.DownloadInfo{
+		URL:          "http://example.com/" + filepath.Base(path),
+		Status:       "completed",
+		DownloadPath: &path,
+	}
+	if err := db.Create(&dl).Error; err != nil {
+		t.Fatalf("failed to create download info: %v", err)
+	}
+	return dl
+}
+
+func TestRenameDownload_NotFound(t *testing.T) {
+	setupTestDB(t)
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{NewName: "New Name"})
+	req, _ := http.NewRequest("POST", "/api/v1/downloads/999/rename", bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if resp.Error != "not_found" {
+		t.Errorf("expected error code not_found, got %s", resp.Error)
+	}
+}
+
+func TestRenameDownload_IncompleteDownload(t *testing.T) {
+	db := setupTestDB(t)
+
+	dl := models.DownloadInfo{
+		URL:    "http://example.com/pending.mkv",
+		Status: "downloading",
+	}
+	db.Create(&dl)
+
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{NewName: "New Name"})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/rename", dl.ID), bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d. Body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRenameDownload_MovieSuccess_SiblingsUntouched(t *testing.T) {
+	db := setupTestDB(t)
+
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-rename-movie")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	moviesRoot := filepath.Join(tempDir, "movies")
+	targetPath := filepath.Join(moviesRoot, "Interstelar (2014)", "Interstelar (2014).mkv")
+	target := seedRenameDownload(t, db, targetPath, "movie_content")
+
+	siblingPath := filepath.Join(moviesRoot, "Another Movie (2015)", "Another Movie (2015).mkv")
+	sibling := seedRenameDownload(t, db, siblingPath, "sibling_content")
+
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{NewName: "Interstellar (2014)"})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/rename", target.ID), bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	expectedNewPath := filepath.Join(moviesRoot, "Interstellar (2014)", "Interstellar (2014).mkv")
+	if _, err := os.Stat(expectedNewPath); os.IsNotExist(err) {
+		t.Errorf("expected file at %s", expectedNewPath)
+	}
+	if _, err := os.Stat(targetPath); err == nil {
+		t.Errorf("expected old file %s to be gone", targetPath)
+	}
+	// Original (now empty) movie folder should be cleaned up.
+	if _, err := os.Stat(filepath.Dir(targetPath)); !os.IsNotExist(err) {
+		t.Errorf("expected emptied original movie folder to be removed")
+	}
+
+	var updatedTarget models.DownloadInfo
+	db.First(&updatedTarget, target.ID)
+	if updatedTarget.DownloadPath == nil || *updatedTarget.DownloadPath != expectedNewPath {
+		t.Errorf("expected updated download_path %s, got %v", expectedNewPath, updatedTarget.DownloadPath)
+	}
+
+	var updatedSibling models.DownloadInfo
+	db.First(&updatedSibling, sibling.ID)
+	if updatedSibling.DownloadPath == nil || *updatedSibling.DownloadPath != siblingPath {
+		t.Errorf("expected sibling download_path to remain %s, got %v", siblingPath, updatedSibling.DownloadPath)
+	}
+	if _, err := os.Stat(siblingPath); err != nil {
+		t.Errorf("expected sibling file %s to be untouched", siblingPath)
+	}
+}
+
+func TestRenameDownload_TVEpisode_SiblingsUntouched(t *testing.T) {
+	db := setupTestDB(t)
+
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-rename-tv")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tvRoot := filepath.Join(tempDir, "tvshows")
+	seriesDir := filepath.Join(tvRoot, "Series Name (2020)")
+	seasonDir := filepath.Join(seriesDir, "Season 01")
+
+	targetPath := filepath.Join(seasonDir, "Series Name (2020) - S01E01.mkv")
+	target := seedRenameDownload(t, db, targetPath, "episode_content")
+
+	siblingPath := filepath.Join(seasonDir, "Series Name (2020) - S01E02.mkv")
+	sibling := seedRenameDownload(t, db, siblingPath, "sibling_content")
+
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{NewName: "Corrected Series Name (2021)"})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/rename", target.ID), bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	expectedNewPath := filepath.Join(tvRoot, "Corrected Series Name (2021)", "Season 01", "Corrected Series Name (2021) - S01E01.mkv")
+	if _, err := os.Stat(expectedNewPath); os.IsNotExist(err) {
+		t.Errorf("expected file at %s", expectedNewPath)
+	}
+	if _, err := os.Stat(targetPath); err == nil {
+		t.Errorf("expected old file %s to be gone", targetPath)
+	}
+
+	// Season/series directories still contain the sibling episode, so they must remain.
+	if _, err := os.Stat(seasonDir); err != nil {
+		t.Errorf("expected original season dir to remain (still has sibling episode): %v", err)
+	}
+	if _, err := os.Stat(siblingPath); err != nil {
+		t.Errorf("expected sibling episode file to be untouched: %v", err)
+	}
+
+	var updatedTarget models.DownloadInfo
+	db.First(&updatedTarget, target.ID)
+	if updatedTarget.DownloadPath == nil || *updatedTarget.DownloadPath != expectedNewPath {
+		t.Errorf("expected updated download_path %s, got %v", expectedNewPath, updatedTarget.DownloadPath)
+	}
+
+	var updatedSibling models.DownloadInfo
+	db.First(&updatedSibling, sibling.ID)
+	if updatedSibling.DownloadPath == nil || *updatedSibling.DownloadPath != siblingPath {
+		t.Errorf("expected sibling download_path to remain %s, got %v", siblingPath, updatedSibling.DownloadPath)
+	}
+}
+
+func TestRenameDownload_TVEpisode_WithDestinationRoot(t *testing.T) {
+	db := setupTestDB(t)
+
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-rename-tv-destroot")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tvRoot := filepath.Join(tempDir, "tvshows")
+	archiveRoot := filepath.Join(tempDir, "tv-archive")
+	targetPath := filepath.Join(tvRoot, "Series Name (2020)", "Season 01", "Series Name (2020) - S01E01.mkv")
+	target := seedRenameDownload(t, db, targetPath, "episode_content")
+
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{
+		NewName:              "Corrected Series Name (2021)",
+		DestinationParentDir: &archiveRoot,
+	})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/rename", target.ID), bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	expectedNewPath := filepath.Join(archiveRoot, "Corrected Series Name (2021)", "Season 01", "Corrected Series Name (2021) - S01E01.mkv")
+	if _, err := os.Stat(expectedNewPath); os.IsNotExist(err) {
+		t.Errorf("expected file at %s", expectedNewPath)
+	}
+
+	var updatedTarget models.DownloadInfo
+	db.First(&updatedTarget, target.ID)
+	if updatedTarget.DownloadPath == nil || *updatedTarget.DownloadPath != expectedNewPath {
+		t.Errorf("expected updated download_path %s, got %v", expectedNewPath, updatedTarget.DownloadPath)
+	}
+}
+
+func TestRenameDownload_LastEpisodeCleansUpEmptyDirectories(t *testing.T) {
+	db := setupTestDB(t)
+
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-rename-tv-cleanup")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tvRoot := filepath.Join(tempDir, "tvshows")
+	seriesDir := filepath.Join(tvRoot, "Series Name (2020)")
+	seasonDir := filepath.Join(seriesDir, "Season 01")
+	targetPath := filepath.Join(seasonDir, "Series Name (2020) - S01E01.mkv")
+	target := seedRenameDownload(t, db, targetPath, "episode_content")
+
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{NewName: "Corrected Series Name (2021)"})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/rename", target.ID), bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	if _, err := os.Stat(seasonDir); !os.IsNotExist(err) {
+		t.Errorf("expected emptied season dir %s to be removed", seasonDir)
+	}
+	if _, err := os.Stat(seriesDir); !os.IsNotExist(err) {
+		t.Errorf("expected emptied series dir %s to be removed", seriesDir)
+	}
+}
+
+func TestRenameDownload_CollisionBlocked(t *testing.T) {
+	db := setupTestDB(t)
+
+	tempDir, err := os.MkdirTemp("", "stalkeer-test-rename-collision")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	moviesRoot := filepath.Join(tempDir, "movies")
+	targetPath := filepath.Join(moviesRoot, "Interstelar (2014)", "Interstelar (2014).mkv")
+	target := seedRenameDownload(t, db, targetPath, "movie_content")
+
+	// Pre-create the computed destination so it collides.
+	collidingPath := filepath.Join(moviesRoot, "Interstellar (2014)", "Interstellar (2014).mkv")
+	if err := os.MkdirAll(filepath.Dir(collidingPath), 0755); err != nil {
+		t.Fatalf("failed to create colliding dir: %v", err)
+	}
+	if err := os.WriteFile(collidingPath, []byte("existing_content"), 0644); err != nil {
+		t.Fatalf("failed to write colliding file: %v", err)
+	}
+
+	server := NewServer()
+
+	reqBody, _ := json.Marshal(RenameDownloadRequest{NewName: "Interstellar (2014)"})
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/rename", target.ID), bytes.NewBuffer(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if resp.Error != "rename_target_exists" {
+		t.Errorf("expected error code rename_target_exists, got %s", resp.Error)
+	}
+
+	// No mutation should have happened.
+	if _, err := os.Stat(targetPath); err != nil {
+		t.Errorf("expected source file to remain untouched: %v", err)
+	}
+	existingContent, err := os.ReadFile(collidingPath)
+	if err != nil || string(existingContent) != "existing_content" {
+		t.Errorf("expected colliding destination file to remain untouched")
+	}
+
+	var updatedTarget models.DownloadInfo
+	db.First(&updatedTarget, target.ID)
+	if updatedTarget.DownloadPath == nil || *updatedTarget.DownloadPath != targetPath {
+		t.Errorf("expected download_path to remain unchanged, got %v", updatedTarget.DownloadPath)
+	}
+}
+
 func TestSearchTMDBProxy_And_OverrideItem(t *testing.T) {
 	db := setupTestDB(t)
 

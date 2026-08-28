@@ -35,6 +35,18 @@
     "confirm": "✓ Confirm",
     "successMessage": "The parent folder was moved successfully!"
   },
+  "renameFolder": {
+    "title": "✎ Rename the item's folder",
+    "description": "This action renames only this item's file (not the whole movie/series folder) and can optionally move it to a different destination root at the same time.",
+    "workLabel": "📁 Item:",
+    "nameLabel": "New folder name:",
+    "nameRequired": "Please enter a folder name",
+    "destinationLabel": "Destination parent folder (optional):",
+    "destinationPlaceholder": "Leave empty to keep the current root",
+    "renaming": "Renaming...",
+    "confirm": "✓ Confirm",
+    "successMessage": "The item was renamed successfully!"
+  },
   "manualOverride": {
     "title": "🔍 Manual TMDB Correction",
     "description": "Search and manually associate this playlist item with an official TMDB title.",

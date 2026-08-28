@@ -15,8 +15,10 @@ import (
 	"github.com/glefebvre/stalkeer/internal/classifier"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/fileparser"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
 )
@@ -600,6 +602,246 @@ func getDirInfo(path string) (int64, int, error) {
 	})
 
 	return size, count, err
+}
+
+// osRename is a package-level indirection over os.Rename so tests can force the
+// cross-device copy-fallback path in moveSingleFile.
+var osRename = os.Rename
+
+// moveSingleFile moves a single file from src to dst, creating the destination
+// directory if needed, trying os.Rename first (fast, atomic) and falling back to
+// copy+verify+delete for cross-filesystem moves (mirrors moveFile in
+// internal/downloader/downloader.go).
+func moveSingleFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	if err := osRename(src, dst); err == nil {
+		return nil
+	}
+
+	if err := copyFile(src, dst); err != nil {
+		return fmt.Errorf("copy failed: %w", err)
+	}
+
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		os.Remove(dst)
+		return fmt.Errorf("failed to stat source: %w", err)
+	}
+
+	dstInfo, err := os.Stat(dst)
+	if err != nil {
+		os.Remove(dst)
+		return fmt.Errorf("failed to stat destination: %w", err)
+	}
+
+	if srcInfo.Size() != dstInfo.Size() {
+		os.Remove(dst)
+		return fmt.Errorf("file size mismatch after copy: src=%d dst=%d", srcInfo.Size(), dstInfo.Size())
+	}
+
+	return os.Remove(src)
+}
+
+// tvSeasonPathInfo describes a TV episode's path when its parent directory
+// follows the "Season NN" convention.
+type tvSeasonPathInfo struct {
+	SeriesRoot string
+	SeasonDir  string
+	Season     int
+}
+
+// detectTVSeasonPath detects whether downloadPath's parent directory follows the
+// "Season NN" convention (same prefix check already used by moveTVShowFolder) and,
+// if so, returns the series root, season directory, and season number.
+func detectTVSeasonPath(downloadPath string) (*tvSeasonPathInfo, bool) {
+	seasonDir := filepath.Dir(downloadPath)
+	seasonName := filepath.Base(seasonDir)
+
+	if !strings.HasPrefix(strings.ToLower(seasonName), "season") {
+		return nil, false
+	}
+
+	var season int
+	if _, err := fmt.Sscanf(seasonName, "Season %d", &season); err != nil {
+		return nil, false
+	}
+
+	return &tvSeasonPathInfo{
+		SeriesRoot: filepath.Dir(seasonDir),
+		SeasonDir:  seasonDir,
+		Season:     season,
+	}, true
+}
+
+// RenameDownloadRequest represents the payload for renaming a single download's parent folder
+type RenameDownloadRequest struct {
+	NewName              string  `json:"new_name" binding:"required"`
+	DestinationParentDir *string `json:"destination_parent_dir"`
+}
+
+// renameDownload renames the parent folder of exactly one downloaded item
+// (a movie's file, or a single TV episode's file), identified by its
+// download_info id, without touching any other download that shares the same
+// original parent directory.
+func (s *Server) renameDownload(c *gin.Context) {
+	db := database.Get()
+	id := c.Param("id")
+
+	var dl models.DownloadInfo
+	if err := db.First(&dl, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, ErrorResponse{
+				Error:   "not_found",
+				Message: "Download not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to fetch download",
+		})
+		return
+	}
+
+	if dl.DownloadPath == nil || *dl.DownloadPath == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: "Download has no completed file to rename",
+		})
+		return
+	}
+
+	var req RenameDownloadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "validation_error",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	dest := computeRenameDestination(*dl.DownloadPath, req.NewName, req.DestinationParentDir)
+
+	if _, err := os.Stat(dest.NewFilePath); err == nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error:   "rename_target_exists",
+			Message: "A file already exists at the destination path",
+		})
+		return
+	} else if !os.IsNotExist(err) {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "fs_error",
+			Message: "Failed to check destination path: " + err.Error(),
+		})
+		return
+	}
+
+	if err := moveSingleFile(*dl.DownloadPath, dest.NewFilePath); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "rename_failed",
+			Message: "Failed to move physical file: " + err.Error(),
+		})
+		return
+	}
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return tx.Model(&models.DownloadInfo{}).Where("id = ?", dl.ID).Update("download_path", dest.NewFilePath).Error
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error:   "database_update_failed",
+			Message: "File moved successfully on disk, but database path update failed: " + err.Error(),
+		})
+		return
+	}
+
+	if dest.TVInfo != nil {
+		if removeDirIfEmpty(dest.TVInfo.SeasonDir) {
+			removeDirIfEmpty(dest.OldFolderPath)
+		}
+	} else {
+		removeDirIfEmpty(dest.OldFolderPath)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "success",
+		"new_path": dest.NewFilePath,
+	})
+}
+
+// renameDestination is the computed outcome of a rename: where the file should
+// end up, and the original series/movie folder it is being moved out of.
+type renameDestination struct {
+	NewFilePath   string
+	OldFolderPath string
+	TVInfo        *tvSeasonPathInfo
+}
+
+// computeRenameDestination reconstructs the destination path for a rename using
+// the same convention as buildMovieBasePath/buildTVShowBasePath
+// (internal/downloader/path.go): newName replaces the {Title (Year)} segment
+// used both as the folder name and as the file's basename prefix, and, for TV
+// episodes, the season directory and the " - SxxExx.ext" filename suffix are
+// preserved from the current path rather than rebuilt from TMDB metadata.
+func computeRenameDestination(oldPath, newName string, destinationParentDir *string) renameDestination {
+	oldFileName := filepath.Base(oldPath)
+
+	var oldFolderPath, oldFolderName, seasonDirName string
+	var tvInfo *tvSeasonPathInfo
+	if info, ok := detectTVSeasonPath(oldPath); ok {
+		tvInfo = info
+		oldFolderPath = info.SeriesRoot
+		oldFolderName = filepath.Base(info.SeriesRoot)
+		seasonDirName = filepath.Base(info.SeasonDir)
+	} else {
+		oldFolderPath = filepath.Dir(oldPath)
+		oldFolderName = filepath.Base(oldFolderPath)
+	}
+
+	destRoot := filepath.Dir(oldFolderPath)
+	if destinationParentDir != nil && *destinationParentDir != "" {
+		destRoot = *destinationParentDir
+	}
+
+	newFolderName := downloader.SanitizeFilename(newName)
+	suffix := filepath.Ext(oldFileName)
+	if strings.HasPrefix(oldFileName, oldFolderName) {
+		suffix = oldFileName[len(oldFolderName):]
+	}
+	newFileName := newFolderName + suffix
+
+	newFolderPath := filepath.Join(destRoot, newFolderName)
+	newFilePath := filepath.Join(newFolderPath, newFileName)
+	if tvInfo != nil {
+		newFilePath = filepath.Join(newFolderPath, seasonDirName, newFileName)
+	}
+
+	return renameDestination{
+		NewFilePath:   newFilePath,
+		OldFolderPath: oldFolderPath,
+		TVInfo:        tvInfo,
+	}
+}
+
+// removeDirIfEmpty removes dir if it contains no entries. Best-effort: failures
+// are logged but never surfaced to the caller, since the file has already been
+// safely relocated by the time this runs.
+func removeDirIfEmpty(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 0 {
+		return false
+	}
+
+	if err := os.Remove(dir); err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{
+			"directory": dir,
+		}).Warn("failed to remove emptied directory after rename: " + err.Error())
+		return false
+	}
+
+	return true
 }
 
 // searchTMDBProxy queries movies or TV shows on TMDB safely from the backend.

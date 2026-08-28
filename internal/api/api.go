@@ -141,6 +141,7 @@ func (s *Server) setupRoutes() {
 		v1.GET("/processing-logs", s.listProcessingLogs)
 		v1.GET("/downloads", s.listDownloadsEnriched)
 		v1.GET("/downloads/simple", s.listDownloads)
+		v1.POST("/downloads/:id/rename", s.renameDownload)
 		v1.GET("/config/paths", s.getConfigPaths)
 	}
 }

@@ -35,6 +35,18 @@
     "confirm": "✓ Confirmer",
     "successMessage": "Le dossier parent a été déplacé avec succès !"
   },
+  "renameFolder": {
+    "title": "✎ Renommer le dossier de l'item",
+    "description": "Cette action renomme uniquement le fichier de cet item (pas tout le dossier du film/de la série) et peut aussi le déplacer vers une autre racine de destination en même temps.",
+    "workLabel": "📁 Item :",
+    "nameLabel": "Nouveau nom de dossier :",
+    "nameRequired": "Veuillez saisir un nom de dossier",
+    "destinationLabel": "Dossier de destination parent (optionnel) :",
+    "destinationPlaceholder": "Laisser vide pour conserver la racine actuelle",
+    "renaming": "Renommage...",
+    "confirm": "✓ Confirmer",
+    "successMessage": "L'item a été renommé avec succès !"
+  },
   "manualOverride": {
     "title": "🔍 Correction Manuelle TMDB",
     "description": "Recherchez et associez manuellement cet item de la playlist à une œuvre officielle TMDB.",

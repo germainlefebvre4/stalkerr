@@ -7,7 +7,8 @@ import {
   ConfigPaths,
   StatsResponse,
   FilterConfig,
-  TMDBSearchResult
+  TMDBSearchResult,
+  RenameDownloadResponse
 } from '../types';
 
 export class ApiError extends Error {
@@ -206,6 +207,19 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ destination_parent_dir: destDir }),
+    });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async renameDownload(
+    id: number,
+    payload: { new_name: string; destination_parent_dir?: string }
+  ): Promise<RenameDownloadResponse> {
+    const res = await fetch(`/api/v1/downloads/${id}/rename`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
     if (!res.ok) return throwApiError(res);
     return res.json();

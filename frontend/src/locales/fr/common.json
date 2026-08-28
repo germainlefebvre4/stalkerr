@@ -56,6 +56,10 @@
     "move_failed": "Le déplacement du dossier a échoué. Veuillez réessayer.",
     "override_failed": "L'application de l'association manuelle a échoué. Veuillez réessayer.",
     "filter_create_failed": "La création du filtre a échoué. Veuillez réessayer.",
+    "validation_error": "La requête est invalide.",
+    "rename_target_exists": "Un fichier ou dossier existe déjà à cet emplacement de destination.",
+    "rename_failed": "Le renommage de l'item a échoué. Veuillez réessayer.",
+    "database_update_failed": "Le fichier a été déplacé, mais la base de données n'a pas pu être mise à jour. Veuillez rafraîchir.",
     "generic": "Une erreur est survenue. Veuillez réessayer."
   }
 }

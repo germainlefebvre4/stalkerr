@@ -43,6 +43,22 @@ export function useDownloads(isActive: boolean) {
     return () => clearInterval(interval);
   }, [isActive, fetchDownloads]);
 
+  const updateDownloadPath = useCallback((id: number, newPath: string) => {
+    setDownloads(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const parts = newPath.split('/');
+      const fileName = parts[parts.length - 1] || '';
+      const folderName = parts.length > 1 ? parts[parts.length - 2] : '';
+      return {
+        ...item,
+        download_path: newPath,
+        file_info: item.file_info
+          ? { ...item.file_info, folder_name: folderName, file_name: fileName }
+          : item.file_info,
+      };
+    }));
+  }, []);
+
   return {
     downloads,
     downloadsLoading,
@@ -54,5 +70,6 @@ export function useDownloads(isActive: boolean) {
     setProblemFilter,
     configPaths,
     fetchDownloads,
+    updateDownloadPath,
   };
 }

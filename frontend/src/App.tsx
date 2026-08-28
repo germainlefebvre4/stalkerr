@@ -43,6 +43,7 @@ import { DownloadsTab } from './components/DownloadsTab';
 
 import { CreateFilterDialog } from './components/CreateFilterDialog';
 import { MoveFolderDialog } from './components/MoveFolderDialog';
+import { RenameFolderDialog } from './components/RenameFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 
 export default function App() {
@@ -82,12 +83,14 @@ export default function App() {
   const {
     downloads, downloadsLoading, statusFilter, setStatusFilter,
     typeFilter, setTypeFilter, problemFilter, setProblemFilter,
-    configPaths, fetchDownloads
+    configPaths, fetchDownloads, updateDownloadPath
   } = useDownloads(activeTab === 'downloads');
 
   const [isCreateFilterOpen, setIsCreateFilterOpen] = useState(false);
   const [isMoveOpen, setIsMoveOpen] = useState(false);
   const [moveItem, setMoveItem] = useState<{ id: number; title: string; type: 'movie' | 'tvshow'; currentPath?: string } | null>(null);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [renameItem, setRenameItem] = useState<{ id: number; title: string; folderName: string } | null>(null);
   const [isOverrideOpen, setIsOverrideOpen] = useState(false);
   const [overrideItemData, setOverrideItemData] = useState<PlaylistItem | null>(null);
 
@@ -143,6 +146,22 @@ export default function App() {
     };
     setMoveItem(moveMeta);
     setIsMoveOpen(true);
+  };
+
+  const openRenameDialog = (item: DownloadEnriched) => {
+    const unnamedMedia = t('media.unnamed');
+    const filename = item.download_path ? item.download_path.split('/').pop() || unnamedMedia : unnamedMedia;
+    setRenameItem({
+      id: item.id,
+      title: item.content?.title || filename,
+      folderName: item.file_info?.folder_name || filename,
+    });
+    setIsRenameOpen(true);
+  };
+
+  const handleRenameSuccess = (id: number, newPath: string, message: string) => {
+    showToast(message);
+    updateDownloadPath(id, newPath);
   };
 
   const tabs = [
@@ -206,6 +225,7 @@ export default function App() {
           downloads={downloads} downloadsLoading={downloadsLoading} statusFilter={statusFilter} setStatusFilter={setStatusFilter}
           typeFilter={typeFilter} setTypeFilter={setTypeFilter} problemFilter={problemFilter} setProblemFilter={setProblemFilter}
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}
+          onOpenRenameDialog={openRenameDialog}
         />
       </Tabs.Root>
 
@@ -229,7 +249,9 @@ export default function App() {
       <CreateFilterDialog isOpen={isCreateFilterOpen} onOpenChange={setIsCreateFilterOpen} onSuccess={(msg) => { showToast(msg); fetchFilters(); }} />
       
       <MoveFolderDialog isOpen={isMoveOpen} onOpenChange={setIsMoveOpen} moveItem={moveItem} configPaths={configPaths} onSuccess={(msg) => { showToast(msg); fetchDownloads(); fetchStats(); }} />
-      
+
+      <RenameFolderDialog isOpen={isRenameOpen} onOpenChange={setIsRenameOpen} renameItem={renameItem} onSuccess={handleRenameSuccess} />
+
       <ManualOverrideDialog isOpen={isOverrideOpen} onOpenChange={setIsOverrideOpen} overrideItemData={overrideItemData} onSuccess={(msg) => { showToast(msg); fetchPlaylist(); fetchStats(); }} playlist={playlist} />
     </div>
   );

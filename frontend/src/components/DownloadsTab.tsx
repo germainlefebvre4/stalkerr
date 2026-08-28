@@ -16,6 +16,7 @@ interface DownloadsTabProps {
   setProblemFilter: (problem: string) => void;
   onFetchDownloads: () => void;
   onOpenMoveDialog: (item: DownloadEnriched) => void;
+  onOpenRenameDialog: (item: DownloadEnriched) => void;
 }
 
 export function DownloadsTab({
@@ -28,7 +29,8 @@ export function DownloadsTab({
   problemFilter,
   setProblemFilter,
   onFetchDownloads,
-  onOpenMoveDialog
+  onOpenMoveDialog,
+  onOpenRenameDialog
 }: DownloadsTabProps) {
   const { t, i18n } = useTranslation('downloads');
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -160,6 +162,11 @@ export function DownloadsTab({
                     {isCompleted && (
                       <button onClick={() => onOpenMoveDialog(item)} className="btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
                         {t('move')}
+                      </button>
+                    )}
+                    {isCompleted && (
+                      <button onClick={() => onOpenRenameDialog(item)} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}>
+                        {t('rename')}
                       </button>
                     )}
                     <button

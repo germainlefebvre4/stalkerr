@@ -122,6 +122,11 @@ export interface DownloadEnriched {
   };
 }
 
+export interface RenameDownloadResponse {
+  status: string;
+  new_path: string;
+}
+
 export interface ConfigPaths {
   movies_path: string;
   tvshows_path: string;

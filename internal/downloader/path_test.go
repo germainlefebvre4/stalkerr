@@ -25,7 +25,7 @@ func TestBuildTVShowBasePath(t *testing.T) {
 }
 
 func TestSanitizeFilename(t *testing.T) {
-	sanitized := sanitizeFilename("Bad/Name:Test?")
+	sanitized := SanitizeFilename("Bad/Name:Test?")
 	expected := "Bad_Name_Test_"
 	if sanitized != expected {
 		t.Fatalf("expected %s, got %s", expected, sanitized)
