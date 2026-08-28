@@ -1002,7 +1002,14 @@ input, select {
   }
 
   .tab-panel {
-    padding: 0.85rem;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0.85rem 0;
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    border-top: 1px solid var(--border-color-strong);
   }
 
   .btn-primary,
