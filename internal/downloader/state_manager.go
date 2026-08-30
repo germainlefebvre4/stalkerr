@@ -164,6 +164,7 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 	switch newStatus {
 	case models.DownloadStatusDownloading:
 		updates["started_at"] = now
+		updates["error_message"] = nil
 	case models.DownloadStatusCompleted:
 		updates["completed_at"] = now
 		// Release lock on completion

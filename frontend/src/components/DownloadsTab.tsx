@@ -322,7 +322,7 @@ export function DownloadsTab({
                   </div>
                 )}
 
-                {item.error_message && (
+                {item.status === 'failed' && item.error_message && (
                   <div style={{ padding: '0.75rem', backgroundColor: 'var(--status-failed-bg)', borderRadius: 'var(--radius-sm)', color: 'var(--status-failed-text)', fontSize: '0.8rem', fontWeight: 600, border: '1px solid var(--status-failed-border)' }}>
                     🔴 {item.error_message}
                   </div>
