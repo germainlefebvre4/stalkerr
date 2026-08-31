@@ -22,6 +22,13 @@
   },
   "loading": "Chargement des téléchargements...",
   "empty": "Aucun téléchargement enregistré",
+  "summary": {
+    "headers": {
+      "title": "Téléchargement",
+      "status": "Statut",
+      "progress": "Progression"
+    }
+  },
   "status": {
     "completed": "✅ Complété",
     "downloading": "⏳ En cours",
@@ -50,5 +57,16 @@
   "progress": "Progression : {{percent}}%",
   "progressSize": "{{downloaded}} Mo / {{total}} Mo",
   "expandDetails": "Afficher les détails",
-  "collapseDetails": "Masquer les détails"
+  "collapseDetails": "Masquer les détails",
+  "drawer": {
+    "title": "📥 Détail du Téléchargement",
+    "close": "Fermer ✕",
+    "description": "Statut complet, fichier, informations techniques et de validation de ce téléchargement.",
+    "statusSection": "Statut et Progression",
+    "fileSection": "Fichier",
+    "technicalSection": "Spécifications Techniques",
+    "validationSection": "Validation",
+    "errorSection": "Erreur",
+    "actionsSection": "Actions"
+  }
 }

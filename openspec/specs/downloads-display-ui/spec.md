@@ -95,11 +95,15 @@ The frontend SHALL reflect the Downloads tab's status, type, and problem filters
 - **THEN** the card SHALL display the same completion date in the technical specs row as it would on desktop
 
 ### Requirement: Rename Download Item
-On each completed download card, the system SHALL provide a "Renommer" action, available independently of the existing "Move" action, that opens a dialog pre-filled with the item's current parent folder name (from `file_info.folder_name`) as an editable free-text field, plus an optional field for a different destination root. Submitting the dialog SHALL call `POST /api/v1/downloads/:id/rename` scoped to that single download's id, and SHALL only update the affected card's displayed folder/path — every other visible download card SHALL remain unchanged.
+On each completed download card, the system SHALL provide a "Renommer" action, available independently of the existing "Move" action, that opens a dialog pre-filled with the item's `rename_folder_name` (the series root folder name for a TV episode, or the movie's own folder name — never a season subdirectory's name) as an editable free-text field, plus an optional field for a different destination root. Submitting the dialog SHALL call `POST /api/v1/downloads/:id/rename` scoped to that single download's id, and SHALL only update the affected card's displayed folder/path — every other visible download card SHALL remain unchanged.
 
 #### Scenario: Open the rename dialog pre-filled with the current name
 - **WHEN** the user clicks "Renommer" on a completed download card
-- **THEN** the system SHALL open a dialog with the folder name field pre-filled with the current parent folder name, and the destination root field empty.
+- **THEN** the system SHALL open a dialog with the folder name field pre-filled with the item's `rename_folder_name`, and the destination root field empty.
+
+#### Scenario: Rename dialog pre-fills the series name for a TV episode, not the season folder
+- **WHEN** the user clicks "Renommer" on a completed TV episode download card whose file lives under a `Season NN` folder
+- **THEN** the system SHALL pre-fill the dialog with the series' own folder name (e.g. `Breaking Bad (2008)`), and SHALL NOT pre-fill it with the season folder's name (e.g. `Season 01`)
 
 #### Scenario: Rename in place
 - **WHEN** the user edits the folder name field only and submits

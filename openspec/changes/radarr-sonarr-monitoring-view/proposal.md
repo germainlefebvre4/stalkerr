@@ -8,7 +8,7 @@ Radarr and Sonarr integration today only exists as one-shot CLI batch commands (
 - Add two backend proxy endpoints that live-query Radarr/Sonarr (no new persisted tables, no scheduled sync job) and enrich the result with the existing playlist-matching logic (`internal/matcher`), reusing the same TVDB → TMDB → fuzzy matching path the CLI download commands already use so the view's match status is always consistent with what a real download attempt would do.
 - Both endpoints are paginated, and pagination happens **before** the matching computation: the full lightweight Radarr/Sonarr listing is fetched once per request, then only the requested page's items go through matching (DB lookups for movies, plus per-series episode fetch from Sonarr for the aggregate). This bounds per-request cost to the page size regardless of total catalog size, in particular the Sonarr per-series episode call, which is the most expensive operation.
 - Sonarr results are aggregated per series (e.g. "8/12 episodes matched"), not broken out per episode, in the list view.
-- Each row opens a sidepanel showing the matched local `Movie`/`TVShow` metadata (when matched) and the playlist occurrences found for it (resolution, state), reusing `FindMovieDownloadCandidates`/`FindTVShowDownloadCandidates`.
+- Each row opens a sidepanel showing the matched local `Movie`/`TVShow` metadata (when matched) and the playlist occurrences found for it (resolution, state) - **all occurrences regardless of pipeline state**, including already-downloaded ones, since this is an audit view rather than a "what's left to download" view (unlike `FindMovieDownloadCandidates`/`FindTVShowDownloadCandidates`, which intentionally exclude downloaded occurrences because they serve the download-candidate-selection use case).
 - Data is fetched on demand: an explicit "Actualiser" (refresh) action per section triggers the live fetch; there is no background polling or auto-refresh.
 - Each section (Films/Séries) has its own independent loading and error state, so a Radarr outage does not prevent the Sonarr section from displaying, and vice versa.
 
@@ -24,7 +24,7 @@ Radarr and Sonarr integration today only exists as one-shot CLI batch commands (
 ## Impact
 
 - `internal/external/radarr`, `internal/external/sonarr`: new client methods to list all monitored movies/series (not just "missing"), and to fetch episodes for a specific series on demand.
-- `internal/matcher`: new aggregate helper to compute per-series playlist-match counts from a series' monitored episodes.
+- `internal/matcher`: new state-agnostic lookup helpers (matched local `Movie`/`TVShow` existence plus all of its playlist occurrences regardless of state) and a new aggregate helper to compute per-series playlist-match counts from a series' monitored episodes.
 - `internal/api`: two new handler(s)/routes for paginated Radarr/Sonarr monitoring listings, following the existing proxy-handler pattern (`searchTMDBProxy`) and pagination pattern (`parsePagination`).
 - `frontend/src`: new tab component, API client methods, i18n strings (fr/en), reusing the existing sidepanel/drawer visual pattern from `PlaylistTab.tsx`.
 - No new database tables or migrations. No new scheduled jobs. No new configuration (existing `cfg.Radarr`/`cfg.Sonarr` URL/API key are reused).

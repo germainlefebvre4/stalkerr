@@ -456,26 +456,6 @@ input, select {
   }
 }
 
-/* Downloads display additions */
-.download-card {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  background: #fff;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* Mobile-only essential fields and expand control, hidden by default (desktop) */
-.download-path-mobile,
-.download-size-mobile,
-.download-expand-btn {
-  display: none;
-}
-
 .download-header {
   display: flex;
   justify-content: space-between;
@@ -862,15 +842,6 @@ input, select {
     margin-left: -2rem;
     margin-right: -2rem;
   }
-
-  /* Download cards: secondary details always visible, no expand control */
-  .download-secondary {
-    display: block;
-  }
-
-  .download-expand-btn {
-    display: none;
-  }
 }
 
 /* Mobile-only layout adjustments */
@@ -961,44 +932,6 @@ input, select {
 
   .filter-card {
     padding: 1rem;
-  }
-
-  .download-card {
-    padding: 0.85rem;
-  }
-
-  .download-url-desktop,
-  .file-info,
-  .download-progress-desktop,
-  .download-tech-size {
-    display: none;
-  }
-
-  .download-path-mobile,
-  .download-size-mobile {
-    display: block;
-  }
-
-  .download-expand-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 44px;
-    min-height: 44px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  .download-secondary {
-    display: none;
-  }
-
-  .download-secondary--expanded {
-    display: block;
   }
 
   .tab-panel {

@@ -22,6 +22,13 @@
   },
   "loading": "Loading downloads...",
   "empty": "No downloads recorded",
+  "summary": {
+    "headers": {
+      "title": "Download",
+      "status": "Status",
+      "progress": "Progress"
+    }
+  },
   "status": {
     "completed": "✅ Completed",
     "downloading": "⏳ In progress",
@@ -50,5 +57,16 @@
   "progress": "Progress: {{percent}}%",
   "progressSize": "{{downloaded}} MB / {{total}} MB",
   "expandDetails": "Show details",
-  "collapseDetails": "Hide details"
+  "collapseDetails": "Hide details",
+  "drawer": {
+    "title": "📥 Download Details",
+    "close": "Close ✕",
+    "description": "Full status, file, technical, and validation details for this download.",
+    "statusSection": "Status & Progress",
+    "fileSection": "File",
+    "technicalSection": "Technical Specifications",
+    "validationSection": "Validation",
+    "errorSection": "Error",
+    "actionsSection": "Actions"
+  }
 }
