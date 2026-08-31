@@ -88,7 +88,7 @@ The React frontend dashboard MUST provide an interactive, accessible modal dialo
    - If both season and episode are confidently extracted, both fields MUST be pre-populated with the extracted values.
    - If a season/episode pattern cannot be confidently extracted (including the case where an episode marker is found without an associated season marker), both fields MUST be left empty rather than pre-populated with a guessed or default season.
 9. If `"tvshow"` is chosen and a TMDB result is selected, the modal MUST additionally display a candidate list for bulk association:
-   - The candidate list MUST contain every other currently loaded playlist entry (the page of results currently displayed in the playlist table) whose `content_type` is `"tvshows"`, excluding the entry the modal was opened for.
+   - The candidate list MUST be sourced from a dedicated backend search scoped to the opened item's cleaned title (the same cleaning rule as step 5), restricted to `content_type` `"tvshows"` and excluding the entry the modal was opened for. This search MUST be independent of, and unaffected by, whatever page, filter, or sort any other view (e.g. the Playlist tab or a processing-run's item dialog) currently has loaded.
    - Each candidate MUST be rendered with its own raw title (`tvg_name`), a checkbox, and its own match-state preview: if the candidate already has an associated `tvshow`, its current season/episode; otherwise, the season/episode detected from its own raw title using the same extraction rule as step 8. The candidate MUST be independently checkable and uncheckable by the user.
    - A candidate MUST be pre-checked when its title, cleaned with the same cleaning rule applied to the search query (step 5), matches the cleaned title of the item the modal was opened for; all other candidates MUST start unchecked.
    - The pre-check heuristic is advisory only: the user MUST be able to check any unchecked candidate (to include an episode the heuristic missed) and uncheck any pre-checked candidate (to exclude a false-positive match) before confirming.
@@ -110,8 +110,12 @@ The React frontend dashboard MUST provide an interactive, accessible modal dialo
 - **THEN** both the "Saison" and "Épisode" fields SHALL be left empty rather than pre-populated with a guessed season
 
 #### Scenario: Other episodes of the same series are pre-selected as candidates
-- **WHEN** the user opens the override modal for a `"Breaking Bad S01E01"` item, the currently loaded playlist page also contains `"Breaking Bad S01E02"` and `"Breaking Bad S02E01"` entries not yet associated with any TV show, and the user selects the "Breaking Bad" TMDB result
-- **THEN** the candidate list SHALL show both other entries pre-checked, alongside any other `tvshows` entries on the page left unchecked
+- **WHEN** the user opens the override modal for a `"Breaking Bad S01E01"` item, a dedicated search for that item's cleaned title ("Breaking Bad") returns `"Breaking Bad S01E02"` and `"Breaking Bad S02E01"` entries not yet associated with any TV show, and the user selects the "Breaking Bad" TMDB result
+- **THEN** the candidate list SHALL show both other entries pre-checked, alongside any other search results left unchecked
+
+#### Scenario: Candidates are found regardless of what any other view currently has loaded
+- **WHEN** the user opens the override modal for a series item from the processing-run item dialog (or any other entry point), and the Playlist tab elsewhere in the app currently has a different page, filter, or sort loaded that does not include the item's other episodes
+- **THEN** the candidate list SHALL still include those other episodes, because it is sourced from a dedicated search rather than whatever the Playlist tab happens to have loaded
 
 #### Scenario: User deselects a false-positive candidate before confirming
 - **WHEN** the candidate list pre-checks an entry whose title only coincidentally resembles the selected series (e.g. a same-named special or an unrelated show), and the user unchecks it before clicking "Forcer l'association"
