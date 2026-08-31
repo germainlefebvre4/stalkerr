@@ -34,7 +34,7 @@ type ProcessedLine struct {
 	TvgName                 string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"tvg_name"`
 	GroupTitle              string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"group_title"`
 	ProcessedAt             time.Time       `gorm:"not null" json:"processed_at"`
-	ContentType             ContentType     `gorm:"type:varchar(20);not null;index:idx_processed_lines_content;index:idx_processed_lines_remote_file_size_probe,priority:1" json:"content_type"`
+	ContentType             ContentType     `gorm:"type:varchar(20);not null;index:idx_processed_lines_content" json:"content_type"`
 	Resolution              *string         `gorm:"type:varchar(10)" json:"resolution,omitempty"`
 	ChannelID               *uint           `gorm:"index" json:"channel_id,omitempty"`
 	MovieID                 *uint           `gorm:"index" json:"movie_id,omitempty"`
@@ -46,8 +46,6 @@ type ProcessedLine struct {
 	OverrideBy              *string         `gorm:"type:varchar(50)" json:"override_by,omitempty"`
 	OverrideAt              *time.Time      `json:"override_at,omitempty"`
 	DownloadedAt            *time.Time      `json:"downloaded_at,omitempty"`
-	RemoteFileSize          *int64          `gorm:"index:idx_processed_lines_remote_file_size_probe,priority:2" json:"remote_file_size,omitempty"`
-	RemoteFileSizeCheckedAt *time.Time      `gorm:"index:idx_processed_lines_remote_file_size_probe,priority:3" json:"remote_file_size_checked_at,omitempty"`
 	CreatedAt               time.Time       `gorm:"not null;index:idx_processed_lines_created_at" json:"created_at"`
 	UpdatedAt               time.Time       `gorm:"not null" json:"updated_at"`
 

@@ -116,8 +116,6 @@
     "m3uLineNumber": "🔢 Numéro de ligne M3U :",
     "line": "Ligne {{number}}",
     "unknownLegacyImport": "Inconnue (Ancien import)",
-    "remoteFileSize": "💾 Taille du fichier distant :",
-    "remoteFileSizeUnavailable": "Indisponible",
     "copied": "✓ Copié",
     "copy": "📄 Copier",
     "rawLineSection": "📄 Contenu Brut de la Ligne",

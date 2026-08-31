@@ -747,7 +747,6 @@ func toItemResponse(item models.ProcessedLine) ItemResponse {
 		LineURL:         item.LineURL,
 		LineHash:        item.LineHash,
 		LineNumber:      item.LineNumber,
-		RemoteFileSize:  item.RemoteFileSize,
 		ProcessingLogID: item.ProcessingLogID,
 		ProcessedAt:     item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),
 		DownloadedAt:    downloadedAtStr,

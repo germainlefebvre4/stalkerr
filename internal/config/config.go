@@ -33,19 +33,9 @@ type DatabaseConfig struct {
 
 // M3UConfig holds M3U playlist settings
 type M3UConfig struct {
-	FilePath       string               `mapstructure:"file_path"`
-	UpdateInterval int                  `mapstructure:"update_interval"`
-	Download       M3UDownloadConfig    `mapstructure:"download"`
-	RemoteFileSize RemoteFileSizeConfig `mapstructure:"remote_file_size"`
-}
-
-// RemoteFileSizeConfig holds settings for the remote file size backfill probe
-// that runs automatically as part of `stalkeer process`.
-type RemoteFileSizeConfig struct {
-	TimeoutSeconds     int `mapstructure:"timeout_seconds"`
-	PerRunCap          int `mapstructure:"per_run_cap"`
-	Concurrency        int `mapstructure:"concurrency"`
-	RetryCooldownHours int `mapstructure:"retry_cooldown_hours"`
+	FilePath       string            `mapstructure:"file_path"`
+	UpdateInterval int               `mapstructure:"update_interval"`
+	Download       M3UDownloadConfig `mapstructure:"download"`
 }
 
 // M3UDownloadConfig holds M3U download settings
@@ -189,10 +179,6 @@ func Load() error {
 	viper.BindEnv("m3u.download.auth_password")
 	viper.BindEnv("m3u.download.schedule_enabled")
 	viper.BindEnv("m3u.download.interval_hours")
-	viper.BindEnv("m3u.remote_file_size.timeout_seconds")
-	viper.BindEnv("m3u.remote_file_size.per_run_cap")
-	viper.BindEnv("m3u.remote_file_size.concurrency")
-	viper.BindEnv("m3u.remote_file_size.retry_cooldown_hours")
 
 	bindEnvWithAlternatives("logging.level", "LOG_LEVEL")
 	viper.BindEnv("logging.format")
@@ -285,10 +271,6 @@ func setDefaults() {
 	viper.SetDefault("m3u.download.retry_attempts", 3)
 	viper.SetDefault("m3u.download.schedule_enabled", false)
 	viper.SetDefault("m3u.download.interval_hours", 24)
-	viper.SetDefault("m3u.remote_file_size.timeout_seconds", 5)
-	viper.SetDefault("m3u.remote_file_size.per_run_cap", 2000)
-	viper.SetDefault("m3u.remote_file_size.concurrency", 10)
-	viper.SetDefault("m3u.remote_file_size.retry_cooldown_hours", 168)
 
 	// Radarr defaults
 	viper.SetDefault("radarr.enabled", false)

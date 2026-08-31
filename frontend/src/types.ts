@@ -47,7 +47,6 @@ export interface PlaylistItem {
   line_url?: string;
   line_hash: string;
   line_number: number;
-  remote_file_size?: number;
   processing_log_id?: number;
   created_at: string;
   downloaded_at: string | null;

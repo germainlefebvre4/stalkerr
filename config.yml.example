@@ -31,13 +31,6 @@ m3u:
     # schedule_enabled: false  # Enable automatic scheduled downloads
     # interval_hours: 24  # Download interval in hours
 
-  # Remote file size backfill settings (runs automatically as part of `stalkeer process`)
-  remote_file_size:
-    timeout_seconds: 5  # Per-request timeout for HEAD/range-GET probes
-    per_run_cap: 2000  # Maximum number of lines probed in a single run
-    concurrency: 10  # Maximum number of probes in flight simultaneously
-    retry_cooldown_hours: 168  # Hours to wait before retrying a line whose probe failed (7 days)
-
 # File-based filters (can be overridden by runtime filters)
 filter:
   group_title:

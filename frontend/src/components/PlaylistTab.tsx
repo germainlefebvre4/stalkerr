@@ -572,16 +572,6 @@ export function PlaylistTab({
                         )}
                       </span>
                     </div>
-                    {selectedItem.content_type !== 'channels' && (
-                      <div>
-                        <strong style={{ color: 'var(--text-secondary)' }}>{t('drawer.remoteFileSize')}</strong>{' '}
-                        <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
-                          {selectedItem.remote_file_size
-                            ? formatRemoteFileSize(selectedItem.remote_file_size)
-                            : t('drawer.remoteFileSizeUnavailable')}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -632,13 +622,4 @@ export function PlaylistTab({
       </Dialog.Root>
     </Tabs.Content>
   );
-}
-
-function formatRemoteFileSize(bytes: number): string {
-  const GB = 1024 * 1024 * 1024;
-  const MB = 1024 * 1024;
-  if (bytes >= GB) {
-    return `${(bytes / GB).toFixed(1)} GB`;
-  }
-  return `${(bytes / MB).toFixed(1)} MB`;
 }

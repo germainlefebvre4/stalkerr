@@ -40,34 +40,6 @@ func TestLoad_WithDefaults(t *testing.T) {
 	}
 }
 
-func TestLoad_RemoteFileSizeDefaults(t *testing.T) {
-	os.Setenv("STALKEER_DATABASE_USER", "testuser")
-	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
-	os.Setenv("STALKEER_M3U_FILE_PATH", "/tmp/test.m3u")
-	defer func() {
-		os.Unsetenv("STALKEER_DATABASE_USER")
-		os.Unsetenv("STALKEER_DATABASE_DBNAME")
-		os.Unsetenv("STALKEER_M3U_FILE_PATH")
-	}()
-
-	cfg = nil
-	err := Load()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	config := Get()
-	if config.M3U.RemoteFileSize.Concurrency != 10 {
-		t.Errorf("expected default concurrency 10, got %d", config.M3U.RemoteFileSize.Concurrency)
-	}
-	if config.M3U.RemoteFileSize.RetryCooldownHours != 168 {
-		t.Errorf("expected default retry cooldown hours 168, got %d", config.M3U.RemoteFileSize.RetryCooldownHours)
-	}
-	if config.M3U.RemoteFileSize.PerRunCap != 2000 {
-		t.Errorf("expected default per_run_cap 2000, got %d", config.M3U.RemoteFileSize.PerRunCap)
-	}
-}
-
 func TestValidate_InvalidLogLevel(t *testing.T) {
 	os.Setenv("STALKEER_DATABASE_USER", "testuser")
 	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")

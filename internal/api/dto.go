@@ -35,7 +35,6 @@ type ItemResponse struct {
 	LineURL         *string                `json:"line_url,omitempty"`
 	LineHash        string                 `json:"line_hash"`
 	LineNumber      int                    `json:"line_number"`
-	RemoteFileSize  *int64                 `json:"remote_file_size,omitempty"`
 	ProcessingLogID *uint                  `json:"processing_log_id,omitempty"`
 	ProcessedAt     string                 `json:"processed_at"`
 	DownloadedAt    *string                `json:"downloaded_at"`
