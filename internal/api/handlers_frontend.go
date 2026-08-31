@@ -188,6 +188,8 @@ func enrichDownloadInfo(dl models.DownloadInfo) DownloadEnrichedResponse {
 
 	if dl.DownloadPath != nil && *dl.DownloadPath != "" {
 		resp.FileInfo = fileparser.Parse(*dl.DownloadPath, contentYear)
+		renameName := renameFolderName(*dl.DownloadPath)
+		resp.RenameFolderName = &renameName
 	}
 
 	return resp
@@ -676,6 +678,17 @@ func detectTVSeasonPath(downloadPath string) (*tvSeasonPathInfo, bool) {
 	}, true
 }
 
+// renameFolderName returns the folder name that a rename operation should
+// treat as the current name of downloadPath's parent folder: the series root
+// name when downloadPath's parent directory follows the "Season NN"
+// convention, otherwise the immediate parent directory's basename.
+func renameFolderName(downloadPath string) string {
+	if info, ok := detectTVSeasonPath(downloadPath); ok {
+		return filepath.Base(info.SeriesRoot)
+	}
+	return filepath.Base(filepath.Dir(downloadPath))
+}
+
 // RenameDownloadRequest represents the payload for renaming a single download's parent folder
 type RenameDownloadRequest struct {
 	NewName              string  `json:"new_name" binding:"required"`
@@ -788,17 +801,16 @@ type renameDestination struct {
 func computeRenameDestination(oldPath, newName string, destinationParentDir *string) renameDestination {
 	oldFileName := filepath.Base(oldPath)
 
-	var oldFolderPath, oldFolderName, seasonDirName string
+	var oldFolderPath, seasonDirName string
 	var tvInfo *tvSeasonPathInfo
 	if info, ok := detectTVSeasonPath(oldPath); ok {
 		tvInfo = info
 		oldFolderPath = info.SeriesRoot
-		oldFolderName = filepath.Base(info.SeriesRoot)
 		seasonDirName = filepath.Base(info.SeasonDir)
 	} else {
 		oldFolderPath = filepath.Dir(oldPath)
-		oldFolderName = filepath.Base(oldFolderPath)
 	}
+	oldFolderName := renameFolderName(oldPath)
 
 	destRoot := filepath.Dir(oldFolderPath)
 	if destinationParentDir != nil && *destinationParentDir != "" {

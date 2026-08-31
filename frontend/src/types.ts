@@ -120,6 +120,8 @@ export interface DownloadEnriched {
     detected_resolution?: string;
     is_valid_format: boolean;
   };
+
+  rename_folder_name?: string;
 }
 
 export interface RenameDownloadResponse {

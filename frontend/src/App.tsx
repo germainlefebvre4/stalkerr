@@ -14,6 +14,7 @@ import { useURLState, URLStateSchema } from './hooks/useURLState';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
+import { resolveRenameFolderName } from './utils/renameDialog';
 
 const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads'];
 
@@ -165,7 +166,7 @@ export default function App() {
     setRenameItem({
       id: item.id,
       title: item.content?.title || filename,
-      folderName: item.file_info?.folder_name || filename,
+      folderName: resolveRenameFolderName(item, filename),
     });
     setIsRenameOpen(true);
   };

@@ -349,6 +349,70 @@ func TestListDownloadsEnriched(t *testing.T) {
 	}
 }
 
+func TestEnrichDownloadInfo_RenameFolderName_Movie(t *testing.T) {
+	path := "/media/movies/Interstellar (2014)/Interstellar (2014).mkv"
+	dl := models.DownloadInfo{
+		ID:           1,
+		Status:       "completed",
+		DownloadPath: &path,
+	}
+
+	resp := enrichDownloadInfo(dl)
+
+	if resp.FileInfo == nil {
+		t.Fatal("expected FileInfo to be non-nil")
+	}
+	if resp.RenameFolderName == nil {
+		t.Fatal("expected RenameFolderName to be non-nil")
+	}
+	if *resp.RenameFolderName != resp.FileInfo.FolderName {
+		t.Errorf("expected RenameFolderName %q to equal FileInfo.FolderName %q", *resp.RenameFolderName, resp.FileInfo.FolderName)
+	}
+	if *resp.RenameFolderName != "Interstellar (2014)" {
+		t.Errorf("expected RenameFolderName %q, got %q", "Interstellar (2014)", *resp.RenameFolderName)
+	}
+}
+
+func TestEnrichDownloadInfo_RenameFolderName_TVEpisode(t *testing.T) {
+	path := "/media/tvshows/Breaking Bad (2008)/Season 01/Breaking Bad (2008) - S01E01.mkv"
+	dl := models.DownloadInfo{
+		ID:           1,
+		Status:       "completed",
+		DownloadPath: &path,
+	}
+
+	resp := enrichDownloadInfo(dl)
+
+	if resp.FileInfo == nil {
+		t.Fatal("expected FileInfo to be non-nil")
+	}
+	if resp.FileInfo.FolderName != "Season 01" {
+		t.Errorf("expected FileInfo.FolderName %q, got %q", "Season 01", resp.FileInfo.FolderName)
+	}
+	if resp.RenameFolderName == nil {
+		t.Fatal("expected RenameFolderName to be non-nil")
+	}
+	if *resp.RenameFolderName != "Breaking Bad (2008)" {
+		t.Errorf("expected RenameFolderName %q, got %q", "Breaking Bad (2008)", *resp.RenameFolderName)
+	}
+}
+
+func TestEnrichDownloadInfo_RenameFolderName_NullDownloadPath(t *testing.T) {
+	dl := models.DownloadInfo{
+		ID:     1,
+		Status: "pending",
+	}
+
+	resp := enrichDownloadInfo(dl)
+
+	if resp.FileInfo != nil {
+		t.Error("expected FileInfo to be nil")
+	}
+	if resp.RenameFolderName != nil {
+		t.Errorf("expected RenameFolderName to be omitted, got %q", *resp.RenameFolderName)
+	}
+}
+
 func TestGetConfigPaths(t *testing.T) {
 	_ = setupTestDB(t)
 
