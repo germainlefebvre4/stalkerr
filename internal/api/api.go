@@ -9,6 +9,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 )
 
@@ -17,6 +18,7 @@ type Server struct {
 	router     *gin.Engine
 	httpServer *http.Server
 	tmdbClient *tmdb.Client
+	downloader *downloader.Downloader
 }
 
 // NewServer creates a new API server instance
@@ -49,6 +51,10 @@ func NewServer() *Server {
 	s := &Server{
 		router:     router,
 		tmdbClient: tmdbClient,
+		downloader: downloader.New(
+			time.Duration(cfg.Downloads.Timeout)*time.Second,
+			cfg.Downloads.RetryAttempts,
+		),
 	}
 
 	s.setupRoutes()
@@ -101,6 +107,7 @@ func (s *Server) setupRoutes() {
 			items.PUT("/:id", s.updateItem)
 			items.POST("/search", s.searchItems)
 			items.POST("/:id/override", s.overrideItem)
+			items.POST("/:id/force-download", s.forceDownloadItem)
 		}
 
 		// Movies endpoints

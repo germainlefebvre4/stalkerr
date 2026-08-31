@@ -199,6 +199,84 @@ func (c *Client) GetEpisodeDetails(ctx context.Context, id int) (*Episode, error
 	return &episode, nil
 }
 
+// GetSeriesByTVDBID looks up a series directly by TVDB ID, independent of the
+// missing/wanted list, so it also finds series that already have files.
+// Returns (nil, nil) when Sonarr has no matching series (a distinguishable
+// "not found" outcome), and (nil, err) when the lookup itself fails.
+func (c *Client) GetSeriesByTVDBID(ctx context.Context, tvdbID int) (*Series, error) {
+	endpoint := fmt.Sprintf("/api/v3/series?tvdbId=%d", tvdbID)
+
+	var series []Series
+	err := retry.Do(ctx, c.retryConfig, func() error {
+		s, err := c.getSeries(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		series = s
+		return nil
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get series by tvdb id", err)
+	}
+
+	if len(series) == 0 {
+		return nil, nil
+	}
+
+	return &series[0], nil
+}
+
+// GetEpisodesBySeriesID retrieves every episode belonging to a Sonarr series,
+// independent of "missing" status.
+func (c *Client) GetEpisodesBySeriesID(ctx context.Context, seriesID int) ([]Episode, error) {
+	endpoint := fmt.Sprintf("/api/v3/episode?seriesId=%d", seriesID)
+
+	var episodes []Episode
+	err := retry.Do(ctx, c.retryConfig, func() error {
+		eps, err := c.getEpisodeList(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		episodes = eps
+		return nil
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get episodes by series id", err)
+	}
+
+	return episodes, nil
+}
+
+// FindEpisodeByTVDBID looks up a series by TVDB ID and, among its episodes,
+// the one matching the given season/episode number, filtering client-side
+// since Sonarr has no direct season+episode-number query. Returns
+// (nil, nil, nil) when the series or the specific episode isn't found, and
+// (nil, nil, err) when a live call fails.
+func (c *Client) FindEpisodeByTVDBID(ctx context.Context, tvdbID, season, episode int) (*Series, *Episode, error) {
+	series, err := c.GetSeriesByTVDBID(ctx, tvdbID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if series == nil {
+		return nil, nil, nil
+	}
+
+	episodes, err := c.GetEpisodesBySeriesID(ctx, series.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for i := range episodes {
+		if episodes[i].SeasonNumber == season && episodes[i].EpisodeNumber == episode {
+			return series, &episodes[i], nil
+		}
+	}
+
+	return nil, nil, nil
+}
+
 // UpdateEpisode updates an episode in Sonarr
 func (c *Client) UpdateEpisode(ctx context.Context, episode *Episode) error {
 	endpoint := fmt.Sprintf("/api/v3/episode/%d", episode.ID)
@@ -290,6 +368,31 @@ func (c *Client) getEpisodes(ctx context.Context, endpoint string) ([]Episode, i
 	}
 
 	return response.Records, response.TotalRecords, nil
+}
+
+func (c *Client) getEpisodeList(ctx context.Context, endpoint string) ([]Episode, error) {
+	req, err := c.newRequest(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	var episodes []Episode
+	if err := json.NewDecoder(resp.Body).Decode(&episodes); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return episodes, nil
 }
 
 func (c *Client) getEpisode(ctx context.Context, endpoint string) (*Episode, error) {

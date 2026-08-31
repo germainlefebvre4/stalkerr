@@ -123,6 +123,16 @@
     "rawLineSection": "📄 Contenu Brut de la Ligne",
     "copiedBang": "✓ Copié !",
     "copyIcon": "📋 Copier",
-    "rawUrlSection": "🔗 URL brute du flux"
+    "rawUrlSection": "🔗 URL brute du flux",
+    "forceDownload": {
+      "sectionTitle": "⬇️ Téléchargement Forcé",
+      "action": "Forcer le téléchargement",
+      "loading": "Envoi en cours…",
+      "unavailableNotMatched": "Indisponible : cet item n'est associé à aucun film ou série.",
+      "unavailableAlreadyHandled": "Indisponible : cet item est déjà téléchargé ou en cours de téléchargement.",
+      "queued": "✓ Téléchargement mis en file d'attente",
+      "errorPrefix": "✕ Échec :",
+      "genericError": "Une erreur inattendue est survenue."
+    }
   }
 }

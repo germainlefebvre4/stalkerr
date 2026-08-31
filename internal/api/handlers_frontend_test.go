@@ -42,6 +42,13 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to migrate models: %v", err)
 	}
 
+	// SQLite's ":memory:" database is per-connection: a second pooled connection
+	// would see a fresh, empty database. Force a single connection so background
+	// goroutines (e.g. force-download's async transfer) see the same test data.
+	if sqlDB, err := db.DB(); err == nil {
+		sqlDB.SetMaxOpenConns(1)
+	}
+
 	database.SetDB(db)
 	return db
 }

@@ -9,6 +9,7 @@ import { useIsMobile } from '../hooks/useMediaQuery';
 import { PlaylistItemsTable } from './PlaylistItemsTable';
 import { PlaylistGroupedView } from './PlaylistGroupedView';
 import { Pagination } from './Pagination';
+import { api, ApiError } from '../services/api';
 
 interface PlaylistTabProps {
   playlist: PlaylistItem[];
@@ -80,6 +81,31 @@ export function PlaylistTab({
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
+  const [forceDownloadStatus, setForceDownloadStatus] = React.useState<'idle' | 'loading' | 'queued' | 'error'>('idle');
+  const [forceDownloadError, setForceDownloadError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setForceDownloadStatus('idle');
+    setForceDownloadError(null);
+  }, [selectedItem?.id]);
+
+  const isForceDownloadEligible = !!selectedItem
+    && !!(selectedItem.movie || selectedItem.tvshow)
+    && selectedItem.state !== 'downloaded'
+    && selectedItem.state !== 'downloading';
+
+  const handleForceDownload = async () => {
+    if (!selectedItem) return;
+    setForceDownloadStatus('loading');
+    setForceDownloadError(null);
+    try {
+      await api.forceDownload(selectedItem.id);
+      setForceDownloadStatus('queued');
+    } catch (err) {
+      setForceDownloadStatus('error');
+      setForceDownloadError(err instanceof ApiError ? err.message : t('drawer.forceDownload.genericError'));
+    }
+  };
 
   const activeAdvancedFilterCount = [
     playlistSearchName,
@@ -477,6 +503,45 @@ export function PlaylistTab({
                         <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.overriddenAt')}</span>
                         <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.override_at, i18n.language)}</span>
                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section 2.5: Forcer le Téléchargement (occurrence unique) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h3 className="drawer-section-title">
+                    {t('drawer.forceDownload.sectionTitle')}
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={!isForceDownloadEligible || forceDownloadStatus === 'loading'}
+                      onClick={handleForceDownload}
+                      title={!isForceDownloadEligible ? (
+                        !(selectedItem.movie || selectedItem.tvshow)
+                          ? t('drawer.forceDownload.unavailableNotMatched')
+                          : t('drawer.forceDownload.unavailableAlreadyHandled')
+                      ) : undefined}
+                    >
+                      {forceDownloadStatus === 'loading' ? t('drawer.forceDownload.loading') : t('drawer.forceDownload.action')}
+                    </button>
+                    {!isForceDownloadEligible && (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        {!(selectedItem.movie || selectedItem.tvshow)
+                          ? t('drawer.forceDownload.unavailableNotMatched')
+                          : t('drawer.forceDownload.unavailableAlreadyHandled')}
+                      </span>
+                    )}
+                    {forceDownloadStatus === 'queued' && (
+                      <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
+                        {t('drawer.forceDownload.queued')}
+                      </span>
+                    )}
+                    {forceDownloadStatus === 'error' && (
+                      <span className="badge badge-failed" style={{ fontSize: '0.8rem' }}>
+                        {t('drawer.forceDownload.errorPrefix')} {forceDownloadError}
+                      </span>
                     )}
                   </div>
                 </div>

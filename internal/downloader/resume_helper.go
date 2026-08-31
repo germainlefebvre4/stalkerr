@@ -255,6 +255,16 @@ func (rh *ResumeHelper) buildDownloadJobs(downloads []models.DownloadInfo, cfg *
 }
 
 func (rh *ResumeHelper) buildBaseDestPath(cfg *config.Config, line *models.ProcessedLine, download *models.DownloadInfo) (string, string, error) {
+	// Prefer an already-recorded DownloadPath over recomputing from metadata: a
+	// forced download persists its resolution-suffixed path onto DownloadInfo
+	// before the transfer starts, and recomputing here would resume into a
+	// different (unsuffixed) path, reintroducing the sibling-collision risk the
+	// suffix exists to prevent. Recomputation is only a fallback for a download
+	// that never got far enough to have a path recorded yet.
+	if download.DownloadPath != nil && *download.DownloadPath != "" {
+		return strings.TrimSuffix(*download.DownloadPath, filepath.Ext(*download.DownloadPath)), filepath.Base(*download.DownloadPath), nil
+	}
+
 	if line.ContentType == models.ContentTypeMovies {
 		if line.Movie != nil {
 			path := buildMovieBasePath(cfg.Downloads.MoviesPath, line.Movie.TMDBTitle, line.Movie.TMDBYear)
@@ -267,10 +277,6 @@ func (rh *ResumeHelper) buildBaseDestPath(cfg *config.Config, line *models.Proce
 			path := buildTVShowBasePath(cfg.Downloads.TVShowsPath, line.TVShow.TMDBTitle, line.TVShow.TMDBYear, *line.TVShow.Season, *line.TVShow.Episode)
 			return path, fmt.Sprintf("%s (%d) - S%02dE%02d", line.TVShow.TMDBTitle, line.TVShow.TMDBYear, *line.TVShow.Season, *line.TVShow.Episode), nil
 		}
-	}
-
-	if download.DownloadPath != nil && *download.DownloadPath != "" {
-		return strings.TrimSuffix(*download.DownloadPath, filepath.Ext(*download.DownloadPath)), filepath.Base(*download.DownloadPath), nil
 	}
 
 	return "", "", fmt.Errorf("missing metadata for destination path")

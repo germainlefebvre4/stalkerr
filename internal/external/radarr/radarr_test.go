@@ -193,6 +193,88 @@ func TestMovieTvdbIDDeserialization(t *testing.T) {
 	})
 }
 
+func TestGetMovieByTMDBID(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		movie := Movie{ID: 5, Title: "Dune", Year: 2021, TMDBID: 438631, HasFile: true}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/v3/movie" {
+				t.Errorf("expected path /api/v3/movie, got %s", r.URL.Path)
+			}
+			if r.URL.Query().Get("tmdbId") != "438631" {
+				t.Errorf("expected tmdbId query param 438631, got %s", r.URL.Query().Get("tmdbId"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]Movie{movie})
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		result, err := client.GetMovieByTMDBID(context.Background(), 438631)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil {
+			t.Fatal("expected non-nil movie")
+		}
+		if result.ID != movie.ID {
+			t.Errorf("expected ID %d, got %d", movie.ID, result.ID)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]Movie{})
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		result, err := client.GetMovieByTMDBID(context.Background(), 999)
+		if err != nil {
+			t.Fatalf("expected no error for not-found, got: %v", err)
+		}
+		if result != nil {
+			t.Errorf("expected nil movie for not-found, got %+v", result)
+		}
+	})
+
+	t.Run("transport error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("boom"))
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		result, err := client.GetMovieByTMDBID(context.Background(), 999)
+		if err == nil {
+			t.Fatal("expected error for transport failure")
+		}
+		if result != nil {
+			t.Errorf("expected nil movie on error, got %+v", result)
+		}
+	})
+}
+
 func TestClientRetry(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

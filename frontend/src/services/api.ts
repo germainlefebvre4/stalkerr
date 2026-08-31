@@ -255,5 +255,11 @@ export const api = {
     const res = await fetch(`/api/v1/filters/${id}`, { method: 'DELETE' });
     if (!res.ok) return throwApiError(res);
     return res.json();
+  },
+
+  async forceDownload(id: number): Promise<{ status: string; processed_line_id: number }> {
+    const res = await fetch(`/api/v1/items/${id}/force-download`, { method: 'POST' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
   }
 };

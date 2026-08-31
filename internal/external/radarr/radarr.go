@@ -138,6 +138,34 @@ func (c *Client) GetMovieDetails(ctx context.Context, id int) (*Movie, error) {
 	return &movie, nil
 }
 
+// GetMovieByTMDBID looks up a movie directly by TMDB ID, independent of the
+// missing/wanted list, so it also finds movies that already have a file.
+// Returns (nil, nil) when Radarr has no matching movie (a distinguishable
+// "not found" outcome), and (nil, err) when the lookup itself fails.
+func (c *Client) GetMovieByTMDBID(ctx context.Context, tmdbID int) (*Movie, error) {
+	endpoint := fmt.Sprintf("/api/v3/movie?tmdbId=%d", tmdbID)
+
+	var movies []Movie
+	err := retry.Do(ctx, c.retryConfig, func() error {
+		m, err := c.getMovies(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		movies = m
+		return nil
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return nil, apperrors.ExternalServiceError("radarr", "failed to get movie by tmdb id", err)
+	}
+
+	if len(movies) == 0 {
+		return nil, nil
+	}
+
+	return &movies[0], nil
+}
+
 // UpdateMovie updates a movie in Radarr
 func (c *Client) UpdateMovie(ctx context.Context, movie *Movie) error {
 	endpoint := fmt.Sprintf("/api/v3/movie/%d", movie.ID)

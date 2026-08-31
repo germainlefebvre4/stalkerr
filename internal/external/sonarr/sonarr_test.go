@@ -390,3 +390,202 @@ func TestGetMissingEpisodesWithLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestGetSeriesByTVDBID(t *testing.T) {
+	t.Run("found", func(t *testing.T) {
+		series := Series{ID: 42, Title: "Breaking Bad", TvdbID: 81189}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/v3/series" {
+				t.Errorf("expected path /api/v3/series, got %s", r.URL.Path)
+			}
+			if r.URL.Query().Get("tvdbId") != "81189" {
+				t.Errorf("expected tvdbId query param 81189, got %s", r.URL.Query().Get("tvdbId"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]Series{series})
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		result, err := client.GetSeriesByTVDBID(context.Background(), 81189)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil || result.ID != series.ID {
+			t.Fatalf("expected series ID %d, got %+v", series.ID, result)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]Series{})
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		result, err := client.GetSeriesByTVDBID(context.Background(), 999)
+		if err != nil {
+			t.Fatalf("expected no error for not-found, got: %v", err)
+		}
+		if result != nil {
+			t.Errorf("expected nil series for not-found, got %+v", result)
+		}
+	})
+
+	t.Run("transport error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("boom"))
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		result, err := client.GetSeriesByTVDBID(context.Background(), 999)
+		if err == nil {
+			t.Fatal("expected error for transport failure")
+		}
+		if result != nil {
+			t.Errorf("expected nil series on error, got %+v", result)
+		}
+	})
+}
+
+func TestGetEpisodesBySeriesID(t *testing.T) {
+	episodes := []Episode{
+		{ID: 1, SeriesID: 42, SeasonNumber: 1, EpisodeNumber: 1, Title: "Pilot"},
+		{ID: 2, SeriesID: 42, SeasonNumber: 1, EpisodeNumber: 2, Title: "Cat's in the Bag..."},
+		{ID: 3, SeriesID: 42, SeasonNumber: 2, EpisodeNumber: 1, Title: "Seven Thirty-Seven"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/episode" {
+			t.Errorf("expected path /api/v3/episode, got %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("seriesId") != "42" {
+			t.Errorf("expected seriesId query param 42, got %s", r.URL.Query().Get("seriesId"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(episodes)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	result, err := client.GetEpisodesBySeriesID(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != len(episodes) {
+		t.Fatalf("expected %d episodes, got %d", len(episodes), len(result))
+	}
+}
+
+func TestFindEpisodeByTVDBID(t *testing.T) {
+	series := Series{ID: 42, Title: "Breaking Bad", TvdbID: 81189}
+	episodes := []Episode{
+		{ID: 1, SeriesID: 42, SeasonNumber: 1, EpisodeNumber: 1, Title: "Pilot"},
+		{ID: 2, SeriesID: 42, SeasonNumber: 1, EpisodeNumber: 2, Title: "Cat's in the Bag..."},
+	}
+
+	newTestServer := func(seriesResp []Series, episodesResp []Episode) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch r.URL.Path {
+			case "/api/v3/series":
+				json.NewEncoder(w).Encode(seriesResp)
+			case "/api/v3/episode":
+				json.NewEncoder(w).Encode(episodesResp)
+			default:
+				t.Errorf("unexpected path %s", r.URL.Path)
+			}
+		}))
+	}
+
+	t.Run("matching episode found", func(t *testing.T) {
+		server := newTestServer([]Series{series}, episodes)
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		gotSeries, gotEpisode, err := client.FindEpisodeByTVDBID(context.Background(), 81189, 1, 2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotSeries == nil || gotSeries.ID != series.ID {
+			t.Fatalf("expected series %+v, got %+v", series, gotSeries)
+		}
+		if gotEpisode == nil || gotEpisode.ID != 2 {
+			t.Fatalf("expected episode ID 2, got %+v", gotEpisode)
+		}
+	})
+
+	t.Run("missing episode number", func(t *testing.T) {
+		server := newTestServer([]Series{series}, episodes)
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		gotSeries, gotEpisode, err := client.FindEpisodeByTVDBID(context.Background(), 81189, 5, 9)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotSeries != nil || gotEpisode != nil {
+			t.Fatalf("expected not found, got series=%+v episode=%+v", gotSeries, gotEpisode)
+		}
+	})
+
+	t.Run("missing series", func(t *testing.T) {
+		server := newTestServer([]Series{}, episodes)
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		gotSeries, gotEpisode, err := client.FindEpisodeByTVDBID(context.Background(), 999, 1, 1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotSeries != nil || gotEpisode != nil {
+			t.Fatalf("expected not found, got series=%+v episode=%+v", gotSeries, gotEpisode)
+		}
+	})
+}

@@ -123,6 +123,16 @@
     "rawLineSection": "📄 Raw Line Content",
     "copiedBang": "✓ Copied!",
     "copyIcon": "📋 Copy",
-    "rawUrlSection": "🔗 Raw stream URL"
+    "rawUrlSection": "🔗 Raw stream URL",
+    "forceDownload": {
+      "sectionTitle": "⬇️ Forced Download",
+      "action": "Force download",
+      "loading": "Sending…",
+      "unavailableNotMatched": "Unavailable: this item isn't associated with a movie or TV show.",
+      "unavailableAlreadyHandled": "Unavailable: this item is already downloaded or currently downloading.",
+      "queued": "✓ Download queued",
+      "errorPrefix": "✕ Failed:",
+      "genericError": "An unexpected error occurred."
+    }
   }
 }

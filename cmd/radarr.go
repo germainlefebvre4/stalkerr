@@ -191,7 +191,7 @@ and download matched items from M3U playlist stream URLs.`,
 
 			// Download - use movie.Path from Radarr as the authoritative root so that
 			// movies assigned to secondary root folders land in the correct directory.
-			baseDestPath, usedFallback := buildRadarrDestPath(
+			baseDestPath, usedFallback := downloader.BuildRadarrDestPath(
 				movie.Path, cfg.Downloads.MoviesPath, movie.Title, movie.Year,
 			)
 			if usedFallback {
