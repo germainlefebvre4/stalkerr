@@ -276,7 +276,6 @@ export default function App() {
           overrideExtraSuccessRef.current?.();
           overrideExtraSuccessRef.current = null;
         }}
-        playlist={playlist}
       />
 
       <RunItemsDialog

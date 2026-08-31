@@ -11,7 +11,6 @@ interface ManualOverrideDialogProps {
   onOpenChange: (open: boolean) => void;
   overrideItemData: PlaylistItem | null;
   onSuccess: (message: string) => void;
-  playlist: PlaylistItem[];
 }
 
 interface OverrideCandidate {
@@ -43,8 +42,7 @@ export function ManualOverrideDialog({
   isOpen,
   onOpenChange,
   overrideItemData,
-  onSuccess,
-  playlist
+  onSuccess
 }: ManualOverrideDialogProps) {
   const { t, i18n } = useTranslation('dialogs');
   const translateApiError = useApiErrorMessage();
@@ -104,30 +102,35 @@ export function ManualOverrideDialog({
   }, [overrideItemData]);
 
   useEffect(() => {
-    void Promise.resolve().then(() => {
-      if (overrideItemData && overrideMediaType === 'tvshow' && selectedResult) {
-        const openedCleaned = cleanRawTitle(overrideItemData.tvg_name);
-        const list: OverrideCandidate[] = playlist
-          .filter(p => p.content_type === 'tvshows' && p.id !== overrideItemData.id)
-          .map(p => {
-            const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
-            let preview: OverrideCandidate['preview'] = null;
-            if (p.tvshow?.season != null && p.tvshow?.episode != null) {
-              preview = { season: p.tvshow.season, episode: p.tvshow.episode, source: 'current' };
-            } else {
-              const detected = extractSeasonEpisode(p.tvg_name);
-              if (detected.season !== null && detected.episode !== null) {
-                preview = { season: detected.season, episode: detected.episode, source: 'detected' };
+    if (overrideItemData && overrideMediaType === 'tvshow' && selectedResult) {
+      const itemData = overrideItemData;
+      const openedCleaned = cleanRawTitle(itemData.tvg_name);
+      api.getPlaylist(1, 100, 'tvshows', undefined, undefined, openedCleaned)
+        .then(data => {
+          const list: OverrideCandidate[] = data.data
+            .filter(p => p.id !== itemData.id)
+            .map(p => {
+              const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
+              let preview: OverrideCandidate['preview'] = null;
+              if (p.tvshow?.season != null && p.tvshow?.episode != null) {
+                preview = { season: p.tvshow.season, episode: p.tvshow.episode, source: 'current' };
+              } else {
+                const detected = extractSeasonEpisode(p.tvg_name);
+                if (detected.season !== null && detected.episode !== null) {
+                  preview = { season: detected.season, episode: detected.episode, source: 'detected' };
+                }
               }
-            }
-            return { item: p, preChecked, checked: preChecked, preview };
-          });
-        setCandidates(list);
-      } else {
-        setCandidates([]);
-      }
-    });
-  }, [overrideItemData, overrideMediaType, selectedResult, playlist]);
+              return { item: p, preChecked, checked: preChecked, preview };
+            });
+          setCandidates(list);
+        })
+        .catch(() => {
+          setCandidates([]);
+        });
+    } else {
+      setCandidates([]);
+    }
+  }, [overrideItemData, overrideMediaType, selectedResult]);
 
   const toggleCandidate = (itemId: number) => {
     setCandidates(prev => prev.map(c => (c.item.id === itemId ? { ...c, checked: !c.checked } : c)));
