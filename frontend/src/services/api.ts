@@ -12,7 +12,8 @@ import {
   RadarrMovieListItem,
   SonarrSeriesListItem,
   RadarrMovieMatchesResponse,
-  SonarrSeriesEpisodesResponse
+  SonarrSeriesEpisodesResponse,
+  RadarrSonarrStats
 } from '../types';
 
 export class ApiError extends Error {
@@ -268,14 +269,28 @@ export const api = {
     return res.json();
   },
 
-  async listRadarrMovies(page: number, limit: number = 20): Promise<PaginatedResponse<RadarrMovieListItem>> {
-    const res = await fetch(`/api/v1/radarr/movies?limit=${limit}&offset=${(page - 1) * limit}`);
+  async listRadarrMovies(page: number, limit: number = 20, search?: string): Promise<PaginatedResponse<RadarrMovieListItem>> {
+    let url = `/api/v1/radarr/movies?limit=${limit}&offset=${(page - 1) * limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const res = await fetch(url);
     if (!res.ok) return throwApiError(res);
     return res.json();
   },
 
-  async listSonarrSeries(page: number, limit: number = 20): Promise<PaginatedResponse<SonarrSeriesListItem>> {
-    const res = await fetch(`/api/v1/sonarr/series?limit=${limit}&offset=${(page - 1) * limit}`);
+  async listSonarrSeries(page: number, limit: number = 20, search?: string): Promise<PaginatedResponse<SonarrSeriesListItem>> {
+    let url = `/api/v1/sonarr/series?limit=${limit}&offset=${(page - 1) * limit}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getRadarrSonarrStats(): Promise<RadarrSonarrStats> {
+    const res = await fetch('/api/v1/radarr-sonarr/stats');
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

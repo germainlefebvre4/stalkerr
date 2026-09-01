@@ -189,6 +189,14 @@ export interface SonarrSeriesEpisodesResponse {
   episodes: SonarrSeriesEpisodeItem[];
 }
 
+export interface RadarrSonarrStats {
+  radarr_monitored: number | null;
+  radarr_matched: number | null;
+  radarr_error?: string;
+  sonarr_monitored: number | null;
+  sonarr_error?: string;
+}
+
 export interface TMDBSearchResult {
   id: number;
   title: string;

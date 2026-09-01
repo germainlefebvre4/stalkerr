@@ -93,7 +93,10 @@ export default function App() {
 
   const {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
+    filmsSearch, setFilmsSearch,
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries,
+    seriesSearch, setSeriesSearch,
+    stats: radarrSonarrStats, statsLoading: radarrSonarrStatsLoading, statsError: radarrSonarrStatsError, fetchStats: fetchRadarrSonarrStats,
   } = useRadarrSonarr(activeTab === 'radarr-sonarr');
 
   const [isCreateFilterOpen, setIsCreateFilterOpen] = useState(false);
@@ -259,9 +262,12 @@ export default function App() {
           filmsItems={filmsItems} filmsLoading={filmsLoading} filmsError={filmsError}
           filmsTotal={filmsTotal} filmsPage={filmsPage} setFilmsPage={setFilmsPage}
           filmsLimit={filmsLimit} fetchFilms={fetchFilms}
+          filmsSearch={filmsSearch} setFilmsSearch={setFilmsSearch}
           seriesItems={seriesItems} seriesLoading={seriesLoading} seriesError={seriesError}
           seriesTotal={seriesTotal} seriesPage={seriesPage} setSeriesPage={setSeriesPage}
           seriesLimit={seriesLimit} fetchSeries={fetchSeries}
+          seriesSearch={seriesSearch} setSeriesSearch={setSeriesSearch}
+          stats={radarrSonarrStats} statsLoading={radarrSonarrStatsLoading} statsError={radarrSonarrStatsError} fetchStats={fetchRadarrSonarrStats}
         />
       </Tabs.Root>
 

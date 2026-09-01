@@ -185,6 +185,365 @@ func TestListRadarrMonitoredMovies_PaginatesBeforeMatching(t *testing.T) {
 	}
 }
 
+func TestListRadarrMonitoredMovies_Search(t *testing.T) {
+	setupTestDB(t)
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "The Matrix", Year: 1999, Monitored: true},
+		{ID: 2, Title: "Matrix Reloaded", Year: 2003, Monitored: true},
+		{ID: 3, Title: "Inception", Year: 2010, Monitored: true},
+	}
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	cases := []struct {
+		name          string
+		search        string
+		expectedTotal int
+		expectTitles  []string
+	}{
+		{"matching subset", "matrix", 2, []string{"The Matrix", "Matrix Reloaded"}},
+		{"matching nothing", "no-such-title", 0, nil},
+		{"omitted", "", 3, nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			url := "/api/v1/radarr/movies"
+			if tc.search != "" {
+				url += "?search=" + tc.search
+			}
+			req, _ := http.NewRequest("GET", url, nil)
+			w := httptest.NewRecorder()
+			server.router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+
+			var resp struct {
+				Data  []RadarrMovieListItem `json:"data"`
+				Total int64                 `json:"total"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if int(resp.Total) != tc.expectedTotal {
+				t.Errorf("expected total %d, got %d", tc.expectedTotal, resp.Total)
+			}
+			if len(resp.Data) != tc.expectedTotal {
+				t.Fatalf("expected %d items, got %d", tc.expectedTotal, len(resp.Data))
+			}
+			for _, expected := range tc.expectTitles {
+				found := false
+				for _, item := range resp.Data {
+					if item.Title == expected {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected title %q in results, got %+v", expected, resp.Data)
+				}
+			}
+		})
+	}
+}
+
+func TestListSonarrMonitoredSeries_Search(t *testing.T) {
+	setupTestDB(t)
+
+	allSeries := []sonarr.Series{
+		{ID: 1, Title: "Breaking Bad", TvdbID: 1001, Monitored: true},
+		{ID: 2, Title: "Better Call Saul", TvdbID: 1002, Monitored: true},
+		{ID: 3, Title: "The Wire", TvdbID: 1003, Monitored: true},
+	}
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v3/series":
+			json.NewEncoder(w).Encode(allSeries)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			json.NewEncoder(w).Encode([]sonarr.Episode{})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	cases := []struct {
+		name          string
+		search        string
+		expectedTotal int
+		expectTitles  []string
+	}{
+		{"matching subset", "bad", 1, []string{"Breaking Bad"}},
+		{"matching nothing", "no-such-title", 0, nil},
+		{"omitted", "", 3, nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			url := "/api/v1/sonarr/series"
+			if tc.search != "" {
+				url += "?search=" + tc.search
+			}
+			req, _ := http.NewRequest("GET", url, nil)
+			w := httptest.NewRecorder()
+			server.router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+
+			var resp struct {
+				Data  []SonarrSeriesListItem `json:"data"`
+				Total int64                  `json:"total"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if int(resp.Total) != tc.expectedTotal {
+				t.Errorf("expected total %d, got %d", tc.expectedTotal, resp.Total)
+			}
+			if len(resp.Data) != tc.expectedTotal {
+				t.Fatalf("expected %d items, got %d", tc.expectedTotal, len(resp.Data))
+			}
+			for _, expected := range tc.expectTitles {
+				found := false
+				for _, item := range resp.Data {
+					if item.Title == expected {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected title %q in results, got %+v", expected, resp.Data)
+				}
+			}
+		})
+	}
+}
+
+func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
+	db := setupTestDB(t)
+
+	const catalogSize = 45 // larger than one page (radarrSonarrDefaultPageSize=20)
+	const matchedCount = 30
+
+	// Matched movies use a distinct year (2000) with matching TVDB ids seeded
+	// locally; unmatched movies use a different year (1975) with no local
+	// counterpart at all, so fuzzy title+year matching can't accidentally cross
+	// the two groups.
+	for i := 1; i <= matchedCount; i++ {
+		tvdbID := 10000 + i
+		movie := models.Movie{
+			TMDBID:    90000 + i,
+			TVDBID:    &tvdbID,
+			TMDBTitle: fmt.Sprintf("Alpha Movie %d", i),
+			TMDBYear:  2000,
+		}
+		if err := db.Create(&movie).Error; err != nil {
+			t.Fatalf("failed to seed local movie: %v", err)
+		}
+	}
+
+	radarrMovies := make([]radarr.Movie, catalogSize)
+	for i := 0; i < matchedCount; i++ {
+		radarrMovies[i] = radarr.Movie{
+			ID:        i + 1,
+			Title:     fmt.Sprintf("Alpha Movie %d", i+1),
+			Year:      2000,
+			TvdbID:    10000 + i + 1,
+			Monitored: true,
+		}
+	}
+	for i := matchedCount; i < catalogSize; i++ {
+		radarrMovies[i] = radarr.Movie{
+			ID:        i + 1,
+			Title:     fmt.Sprintf("Beta Movie %d", i+1),
+			Year:      1975,
+			TvdbID:    20000 + i + 1,
+			Monitored: true,
+		}
+	}
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	var episodeCalls int64
+	sonarrSeries := make([]sonarr.Series, 7)
+	for i := range sonarrSeries {
+		sonarrSeries[i] = sonarr.Series{ID: i + 1, Title: fmt.Sprintf("Series %d", i+1), TvdbID: 5000 + i, Monitored: true}
+	}
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v3/series":
+			json.NewEncoder(w).Encode(sonarrSeries)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			atomic.AddInt64(&episodeCalls, 1)
+			json.NewEncoder(w).Encode([]sonarr.Episode{})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, sonarrServer.URL)
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/radarr-sonarr/stats", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp RadarrSonarrStatsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.RadarrMonitored == nil || *resp.RadarrMonitored != catalogSize {
+		t.Errorf("expected radarr_monitored %d, got %v", catalogSize, resp.RadarrMonitored)
+	}
+	if resp.RadarrMatched == nil {
+		t.Fatalf("expected radarr_matched to be set, got nil")
+	}
+	if *resp.RadarrMatched != matchedCount {
+		t.Errorf("expected radarr_matched %d, got %d", matchedCount, *resp.RadarrMatched)
+	}
+	if resp.RadarrError != "" {
+		t.Errorf("expected no radarr error, got %q", resp.RadarrError)
+	}
+	if resp.SonarrMonitored == nil || *resp.SonarrMonitored != len(sonarrSeries) {
+		t.Errorf("expected sonarr_monitored %d, got %v", len(sonarrSeries), resp.SonarrMonitored)
+	}
+	if resp.SonarrError != "" {
+		t.Errorf("expected no sonarr error, got %q", resp.SonarrError)
+	}
+
+	if calls := atomic.LoadInt64(&episodeCalls); calls != 0 {
+		t.Errorf("expected no per-series episode fetches when computing sonarr_monitored, got %d", calls)
+	}
+}
+
+func TestListRadarrSonarrStats_RadarrUnreachableSonarrStillReturned(t *testing.T) {
+	setupTestDB(t)
+
+	sonarrSeries := []sonarr.Series{
+		{ID: 1, Title: "Reachable Series", TvdbID: 555, Monitored: true},
+	}
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v3/series":
+			json.NewEncoder(w).Encode(sonarrSeries)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			json.NewEncoder(w).Encode([]sonarr.Episode{})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "http://127.0.0.1:1", sonarrServer.URL)
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/radarr-sonarr/stats", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp RadarrSonarrStatsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.RadarrError == "" {
+		t.Errorf("expected a radarr error, got none")
+	}
+	if resp.RadarrMonitored != nil || resp.RadarrMatched != nil {
+		t.Errorf("expected radarr counts to be nil on failure, got monitored=%v matched=%v", resp.RadarrMonitored, resp.RadarrMatched)
+	}
+	if resp.SonarrMonitored == nil || *resp.SonarrMonitored != 1 {
+		t.Errorf("expected sonarr_monitored 1 despite radarr failure, got %v", resp.SonarrMonitored)
+	}
+	if resp.SonarrError != "" {
+		t.Errorf("expected no sonarr error, got %q", resp.SonarrError)
+	}
+}
+
+func TestListRadarrSonarrStats_SonarrUnreachableRadarrStillReturned(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 20000
+	movie := models.Movie{TMDBID: 99999, TVDBID: &tvdbID, TMDBTitle: "Solo Movie", TMDBYear: 2020}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to seed local movie: %v", err)
+	}
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "Solo Movie", Year: 2020, TvdbID: 20000, Monitored: true},
+	}
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "http://127.0.0.1:1")
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/radarr-sonarr/stats", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp RadarrSonarrStatsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.RadarrMonitored == nil || *resp.RadarrMonitored != 1 {
+		t.Errorf("expected radarr_monitored 1 despite sonarr failure, got %v", resp.RadarrMonitored)
+	}
+	if resp.RadarrMatched == nil || *resp.RadarrMatched != 1 {
+		t.Errorf("expected radarr_matched 1, got %v", resp.RadarrMatched)
+	}
+	if resp.RadarrError != "" {
+		t.Errorf("expected no radarr error, got %q", resp.RadarrError)
+	}
+	if resp.SonarrError == "" {
+		t.Errorf("expected a sonarr error, got none")
+	}
+	if resp.SonarrMonitored != nil {
+		t.Errorf("expected sonarr_monitored to be nil on failure, got %v", resp.SonarrMonitored)
+	}
+}
+
 func TestListSonarrMonitoredSeries_PageSizeBoundsEpisodeFetches(t *testing.T) {
 	setupTestDB(t)
 

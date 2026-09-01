@@ -1,11 +1,26 @@
 {
   "tab": "Radarr / Sonarr",
+  "subTabs": {
+    "resume": "Résumé",
+    "radarr": "Radarr",
+    "sonarr": "Sonarr"
+  },
+  "resume": {
+    "radarrHeading": "Films (Radarr)",
+    "sonarrHeading": "Séries (Sonarr)",
+    "loading": "Chargement du résumé...",
+    "monitored": "surveillés",
+    "matched": "avec correspondance",
+    "unmatched": "sans correspondance"
+  },
   "films": {
     "heading": "Films (Radarr)",
     "subtitle": "Films actuellement surveillés par Radarr et leur statut de correspondance avec la playlist",
     "refresh": "Actualiser",
     "loading": "Chargement des films...",
     "empty": "Aucun film surveillé trouvé",
+    "searchPlaceholder": "Rechercher un film par titre...",
+    "noResults": "Aucun film ne correspond à cette recherche",
     "table": {
       "title": "Titre",
       "year": "Année",
@@ -22,6 +37,8 @@
     "refresh": "Actualiser",
     "loading": "Chargement des séries...",
     "empty": "Aucune série surveillée trouvée",
+    "searchPlaceholder": "Rechercher une série par titre...",
+    "noResults": "Aucune série ne correspond à cette recherche",
     "table": {
       "title": "Titre",
       "year": "Année",

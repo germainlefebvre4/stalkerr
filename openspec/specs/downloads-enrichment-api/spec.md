@@ -27,9 +27,9 @@ Enhanced backend API endpoint that returns download information enriched with TM
 **GIVEN** a request with `?problem=missing_year` query parameter  
 **WHEN** the endpoint is called  
 **THEN** the system SHALL:
-- Execute the base query without problem filter
-- Apply post-processing filter in Go to include only downloads where file_info.has_year_in_path is false
-- Return filtered results with total reflecting pre-filter count
+- Fetch the full status/type-matched result set (no query-level `LIMIT`/`OFFSET`)
+- Apply the problem filter in Go to the parsed file metadata of that full set to include only downloads where file_info.has_year_in_path is false
+- Compute `total`/`total_pages` from the filtered result count and slice the requested `limit`/`offset` page from the filtered set (see Requirement: Problem Filter Pagination Accuracy)
 
 **GIVEN** a DownloadInfo with multiple ProcessedLines  
 **WHEN** building the enriched response  
@@ -70,6 +70,17 @@ The system SHALL support these problem filter values:
 - `year_mismatch`: Include only downloads where `file_info.year_mismatch`
 - `unknown_format`: Include only downloads where `!file_info.is_valid_format`
 - `low_quality`: Include only downloads where `detected_resolution in ("480p", "360p")`
+
+### Requirement: Problem Filter Pagination Accuracy
+When the `problem` query parameter is set on `GET /api/v1/downloads`, the system SHALL apply the problem filter to the full status/type-matched result set before computing `total` and `total_pages` and before slicing the requested `limit`/`offset` page, so that pagination metadata and the returned page reflect the actual filtered result count. This supersedes the previously documented behavior of reporting the pre-filter count as `total` when `problem` is set.
+
+#### Scenario: Total reflects the problem-filtered count
+- **WHEN** a client requests `GET /api/v1/downloads?problem=missing_year&limit=20&offset=0` and, of the downloads matching the active `status`/`type` filters, 45 have `!file_info.has_year_in_path`
+- **THEN** the response SHALL report `total: 45`, `total_pages` computed from 45 and the given `limit`, and `data` containing the first 20 of those 45 filtered downloads
+
+#### Scenario: Later pages stay consistent with the filtered total
+- **WHEN** a client requests `GET /api/v1/downloads?problem=missing_year&limit=20&offset=20` under the same conditions as the previous scenario
+- **THEN** the response SHALL return items 21–40 of the problem-filtered set (not of the pre-filter set), consistent with the `total` reported for `offset=0`
 
 ### Requirement: Rename Target Folder Name
 The `GET /api/v1/downloads` enrichment endpoint SHALL include, for every download with a non-null `download_path`, a `rename_folder_name` field carrying the folder name that a rename operation should treat as the current name of the download's parent folder. When the download's path follows the `.../<series folder>/Season NN/<file>` convention, `rename_folder_name` SHALL be the `<series folder>` name (the same series root the `POST /api/v1/downloads/:id/rename` endpoint targets). For every other download (including movies), `rename_folder_name` SHALL equal `file_info.folder_name`. When `download_path` is null, `rename_folder_name` SHALL be omitted, consistent with `file_info` being nil in that case.

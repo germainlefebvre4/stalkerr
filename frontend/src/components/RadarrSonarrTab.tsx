@@ -2,7 +2,7 @@ import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, OccurrenceResponse, PlaylistItem } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, OccurrenceResponse, PlaylistItem, RadarrSonarrStats } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { getPipelineStateBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
@@ -18,6 +18,8 @@ interface RadarrSonarrTabProps {
   setFilmsPage: React.Dispatch<React.SetStateAction<number>>;
   filmsLimit: number;
   fetchFilms: () => void;
+  filmsSearch: string;
+  setFilmsSearch: (value: string) => void;
 
   seriesItems: SonarrSeriesListItem[];
   seriesLoading: boolean;
@@ -27,7 +29,16 @@ interface RadarrSonarrTabProps {
   setSeriesPage: React.Dispatch<React.SetStateAction<number>>;
   seriesLimit: number;
   fetchSeries: () => void;
+  seriesSearch: string;
+  setSeriesSearch: (value: string) => void;
+
+  stats: RadarrSonarrStats | null;
+  statsLoading: boolean;
+  statsError: string | null;
+  fetchStats: () => void;
 }
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 function seriesBadgeClass(matched: number, monitored: number): string {
   if (monitored === 0 || matched === 0) return 'badge-pending';
@@ -41,12 +52,32 @@ function padNumber(n: number): string {
 
 export function RadarrSonarrTab({
   filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
+  filmsSearch, setFilmsSearch,
   seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries,
+  seriesSearch, setSeriesSearch,
+  stats, statsLoading, statsError, fetchStats,
 }: RadarrSonarrTabProps) {
   const { t } = useTranslation('radarrSonarr');
   const { t: tCommon } = useTranslation('common');
   const { t: tPlaylist } = useTranslation('playlist');
   const isMobile = useIsMobile();
+
+  const [activeSubTab, setActiveSubTab] = React.useState<'resume' | 'radarr' | 'sonarr'>('radarr');
+
+  const [filmsSearchInput, setFilmsSearchInput] = React.useState(filmsSearch);
+  const [seriesSearchInput, setSeriesSearchInput] = React.useState(seriesSearch);
+
+  React.useEffect(() => {
+    const handle = setTimeout(() => setFilmsSearch(filmsSearchInput), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filmsSearchInput]);
+
+  React.useEffect(() => {
+    const handle = setTimeout(() => setSeriesSearch(seriesSearchInput), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesSearchInput]);
 
   const [selectedMovie, setSelectedMovie] = React.useState<RadarrMovieListItem | null>(null);
   const [selectedSeries, setSelectedSeries] = React.useState<SonarrSeriesListItem | null>(null);
@@ -122,155 +153,231 @@ export function RadarrSonarrTab({
     setDetailItem(null);
   };
 
+  const filmsEmptyMessage = filmsSearch ? t('films.noResults') : t('films.empty');
+  const seriesEmptyMessage = seriesSearch ? t('series.noResults') : t('series.empty');
+
   return (
     <Tabs.Content value="radarr-sonarr" className="card tab-panel">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-        {/* Section Films (Radarr) */}
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('films.heading')}</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('films.subtitle')}</p>
-            </div>
-            <button onClick={fetchFilms} className="btn-secondary">{t('films.refresh')}</button>
-          </div>
+      <Tabs.Root value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'resume' | 'radarr' | 'sonarr')}>
+        <Tabs.List className="segmented-tabs-list">
+          <Tabs.Trigger value="resume" className="segmented-tabs-trigger">{t('subTabs.resume')}</Tabs.Trigger>
+          <Tabs.Trigger value="radarr" className="segmented-tabs-trigger">{t('subTabs.radarr')}</Tabs.Trigger>
+          <Tabs.Trigger value="sonarr" className="segmented-tabs-trigger">{t('subTabs.sonarr')}</Tabs.Trigger>
+        </Tabs.List>
 
-          {filmsError ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
-              <div>{tCommon(`errors.${filmsError}`, { defaultValue: tCommon('errors.generic') })}</div>
-              <button onClick={fetchFilms} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
-            </div>
-          ) : isMobile ? (
-            <div>
-              {filmsLoading && filmsItems.length === 0 ? (
-                <div className="mobile-list-empty">{t('films.loading')}</div>
-              ) : filmsItems.length === 0 ? (
-                <div className="mobile-list-empty">{t('films.empty')}</div>
+        {/* Sous-onglet Résumé */}
+        <Tabs.Content value="resume" className="tab-panel">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <div className="table-flush" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary-slate)', marginBottom: '1rem' }}>{t('resume.radarrHeading')}</h3>
+              {statsError ? (
+                <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
+                  <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
+                  <button onClick={fetchStats} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
+                </div>
+              ) : stats?.radarr_error ? (
+                <div style={{ color: 'var(--status-failed-text)' }}>
+                  {tCommon(`errors.${stats.radarr_error}`, { defaultValue: tCommon('errors.generic') })}
+                </div>
+              ) : statsLoading && stats === null ? (
+                <div style={{ color: 'var(--text-secondary)' }}>{t('resume.loading')}</div>
               ) : (
-                filmsItems.map(item => (
-                  <div key={item.radarr_id} className="mobile-list-card" onClick={() => openMovie(item)}>
-                    <div className="mobile-list-card-main">
-                      <span className="mobile-list-card-title">{item.title}</span>
-                      <span className="mobile-list-card-subtitle">{item.year}</span>
-                    </div>
-                    <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
-                      {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
-                    </span>
-                  </div>
-                ))
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div><strong>{stats?.radarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
+                  <div><strong>{stats?.radarr_matched ?? '-'}</strong> {t('resume.matched')}</div>
+                  <div><strong>{stats && stats.radarr_monitored !== null && stats.radarr_matched !== null ? stats.radarr_monitored - stats.radarr_matched : '-'}</strong> {t('resume.unmatched')}</div>
+                </div>
               )}
             </div>
-          ) : (
-            <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-              <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th>{t('films.table.title')}</th>
-                    <th>{t('films.table.year')}</th>
-                    <th>{t('films.table.status')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filmsLoading && filmsItems.length === 0 ? (
-                    <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
-                  ) : filmsItems.length === 0 ? (
-                    <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.empty')}</td></tr>
-                  ) : (
-                    filmsItems.map(item => (
-                      <tr key={item.radarr_id} className="clickable-row" onClick={() => openMovie(item)}>
-                        <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
-                        <td>{item.year}</td>
-                        <td>
-                          <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
-                            {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
 
-          {!filmsError && (
-            <Pagination total={filmsTotal} page={filmsPage} setPage={setFilmsPage} limit={filmsLimit} />
-          )}
-        </section>
-
-        {/* Section Séries (Sonarr) */}
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <div>
-              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('series.heading')}</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('series.subtitle')}</p>
-            </div>
-            <button onClick={fetchSeries} className="btn-secondary">{t('series.refresh')}</button>
-          </div>
-
-          {seriesError ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
-              <div>{tCommon(`errors.${seriesError}`, { defaultValue: tCommon('errors.generic') })}</div>
-              <button onClick={fetchSeries} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
-            </div>
-          ) : isMobile ? (
-            <div>
-              {seriesLoading && seriesItems.length === 0 ? (
-                <div className="mobile-list-empty">{t('series.loading')}</div>
-              ) : seriesItems.length === 0 ? (
-                <div className="mobile-list-empty">{t('series.empty')}</div>
+            <div className="table-flush" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary-slate)', marginBottom: '1rem' }}>{t('resume.sonarrHeading')}</h3>
+              {statsError ? (
+                <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
+                  <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
+                  <button onClick={fetchStats} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
+                </div>
+              ) : stats?.sonarr_error ? (
+                <div style={{ color: 'var(--status-failed-text)' }}>
+                  {tCommon(`errors.${stats.sonarr_error}`, { defaultValue: tCommon('errors.generic') })}
+                </div>
+              ) : statsLoading && stats === null ? (
+                <div style={{ color: 'var(--text-secondary)' }}>{t('resume.loading')}</div>
               ) : (
-                seriesItems.map(item => (
-                  <div key={item.sonarr_id} className="mobile-list-card" onClick={() => openSeries(item)}>
-                    <div className="mobile-list-card-main">
-                      <span className="mobile-list-card-title">{item.title}</span>
-                      <span className="mobile-list-card-subtitle">{item.year}</span>
-                    </div>
-                    <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
-                      {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
-                    </span>
-                  </div>
-                ))
+                <div><strong>{stats?.sonarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
               )}
             </div>
-          ) : (
-            <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-              <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th>{t('series.table.title')}</th>
-                    <th>{t('series.table.year')}</th>
-                    <th>{t('series.table.status')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {seriesLoading && seriesItems.length === 0 ? (
-                    <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
-                  ) : seriesItems.length === 0 ? (
-                    <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.empty')}</td></tr>
-                  ) : (
-                    seriesItems.map(item => (
-                      <tr key={item.sonarr_id} className="clickable-row" onClick={() => openSeries(item)}>
-                        <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
-                        <td>{item.year}</td>
-                        <td>
-                          <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
-                            {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+          </div>
+        </Tabs.Content>
 
-          {!seriesError && (
-            <Pagination total={seriesTotal} page={seriesPage} setPage={setSeriesPage} limit={seriesLimit} />
-          )}
-        </section>
-      </div>
+        {/* Sous-onglet Radarr (Films) */}
+        <Tabs.Content value="radarr" className="tab-panel">
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('films.heading')}</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('films.subtitle')}</p>
+              </div>
+              <button onClick={fetchFilms} className="btn-secondary">{t('films.refresh')}</button>
+            </div>
+
+            <input
+              type="text"
+              placeholder={t('films.searchPlaceholder')}
+              value={filmsSearchInput}
+              onChange={e => setFilmsSearchInput(e.target.value)}
+              className="custom-input"
+              style={{ width: '100%', marginBottom: '1rem' }}
+            />
+
+            {filmsError ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
+                <div>{tCommon(`errors.${filmsError}`, { defaultValue: tCommon('errors.generic') })}</div>
+                <button onClick={fetchFilms} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
+              </div>
+            ) : isMobile ? (
+              <div>
+                {filmsLoading && filmsItems.length === 0 ? (
+                  <div className="mobile-list-empty">{t('films.loading')}</div>
+                ) : filmsItems.length === 0 ? (
+                  <div className="mobile-list-empty">{filmsEmptyMessage}</div>
+                ) : (
+                  filmsItems.map(item => (
+                    <div key={item.radarr_id} className="mobile-list-card" onClick={() => openMovie(item)}>
+                      <div className="mobile-list-card-main">
+                        <span className="mobile-list-card-title">{item.title}</span>
+                        <span className="mobile-list-card-subtitle">{item.year}</span>
+                      </div>
+                      <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
+                        {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <table className="custom-table">
+                  <thead>
+                    <tr>
+                      <th>{t('films.table.title')}</th>
+                      <th>{t('films.table.year')}</th>
+                      <th>{t('films.table.status')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filmsLoading && filmsItems.length === 0 ? (
+                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
+                    ) : filmsItems.length === 0 ? (
+                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
+                    ) : (
+                      filmsItems.map(item => (
+                        <tr key={item.radarr_id} className="clickable-row" onClick={() => openMovie(item)}>
+                          <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
+                          <td>{item.year}</td>
+                          <td>
+                            <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
+                              {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!filmsError && (
+              <Pagination total={filmsTotal} page={filmsPage} setPage={setFilmsPage} limit={filmsLimit} />
+            )}
+          </section>
+        </Tabs.Content>
+
+        {/* Sous-onglet Sonarr (Séries) */}
+        <Tabs.Content value="sonarr" className="tab-panel">
+          <section>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('series.heading')}</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('series.subtitle')}</p>
+              </div>
+              <button onClick={fetchSeries} className="btn-secondary">{t('series.refresh')}</button>
+            </div>
+
+            <input
+              type="text"
+              placeholder={t('series.searchPlaceholder')}
+              value={seriesSearchInput}
+              onChange={e => setSeriesSearchInput(e.target.value)}
+              className="custom-input"
+              style={{ width: '100%', marginBottom: '1rem' }}
+            />
+
+            {seriesError ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
+                <div>{tCommon(`errors.${seriesError}`, { defaultValue: tCommon('errors.generic') })}</div>
+                <button onClick={fetchSeries} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
+              </div>
+            ) : isMobile ? (
+              <div>
+                {seriesLoading && seriesItems.length === 0 ? (
+                  <div className="mobile-list-empty">{t('series.loading')}</div>
+                ) : seriesItems.length === 0 ? (
+                  <div className="mobile-list-empty">{seriesEmptyMessage}</div>
+                ) : (
+                  seriesItems.map(item => (
+                    <div key={item.sonarr_id} className="mobile-list-card" onClick={() => openSeries(item)}>
+                      <div className="mobile-list-card-main">
+                        <span className="mobile-list-card-title">{item.title}</span>
+                        <span className="mobile-list-card-subtitle">{item.year}</span>
+                      </div>
+                      <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
+                        {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <table className="custom-table">
+                  <thead>
+                    <tr>
+                      <th>{t('series.table.title')}</th>
+                      <th>{t('series.table.year')}</th>
+                      <th>{t('series.table.status')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {seriesLoading && seriesItems.length === 0 ? (
+                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
+                    ) : seriesItems.length === 0 ? (
+                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
+                    ) : (
+                      seriesItems.map(item => (
+                        <tr key={item.sonarr_id} className="clickable-row" onClick={() => openSeries(item)}>
+                          <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
+                          <td>{item.year}</td>
+                          <td>
+                            <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
+                              {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!seriesError && (
+              <Pagination total={seriesTotal} page={seriesPage} setPage={setSeriesPage} limit={seriesLimit} />
+            )}
+          </section>
+        </Tabs.Content>
+      </Tabs.Root>
 
       {/* Sidepanel de Détails (Film ou Série) */}
       <Dialog.Root open={!!selectedMovie || !!selectedSeries} onOpenChange={(open) => !open && closeDrawer()}>

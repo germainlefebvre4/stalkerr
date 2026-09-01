@@ -111,11 +111,17 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 		return
 	}
 
+	search := strings.ToLower(strings.TrimSpace(c.Query("search")))
+
 	monitored := make([]radarr.Movie, 0, len(allMovies))
 	for _, m := range allMovies {
-		if m.Monitored {
-			monitored = append(monitored, m)
+		if !m.Monitored {
+			continue
 		}
+		if search != "" && !strings.Contains(strings.ToLower(m.Title), search) {
+			continue
+		}
+		monitored = append(monitored, m)
 	}
 	sort.Slice(monitored, func(i, j int) bool {
 		return strings.ToLower(monitored[i].Title) < strings.ToLower(monitored[j].Title)
@@ -196,6 +202,17 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		return
 	}
 
+	search := strings.ToLower(strings.TrimSpace(c.Query("search")))
+	if search != "" {
+		filtered := make([]sonarr.Series, 0, len(allSeries))
+		for _, s := range allSeries {
+			if strings.Contains(strings.ToLower(s.Title), search) {
+				filtered = append(filtered, s)
+			}
+		}
+		allSeries = filtered
+	}
+
 	sort.Slice(allSeries, func(i, j int) bool {
 		return strings.ToLower(allSeries[i].Title) < strings.ToLower(allSeries[j].Title)
 	})
@@ -268,6 +285,91 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		Offset:     offset,
 		TotalPages: totalPagesFor(total, limit),
 	})
+}
+
+// RadarrSonarrStatsResponse is the full-catalog monitoring summary for the
+// Résumé sub-tab. Each service is reported independently: if one upstream is
+// unreachable or unconfigured, its counts are left nil and its *_error field
+// explains why, while the other service's counts are still returned normally.
+type RadarrSonarrStatsResponse struct {
+	RadarrMonitored *int   `json:"radarr_monitored"`
+	RadarrMatched   *int   `json:"radarr_matched"`
+	RadarrError     string `json:"radarr_error,omitempty"`
+	SonarrMonitored *int   `json:"sonarr_monitored"`
+	SonarrError     string `json:"sonarr_error,omitempty"`
+}
+
+// listRadarrSonarrStats handles GET /api/v1/radarr-sonarr/stats, reporting
+// full-catalog Radarr matched/unmatched counts and the Sonarr monitored-series
+// total for the Résumé sub-tab. Unlike the paginated listing endpoints, the
+// Radarr matched count is computed over the entire monitored list in a single
+// batch: Radarr matching only touches the local DB, so this is one query, not
+// an upstream fan-out. The Sonarr total intentionally skips per-series episode
+// fetches (see radarr-sonarr-monitoring-api spec).
+func (s *Server) listRadarrSonarrStats(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
+	defer cancel()
+
+	cfg := config.Get()
+	resp := RadarrSonarrStatsResponse{}
+
+	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
+		resp.RadarrError = "radarr_not_configured"
+	} else {
+		radarrClient := radarr.New(radarr.Config{
+			BaseURL:     cfg.Radarr.URL,
+			APIKey:      cfg.Radarr.APIKey,
+			Timeout:     existenceCheckTimeout,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		if allMovies, err := radarrClient.GetAllMovies(ctx); err != nil {
+			resp.RadarrError = "radarr_unreachable"
+		} else {
+			monitored := make([]radarr.Movie, 0, len(allMovies))
+			for _, m := range allMovies {
+				if m.Monitored {
+					monitored = append(monitored, m)
+				}
+			}
+
+			db := database.Get()
+			matches, err := matcher.MatchMoviesBatch(db, monitored)
+			if err != nil {
+				resp.RadarrError = "database_error"
+			} else {
+				matchedCount := 0
+				for _, m := range monitored {
+					if matches[m.ID].Matched {
+						matchedCount++
+					}
+				}
+				monitoredCount := len(monitored)
+				resp.RadarrMonitored = &monitoredCount
+				resp.RadarrMatched = &matchedCount
+			}
+		}
+	}
+
+	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
+		resp.SonarrError = "sonarr_not_configured"
+	} else {
+		sonarrClient := sonarr.New(sonarr.Config{
+			BaseURL:     cfg.Sonarr.URL,
+			APIKey:      cfg.Sonarr.APIKey,
+			Timeout:     existenceCheckTimeout,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		if allSeries, err := sonarrClient.GetAllMonitoredSeries(ctx); err != nil {
+			resp.SonarrError = "sonarr_unreachable"
+		} else {
+			monitoredCount := len(allSeries)
+			resp.SonarrMonitored = &monitoredCount
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // getRadarrMovieMatches handles GET /api/v1/radarr/movies/:id/matches, returning

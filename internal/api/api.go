@@ -133,6 +133,7 @@ func (s *Server) setupRoutes() {
 		v1.GET("/radarr/movies/:id/matches", s.getRadarrMovieMatches)
 		v1.GET("/sonarr/series", s.listSonarrMonitoredSeries)
 		v1.GET("/sonarr/series/:id/episodes", s.getSonarrSeriesEpisodes)
+		v1.GET("/radarr-sonarr/stats", s.listRadarrSonarrStats)
 
 		// Filter endpoints
 		filters := v1.Group("/filters")
