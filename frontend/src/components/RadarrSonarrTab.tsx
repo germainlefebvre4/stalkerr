@@ -4,10 +4,13 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, OccurrenceResponse, PlaylistItem, RadarrSonarrStats } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import { useRadarrSonarrView } from '../hooks/useRadarrSonarrView';
 import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
 import { MediaOccurrenceDrawer, MediaOccurrenceDrawerBody } from './MediaOccurrenceDrawer';
 import { api, ApiError } from '../services/api';
+import radarrIcon from '../assets/icons/radarr.svg';
+import sonarrIcon from '../assets/icons/sonarr.svg';
 
 interface RadarrSonarrTabProps {
   filmsItems: RadarrMovieListItem[];
@@ -62,7 +65,7 @@ export function RadarrSonarrTab({
   const { t: tPlaylist } = useTranslation('playlist');
   const isMobile = useIsMobile();
 
-  const [activeSubTab, setActiveSubTab] = React.useState<'resume' | 'radarr' | 'sonarr'>('radarr');
+  const { activeSubTab, setActiveSubTab } = useRadarrSonarrView();
 
   const [filmsSearchInput, setFilmsSearchInput] = React.useState(filmsSearch);
   const [seriesSearchInput, setSeriesSearchInput] = React.useState(seriesSearch);
@@ -161,8 +164,8 @@ export function RadarrSonarrTab({
       <Tabs.Root value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'resume' | 'radarr' | 'sonarr')}>
         <Tabs.List className="segmented-tabs-list">
           <Tabs.Trigger value="resume" className="segmented-tabs-trigger">{t('subTabs.resume')}</Tabs.Trigger>
-          <Tabs.Trigger value="radarr" className="segmented-tabs-trigger">{t('subTabs.radarr')}</Tabs.Trigger>
-          <Tabs.Trigger value="sonarr" className="segmented-tabs-trigger">{t('subTabs.sonarr')}</Tabs.Trigger>
+          <Tabs.Trigger value="radarr" className="segmented-tabs-trigger"><img src={radarrIcon} alt="" className="tab-icon" />{t('subTabs.radarr')}</Tabs.Trigger>
+          <Tabs.Trigger value="sonarr" className="segmented-tabs-trigger"><img src={sonarrIcon} alt="" className="tab-icon" />{t('subTabs.sonarr')}</Tabs.Trigger>
         </Tabs.List>
 
         {/* Sous-onglet Résumé */}

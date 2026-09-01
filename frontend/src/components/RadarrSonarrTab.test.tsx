@@ -6,7 +6,10 @@ import i18n from '../i18n';
 import { RadarrSonarrTab } from './RadarrSonarrTab';
 import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats } from '../types';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.history.replaceState(null, '', '/');
+});
 
 interface Overrides {
   filmsItems?: RadarrMovieListItem[];
@@ -83,6 +86,34 @@ describe('RadarrSonarrTab sub-tabs', () => {
     expect(screen.getByText('10')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
     expect(screen.getByText('5')).toBeInTheDocument();
+  });
+});
+
+describe('RadarrSonarrTab sub-tab persistence', () => {
+  it('persists the selected sub-tab in the URL query string', () => {
+    renderTab();
+
+    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+
+    expect(window.location.search).toContain('subtab=sonarr');
+  });
+
+  it('restores the sub-tab from the URL on mount, matching a page reload', () => {
+    window.history.replaceState(null, '', '/?subtab=sonarr');
+    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 2, monitored_count: 4 };
+    renderTab({ seriesItems: [series] });
+
+    expect(screen.getByText('Example Series')).toBeInTheDocument();
+  });
+});
+
+describe('RadarrSonarrTab sub-tab icons', () => {
+  it('renders the Radarr and Sonarr icons but not for Résumé', () => {
+    renderTab();
+
+    expect(screen.getByText('Radarr').querySelector('img')).toBeInTheDocument();
+    expect(screen.getByText('Sonarr').querySelector('img')).toBeInTheDocument();
+    expect(screen.getByText('Summary').querySelector('img')).not.toBeInTheDocument();
   });
 });
 
