@@ -112,6 +112,7 @@
     "downloadStatus": "Download:",
     "contentType": "Content type:",
     "importDate": "Import date:",
+    "downloadDate": "Download date:",
     "overriddenBy": "Forced by:",
     "overriddenAt": "Forced on:",
     "m3uSection": "📁 M3U Playlist Origin",

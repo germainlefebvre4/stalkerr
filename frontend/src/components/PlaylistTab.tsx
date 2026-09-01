@@ -498,12 +498,16 @@ export function PlaylistTab({
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.contentType')}</span>
-                      <span style={{ fontWeight: 600, color: 'var(--primary-slate)', textTransform: 'capitalize' }}>{selectedItem.content_type}</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.importDate')}</span>
                       <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{formatDate(selectedItem.created_at, i18n.language)}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.downloadDate')}</span>
+                      <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{selectedItem.downloaded_at ? formatDate(selectedItem.downloaded_at, i18n.language) : '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', gridColumn: '1 / -1' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.contentType')}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--primary-slate)', textTransform: 'capitalize' }}>{selectedItem.content_type}</span>
                     </div>
                     {selectedItem.override_by && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
