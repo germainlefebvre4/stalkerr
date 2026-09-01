@@ -2,7 +2,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { PlaylistItem } from '../types';
 import { formatDate, getDateGroupLabel, getDateGroupStarts } from '../utils/date';
-import { getPipelineStateBadgeClass } from '../utils/pipelineState';
+import {
+  getProcessingStatus,
+  getDownloadStatus,
+  getProcessingStatusBadgeClass,
+  getDownloadStatusBadgeClass,
+} from '../utils/pipelineState';
 import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface PlaylistItemsTableProps {
@@ -63,24 +68,43 @@ export function PlaylistItemsTable({
         ) : items.length === 0 ? (
           <div className="mobile-list-empty">{t('table.empty')}</div>
         ) : (
-          items.map((item, index) => (
-            <React.Fragment key={item.id}>
-              {dateGroupStarts[index] && (
-                <div className="date-group-header">
-                  {getDateGroupLabel(new Date(item.created_at), t, i18n.language)}
+          items.map((item, index) => {
+            const processingStatus = getProcessingStatus(item.state);
+            const downloadStatus = getDownloadStatus(item.state);
+            const processingLabel = t(`stateFilter.${processingStatus}`);
+            const downloadLabel = downloadStatus === 'not_downloaded'
+              ? t('pipelineStatus.notDownloaded')
+              : t(`stateFilter.${downloadStatus}`);
+            return (
+              <React.Fragment key={item.id}>
+                {dateGroupStarts[index] && (
+                  <div className="date-group-header">
+                    {getDateGroupLabel(new Date(item.created_at), t, i18n.language)}
+                  </div>
+                )}
+                <div className="mobile-list-card" onClick={() => onRowClick?.(item)}>
+                  <div className="mobile-list-card-main">
+                    <span className="mobile-list-card-title">{item.tvg_name}</span>
+                    <span className="mobile-list-card-subtitle">{item.group_title}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <span
+                      className={`status-dot ${getProcessingStatusBadgeClass(processingStatus)}`}
+                      role="img"
+                      title={processingLabel}
+                      aria-label={processingLabel}
+                    />
+                    <span
+                      className={`status-dot ${getDownloadStatusBadgeClass(downloadStatus)}`}
+                      role="img"
+                      title={downloadLabel}
+                      aria-label={downloadLabel}
+                    />
+                  </div>
                 </div>
-              )}
-              <div className="mobile-list-card" onClick={() => onRowClick?.(item)}>
-                <div className="mobile-list-card-main">
-                  <span className="mobile-list-card-title">{item.tvg_name}</span>
-                  <span className="mobile-list-card-subtitle">{item.group_title}</span>
-                </div>
-                <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
-                  {item.state}
-                </span>
-              </div>
-            </React.Fragment>
-          ))
+              </React.Fragment>
+            );
+          })
         )}
       </div>
     );
@@ -115,6 +139,9 @@ export function PlaylistItemsTable({
             items.map((item, index) => {
               const isMovie = item.content_type === 'movies';
               const tmdb = isMovie ? item.movie : item.tvshow;
+              const processingStatus = getProcessingStatus(item.state);
+              const downloadStatus = getDownloadStatus(item.state);
+              const downloadLabel = downloadStatus === 'not_downloaded' ? t('pipelineStatus.notDownloaded') : downloadStatus;
               return (
                 <React.Fragment key={item.id}>
                 {dateGroupStarts[index] && (
@@ -138,9 +165,14 @@ export function PlaylistItemsTable({
                     )}
                   </td>
                   <td>
-                    <span className={`badge ${getPipelineStateBadgeClass(item.state)}`}>
-                      {item.state}
-                    </span>
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <span className={`badge ${getProcessingStatusBadgeClass(processingStatus)}`}>
+                        {processingStatus}
+                      </span>
+                      <span className={`badge ${getDownloadStatusBadgeClass(downloadStatus)}`}>
+                        {downloadLabel}
+                      </span>
+                    </div>
                   </td>
                   <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{formatDate(item.created_at, i18n.language)}</td>
                   <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>

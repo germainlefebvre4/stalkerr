@@ -4,7 +4,12 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { PlaylistItem, MediaGroupItem } from '../types';
 import { formatDate } from '../utils/date';
-import { getPipelineStateBadgeClass } from '../utils/pipelineState';
+import {
+  getProcessingStatus,
+  getDownloadStatus,
+  getProcessingStatusBadgeClass,
+  getDownloadStatusBadgeClass,
+} from '../utils/pipelineState';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { PlaylistItemsTable } from './PlaylistItemsTable';
 import { PlaylistGroupedView } from './PlaylistGroupedView';
@@ -477,10 +482,18 @@ export function PlaylistTab({
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.currentStatus')}</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.processingStatus')}</span>
                       <div>
-                        <span className={`badge ${getPipelineStateBadgeClass(selectedItem.state)}`} style={{ fontSize: '0.75rem' }}>
-                          {selectedItem.state}
+                        <span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(selectedItem.state))}`} style={{ fontSize: '0.75rem' }}>
+                          {getProcessingStatus(selectedItem.state)}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{t('drawer.downloadStatus')}</span>
+                      <div>
+                        <span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(selectedItem.state))}`} style={{ fontSize: '0.75rem' }}>
+                          {getDownloadStatus(selectedItem.state) === 'not_downloaded' ? t('pipelineStatus.notDownloaded') : getDownloadStatus(selectedItem.state)}
                         </span>
                       </div>
                     </div>

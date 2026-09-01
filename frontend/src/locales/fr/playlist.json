@@ -36,6 +36,9 @@
     "downloaded": "Téléchargé (Downloaded)",
     "failed": "Échoué (Failed)"
   },
+  "pipelineStatus": {
+    "notDownloaded": "Non téléchargé"
+  },
   "table": {
     "headers": {
       "mediaName": "Nom du Média",
@@ -105,7 +108,8 @@
     "viewOnImdb": "🎞️ IMDB",
     "viewOnTvdb": "📺 TheTVDB",
     "pipelineSection": "⚙️ État du Pipeline",
-    "currentStatus": "Statut actuel :",
+    "processingStatus": "Traitement :",
+    "downloadStatus": "Téléchargement :",
     "contentType": "Type de contenu :",
     "importDate": "Date d'import :",
     "overriddenBy": "Forcé par :",

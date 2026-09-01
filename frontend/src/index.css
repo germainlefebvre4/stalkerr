@@ -349,6 +349,21 @@ input, select {
   border-color: var(--status-pending-border);
 }
 
+.badge-neutral {
+  background-color: var(--status-neutral-bg);
+  color: var(--status-neutral-text);
+  border-color: var(--status-neutral-border);
+}
+
+/* Compact colored dot variant of .badge, used for mobile status indicators */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+}
+
 /* Pulsing Active indicator dot */
 .pulse-dot {
   width: 8px;

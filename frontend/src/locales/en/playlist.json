@@ -36,6 +36,9 @@
     "downloaded": "Downloaded",
     "failed": "Failed"
   },
+  "pipelineStatus": {
+    "notDownloaded": "Not downloaded"
+  },
   "table": {
     "headers": {
       "mediaName": "Media Name",
@@ -105,7 +108,8 @@
     "viewOnImdb": "🎞️ IMDB",
     "viewOnTvdb": "📺 TheTVDB",
     "pipelineSection": "⚙️ Pipeline State",
-    "currentStatus": "Current status:",
+    "processingStatus": "Processing:",
+    "downloadStatus": "Download:",
     "contentType": "Content type:",
     "importDate": "Import date:",
     "overriddenBy": "Forced by:",
