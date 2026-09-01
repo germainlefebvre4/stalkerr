@@ -118,7 +118,7 @@ A failure to load one section SHALL NOT prevent the other section from loading o
 - **THEN** the user SHALL be able to trigger that section's refresh action again to retry, without reloading the page or affecting the other section
 
 ### Requirement: Sidepanel shows matched playlist occurrences for a selected item
-Selecting a movie or series row SHALL open a sidepanel showing the matched local metadata (when matched) and the list of matching playlist occurrences (at least resolution and pipeline state per occurrence), including already-downloaded occurrences. Each occurrence row SHALL be selectable to open the full media detail drawer for that specific occurrence (see "Selecting an occurrence opens the full media detail drawer").
+Selecting a movie or series row SHALL open a sidepanel showing the matched local metadata (when matched) and the list of matching playlist occurrences (at least resolution, processing status, and download status per occurrence, with processing status and download status shown as two separate statuses rather than a single combined pipeline state), including already-downloaded occurrences. Each occurrence row SHALL be selectable to open the full media detail drawer for that specific occurrence (see "Selecting an occurrence opens the full media detail drawer").
 
 #### Scenario: Selecting a matched movie
 - **WHEN** the user selects a movie that has a playlist match
@@ -131,6 +131,10 @@ Selecting a movie or series row SHALL open a sidepanel showing the matched local
 #### Scenario: Selecting a series shows per-episode breakdown
 - **WHEN** the user selects a series row from the aggregated Séries list
 - **THEN** the sidepanel SHALL display the per-episode match detail underlying that series' aggregate ratio, with each monitored episode's season and episode number formatted as zero-padded two-digit numbers separated by a space (e.g. "S01 E01")
+
+#### Scenario: Occurrence row shows separate processing and download status
+- **WHEN** a matched movie's occurrence row is displayed in the sidepanel
+- **THEN** the row SHALL show its processing status and its download status as two distinct, independently visible statuses rather than a single combined state
 
 ### Requirement: Selecting an occurrence opens the full media detail drawer
 Selecting a playlist occurrence row (a movie's occurrence, or one of a series episode's occurrences after expanding it) SHALL open the same media detail drawer used by the Playlist tab for that occurrence - TMDB metadata, pipeline state, M3U provenance, raw line and stream URL, and the force-download action - rather than only the resolution/state summary shown in the occurrences list.
@@ -148,7 +152,7 @@ Selecting a playlist occurrence row (a movie's occurrence, or one of a series ep
 - **THEN** the detail view SHALL replace the occurrences sidepanel's content in place, and the user SHALL be able to return to the occurrences list from it
 
 ### Requirement: Séries episode rows expand to reveal their occurrences
-Each monitored-episode row in the Séries sidepanel SHALL be expandable to reveal that episode's own playlist occurrences (at least resolution and pipeline state per occurrence), mirroring the Films occurrence list, before any occurrence can be selected to open the full media detail drawer.
+Each monitored-episode row in the Séries sidepanel SHALL be expandable to reveal that episode's own playlist occurrences (at least resolution, processing status, and download status per occurrence, with processing status and download status shown as two separate statuses rather than a single combined pipeline state), mirroring the Films occurrence list, before any occurrence can be selected to open the full media detail drawer.
 
 #### Scenario: Expanding a matched episode
 - **WHEN** the user selects an episode row that has one or more matching playlist occurrences
@@ -157,3 +161,7 @@ Each monitored-episode row in the Séries sidepanel SHALL be expandable to revea
 #### Scenario: Expanding an unmatched episode
 - **WHEN** the user selects an episode row that has no matching playlist occurrences
 - **THEN** the row SHALL indicate it has no occurrences rather than expanding to an empty or misleading list
+
+#### Scenario: Expanded episode's occurrence row shows separate processing and download status
+- **WHEN** an episode row is expanded to reveal its occurrences
+- **THEN** each listed occurrence SHALL show its processing status and its download status as two distinct, independently visible statuses rather than a single combined state

@@ -4,7 +4,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, OccurrenceResponse, PlaylistItem, RadarrSonarrStats } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
-import { getPipelineStateBadgeClass } from '../utils/pipelineState';
+import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
 import { MediaOccurrenceDrawer, MediaOccurrenceDrawerBody } from './MediaOccurrenceDrawer';
 import { api, ApiError } from '../services/api';
@@ -448,14 +448,16 @@ export function RadarrSonarrTab({
                               <thead>
                                 <tr>
                                   <th>{t('drawer.occurrenceResolution')}</th>
-                                  <th>{t('drawer.occurrenceState')}</th>
+                                  <th>{tPlaylist('drawer.processingStatus')}</th>
+                                  <th>{tPlaylist('drawer.downloadStatus')}</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {movieDetail.occurrences.map(occ => (
                                   <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
                                     <td>{occ.resolution || t('drawer.unknownResolution')}</td>
-                                    <td><span className={`badge ${getPipelineStateBadgeClass(occ.state)}`}>{occ.state}</span></td>
+                                    <td><span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(occ.state))}`}>{getProcessingStatus(occ.state)}</span></td>
+                                    <td><span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(occ.state))}`}>{getDownloadStatus(occ.state) === 'not_downloaded' ? tPlaylist('pipelineStatus.notDownloaded') : getDownloadStatus(occ.state)}</span></td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -516,14 +518,16 @@ export function RadarrSonarrTab({
                                                   <thead>
                                                     <tr>
                                                       <th>{t('drawer.occurrenceResolution')}</th>
-                                                      <th>{t('drawer.occurrenceState')}</th>
+                                                      <th>{tPlaylist('drawer.processingStatus')}</th>
+                                                      <th>{tPlaylist('drawer.downloadStatus')}</th>
                                                     </tr>
                                                   </thead>
                                                   <tbody>
                                                     {ep.occurrences.map((occ: OccurrenceResponse) => (
                                                       <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
                                                         <td>{occ.resolution || t('drawer.unknownResolution')}</td>
-                                                        <td><span className={`badge ${getPipelineStateBadgeClass(occ.state)}`}>{occ.state}</span></td>
+                                                        <td><span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(occ.state))}`}>{getProcessingStatus(occ.state)}</span></td>
+                                                        <td><span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(occ.state))}`}>{getDownloadStatus(occ.state) === 'not_downloaded' ? tPlaylist('pipelineStatus.notDownloaded') : getDownloadStatus(occ.state)}</span></td>
                                                       </tr>
                                                     ))}
                                                   </tbody>
