@@ -275,6 +275,84 @@ func TestGetMovieByTMDBID(t *testing.T) {
 	})
 }
 
+func TestGetAllMovies(t *testing.T) {
+	movies := []Movie{
+		{ID: 1, Title: "Monitored With File", Year: 2020, TMDBID: 101, Monitored: true, HasFile: true},
+		{ID: 2, Title: "Monitored Missing File", Year: 2021, TMDBID: 102, Monitored: true, HasFile: false},
+		{ID: 3, Title: "Unmonitored", Year: 2022, TMDBID: 103, Monitored: false, HasFile: false},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/movie" {
+			t.Errorf("expected path /api/v3/movie, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(movies)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	result, err := client.GetAllMovies(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != len(movies) {
+		t.Fatalf("expected %d movies (regardless of monitored/hasFile), got %d", len(movies), len(result))
+	}
+}
+
+func TestGetAllMoviesDoesNotAffectGetMissingMovies(t *testing.T) {
+	missingCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v3/movie":
+			json.NewEncoder(w).Encode([]Movie{{ID: 9, Title: "All Movie", Year: 2019}})
+		case "/api/v3/wanted/missing":
+			missingCalls++
+			json.NewEncoder(w).Encode(struct {
+				TotalRecords int     `json:"totalRecords"`
+				Records      []Movie `json:"records"`
+			}{TotalRecords: 1, Records: []Movie{{ID: 1, Title: "Missing Movie", Year: 2020}}})
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	all, err := client.GetAllMovies(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error from GetAllMovies: %v", err)
+	}
+	if len(all) != 1 || all[0].ID != 9 {
+		t.Fatalf("unexpected GetAllMovies result: %+v", all)
+	}
+
+	missing, err := client.GetMissingMovies(context.Background(), FetchOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error from GetMissingMovies: %v", err)
+	}
+	if len(missing) != 1 || missing[0].ID != 1 {
+		t.Fatalf("unexpected GetMissingMovies result: %+v", missing)
+	}
+	if missingCalls != 1 {
+		t.Errorf("expected 1 call to wanted/missing, got %d", missingCalls)
+	}
+}
+
 func TestClientRetry(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

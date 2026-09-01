@@ -383,6 +383,268 @@ func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode in
 	return bestShow, &processedLine, confidence, nil
 }
 
+// MovieMatchResult reports whether a Radarr movie has a matching local Movie
+// record, independent of any ProcessedLine/playlist state.
+type MovieMatchResult struct {
+	Matched bool
+	Movie   *models.Movie
+}
+
+// MatchMoviesBatch finds, for each given Radarr movie, whether a local Movie
+// record exists (TVDB id -> TMDB id -> fuzzy title+year), using a bounded number
+// of batched DB queries (at most two) regardless of how many movies are passed in.
+// Unlike MatchMovieByTVDB/MatchMovieByTMDB, this never filters by
+// ProcessedLine.state - it only reports Movie existence, which is what an
+// audit/monitoring view needs (a movie whose only occurrence is already
+// `downloaded` must still count as matched).
+func MatchMoviesBatch(db *gorm.DB, movies []radarr.Movie) (map[int]MovieMatchResult, error) {
+	results := make(map[int]MovieMatchResult, len(movies))
+	if len(movies) == 0 {
+		return results, nil
+	}
+
+	var tvdbIDs, tmdbIDs []int
+	for _, movie := range movies {
+		if movie.TvdbID > 0 {
+			tvdbIDs = append(tvdbIDs, movie.TvdbID)
+		}
+		if movie.TMDBID > 0 {
+			tmdbIDs = append(tmdbIDs, movie.TMDBID)
+		}
+	}
+
+	byTVDB := make(map[int]*models.Movie)
+	byTMDB := make(map[int]*models.Movie)
+	if len(tvdbIDs) > 0 || len(tmdbIDs) > 0 {
+		query := db.Model(&models.Movie{})
+		switch {
+		case len(tvdbIDs) > 0 && len(tmdbIDs) > 0:
+			query = query.Where("tvdb_id IN ? OR tmdb_id IN ?", tvdbIDs, tmdbIDs)
+		case len(tvdbIDs) > 0:
+			query = query.Where("tvdb_id IN ?", tvdbIDs)
+		default:
+			query = query.Where("tmdb_id IN ?", tmdbIDs)
+		}
+
+		var candidates []models.Movie
+		if err := query.Find(&candidates).Error; err != nil {
+			return nil, err
+		}
+		for i := range candidates {
+			c := &candidates[i]
+			if c.TVDBID != nil && *c.TVDBID > 0 {
+				byTVDB[*c.TVDBID] = c
+			}
+			if c.TMDBID > 0 {
+				byTMDB[c.TMDBID] = c
+			}
+		}
+	}
+
+	var unmatched []radarr.Movie
+	for _, movie := range movies {
+		if movie.TvdbID > 0 {
+			if match, ok := byTVDB[movie.TvdbID]; ok {
+				results[movie.ID] = MovieMatchResult{Matched: true, Movie: match}
+				continue
+			}
+		}
+		if movie.TMDBID > 0 {
+			if match, ok := byTMDB[movie.TMDBID]; ok {
+				results[movie.ID] = MovieMatchResult{Matched: true, Movie: match}
+				continue
+			}
+		}
+		unmatched = append(unmatched, movie)
+	}
+
+	if len(unmatched) == 0 {
+		return results, nil
+	}
+
+	years := make(map[int]bool)
+	for _, movie := range unmatched {
+		if movie.Year > 0 {
+			years[movie.Year-1] = true
+			years[movie.Year] = true
+			years[movie.Year+1] = true
+		}
+	}
+
+	var fuzzyCandidates []models.Movie
+	if len(years) > 0 {
+		yearList := make([]int, 0, len(years))
+		for y := range years {
+			yearList = append(yearList, y)
+		}
+		if err := db.Where("tmdb_year IN ?", yearList).Find(&fuzzyCandidates).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	fuzzyMatcher := New(DefaultConfig())
+	for _, movie := range unmatched {
+		if movie.Title == "" || movie.Year == 0 {
+			results[movie.ID] = MovieMatchResult{Matched: false}
+			continue
+		}
+
+		normalizedSearch := fuzzyMatcher.normalizeTitle(movie.Title)
+		var best *models.Movie
+		var bestScore float64
+		for i := range fuzzyCandidates {
+			candidate := &fuzzyCandidates[i]
+			if abs(candidate.TMDBYear-movie.Year) > 1 {
+				continue
+			}
+			score := fuzzyMatcher.calculateStringSimilarity(normalizedSearch, fuzzyMatcher.normalizeTitle(candidate.TMDBTitle))
+			if candidate.TMDBYear == movie.Year {
+				score = score*0.8 + 0.2
+			}
+			if score > bestScore && score >= 0.7 {
+				bestScore = score
+				best = candidate
+			}
+		}
+
+		if best != nil {
+			results[movie.ID] = MovieMatchResult{Matched: true, Movie: best}
+		} else {
+			results[movie.ID] = MovieMatchResult{Matched: false}
+		}
+	}
+
+	return results, nil
+}
+
+// FindAllMovieOccurrences returns every ProcessedLine associated with a movie,
+// regardless of pipeline state (including already-`downloaded` ones), ordered by
+// the same quality preference as FindMovieDownloadCandidates. Unlike
+// FindMovieDownloadCandidates (which restricts to processed/failed for the
+// download-candidate use case), this is for audit views that must show the full
+// occurrence history.
+func FindAllMovieOccurrences(db *gorm.DB, movieID uint) ([]models.ProcessedLine, error) {
+	var occurrences []models.ProcessedLine
+	err := db.Where("movie_id = ?", movieID).
+		Order(resolutionOrderSQL).
+		Find(&occurrences).Error
+	return occurrences, err
+}
+
+// FindAllTVShowOccurrences returns every ProcessedLine associated with a TV show
+// episode, regardless of pipeline state (including already-`downloaded` ones).
+// See FindAllMovieOccurrences for why this differs from FindTVShowDownloadCandidates.
+func FindAllTVShowOccurrences(db *gorm.DB, tvshowID uint) ([]models.ProcessedLine, error) {
+	var occurrences []models.ProcessedLine
+	err := db.Where("tv_show_id = ?", tvshowID).
+		Order(resolutionOrderSQL).
+		Find(&occurrences).Error
+	return occurrences, err
+}
+
+// SeasonEpisode identifies a single episode within a series by its season and
+// episode number.
+type SeasonEpisode struct {
+	Season  int
+	Episode int
+}
+
+// MatchSeriesEpisodesAggregate computes, for a series identified by its TVDB id
+// and the list of its currently-monitored (season, episode) pairs, how many of
+// them have a matching local TVShow record. Issues exactly one DB query for the
+// whole series, regardless of how many episodes are monitored.
+func MatchSeriesEpisodesAggregate(db *gorm.DB, tvdbID int, monitored []SeasonEpisode) (matched int, total int, err error) {
+	total = len(monitored)
+	if total == 0 || tvdbID <= 0 {
+		return 0, total, nil
+	}
+
+	var localEpisodes []models.TVShow
+	if err := db.Where("tvdb_id = ?", tvdbID).Find(&localEpisodes).Error; err != nil {
+		return 0, total, err
+	}
+
+	present := make(map[SeasonEpisode]bool, len(localEpisodes))
+	for _, ep := range localEpisodes {
+		if ep.Season != nil && ep.Episode != nil {
+			present[SeasonEpisode{Season: *ep.Season, Episode: *ep.Episode}] = true
+		}
+	}
+
+	for _, se := range monitored {
+		if present[se] {
+			matched++
+		}
+	}
+
+	return matched, total, nil
+}
+
+// SeriesEpisodeMatch reports whether a single monitored episode has a matching
+// local TVShow record, and its full playlist occurrence list when it does.
+type SeriesEpisodeMatch struct {
+	Season      int
+	Episode     int
+	Matched     bool
+	TVShow      *models.TVShow
+	Occurrences []models.ProcessedLine
+}
+
+// MatchSeriesEpisodesDetail returns, for each of a series' monitored episodes,
+// whether a local TVShow record exists and its full occurrence list (state-
+// agnostic, via FindAllTVShowOccurrences' semantics). Issues one batched TVShow
+// query and one batched ProcessedLine query for the whole series, regardless of
+// how many episodes are monitored.
+func MatchSeriesEpisodesDetail(db *gorm.DB, tvdbID int, monitored []SeasonEpisode) ([]SeriesEpisodeMatch, error) {
+	results := make([]SeriesEpisodeMatch, len(monitored))
+	for i, se := range monitored {
+		results[i] = SeriesEpisodeMatch{Season: se.Season, Episode: se.Episode}
+	}
+	if tvdbID <= 0 || len(monitored) == 0 {
+		return results, nil
+	}
+
+	var localEpisodes []models.TVShow
+	if err := db.Where("tvdb_id = ?", tvdbID).Find(&localEpisodes).Error; err != nil {
+		return nil, err
+	}
+
+	byKey := make(map[SeasonEpisode]*models.TVShow, len(localEpisodes))
+	tvshowIDs := make([]uint, 0, len(localEpisodes))
+	for i := range localEpisodes {
+		ep := &localEpisodes[i]
+		if ep.Season != nil && ep.Episode != nil {
+			key := SeasonEpisode{Season: *ep.Season, Episode: *ep.Episode}
+			byKey[key] = ep
+			tvshowIDs = append(tvshowIDs, ep.ID)
+		}
+	}
+
+	occByTVShow := make(map[uint][]models.ProcessedLine, len(tvshowIDs))
+	if len(tvshowIDs) > 0 {
+		var occurrences []models.ProcessedLine
+		if err := db.Where("tv_show_id IN ?", tvshowIDs).Order(resolutionOrderSQL).Find(&occurrences).Error; err != nil {
+			return nil, err
+		}
+		for _, occ := range occurrences {
+			if occ.TVShowID != nil {
+				occByTVShow[*occ.TVShowID] = append(occByTVShow[*occ.TVShowID], occ)
+			}
+		}
+	}
+
+	for i := range results {
+		key := SeasonEpisode{Season: results[i].Season, Episode: results[i].Episode}
+		if tv, ok := byKey[key]; ok {
+			results[i].Matched = true
+			results[i].TVShow = tv
+			results[i].Occurrences = occByTVShow[tv.ID]
+		}
+	}
+
+	return results, nil
+}
+
 // normalizeTitle normalizes a title for comparison
 func (m *Matcher) normalizeTitle(title string) string {
 	// Convert to lowercase

@@ -74,6 +74,80 @@ func TestGetMissingSeries(t *testing.T) {
 	}
 }
 
+func TestGetAllMonitoredSeries(t *testing.T) {
+	series := []Series{
+		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 2, Title: "Missing Episodes, Monitored", TvdbID: 102, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 5},
+		{ID: 3, Title: "Unmonitored", TvdbID: 103, Monitored: false, TotalEpisodeCount: 10, EpisodeFileCount: 0},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/series" {
+			t.Errorf("expected path /api/v3/series, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(series)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	result, err := client.GetAllMonitoredSeries(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected 2 monitored series (with and without missing episodes), got %d", len(result))
+	}
+	ids := map[int]bool{result[0].ID: true, result[1].ID: true}
+	if !ids[1] || !ids[2] {
+		t.Errorf("expected series 1 and 2 (both monitored) to be included, got %+v", result)
+	}
+}
+
+func TestGetAllMonitoredSeriesDoesNotAffectGetMissingSeries(t *testing.T) {
+	callCount := 0
+	series := []Series{
+		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 2, Title: "Missing Episodes, Monitored", TvdbID: 102, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 5},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(series)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	all, err := client.GetAllMonitoredSeries(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error from GetAllMonitoredSeries: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 monitored series, got %d", len(all))
+	}
+
+	missing, err := client.GetMissingSeries(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error from GetMissingSeries: %v", err)
+	}
+	if len(missing) != 1 || missing[0].ID != 2 {
+		t.Fatalf("expected GetMissingSeries to still only return series with missing episodes, got %+v", missing)
+	}
+}
+
 func TestGetMissingEpisodes(t *testing.T) {
 	episodes := []Episode{
 		{ID: 1, SeriesID: 1, SeasonNumber: 1, EpisodeNumber: 1, HasFile: false, Monitored: true},

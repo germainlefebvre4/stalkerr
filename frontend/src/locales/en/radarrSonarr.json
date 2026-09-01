@@ -1,0 +1,52 @@
+{
+  "tab": "Radarr / Sonarr",
+  "films": {
+    "heading": "Films (Radarr)",
+    "subtitle": "Movies currently monitored in Radarr and their playlist match status",
+    "refresh": "Refresh",
+    "loading": "Loading movies...",
+    "empty": "No monitored movies found",
+    "table": {
+      "title": "Title",
+      "year": "Year",
+      "status": "Playlist match"
+    },
+    "badge": {
+      "matched": "Matched",
+      "unmatched": "No match"
+    }
+  },
+  "series": {
+    "heading": "Séries (Sonarr)",
+    "subtitle": "Series currently monitored in Sonarr and their playlist match ratio",
+    "refresh": "Refresh",
+    "loading": "Loading series...",
+    "empty": "No monitored series found",
+    "table": {
+      "title": "Title",
+      "year": "Year",
+      "status": "Monitored episodes matched"
+    },
+    "ratio": "{{matched}}/{{monitored}}"
+  },
+  "retry": "Retry",
+  "drawer": {
+    "movieTitle": "Movie details",
+    "seriesTitle": "Series details",
+    "close": "Close",
+    "description": "Playlist match details for the selected item.",
+    "noMatch": "No matching entry was found in the local playlist for this item.",
+    "matchedMetadata": "Matched local metadata",
+    "occurrencesSection": "Playlist occurrences",
+    "noOccurrences": "This item is matched but has no playlist occurrences yet.",
+    "occurrenceResolution": "Resolution",
+    "occurrenceState": "State",
+    "unknownResolution": "Unknown",
+    "episodesSection": "Monitored episodes",
+    "episode": "S{{season}}E{{episode}}",
+    "episodeMatched": "Matched",
+    "episodeUnmatched": "No match",
+    "loading": "Loading details...",
+    "loadFailed": "Failed to load details."
+  }
+}

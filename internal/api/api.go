@@ -128,6 +128,12 @@ func (s *Server) setupRoutes() {
 			tvshows.POST("/:id/reset", s.resetTVShow)
 		}
 
+		// Radarr/Sonarr monitoring endpoints
+		v1.GET("/radarr/movies", s.listRadarrMonitoredMovies)
+		v1.GET("/radarr/movies/:id/matches", s.getRadarrMovieMatches)
+		v1.GET("/sonarr/series", s.listSonarrMonitoredSeries)
+		v1.GET("/sonarr/series/:id/episodes", s.getSonarrSeriesEpisodes)
+
 		// Filter endpoints
 		filters := v1.Group("/filters")
 		{

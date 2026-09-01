@@ -1,0 +1,52 @@
+{
+  "tab": "Radarr / Sonarr",
+  "films": {
+    "heading": "Films (Radarr)",
+    "subtitle": "Films actuellement surveillés par Radarr et leur statut de correspondance avec la playlist",
+    "refresh": "Actualiser",
+    "loading": "Chargement des films...",
+    "empty": "Aucun film surveillé trouvé",
+    "table": {
+      "title": "Titre",
+      "year": "Année",
+      "status": "Correspondance playlist"
+    },
+    "badge": {
+      "matched": "Correspondance trouvée",
+      "unmatched": "Aucune correspondance"
+    }
+  },
+  "series": {
+    "heading": "Séries (Sonarr)",
+    "subtitle": "Séries actuellement surveillées par Sonarr et leur ratio de correspondance avec la playlist",
+    "refresh": "Actualiser",
+    "loading": "Chargement des séries...",
+    "empty": "Aucune série surveillée trouvée",
+    "table": {
+      "title": "Titre",
+      "year": "Année",
+      "status": "Épisodes surveillés en correspondance"
+    },
+    "ratio": "{{matched}}/{{monitored}}"
+  },
+  "retry": "Réessayer",
+  "drawer": {
+    "movieTitle": "Détails du film",
+    "seriesTitle": "Détails de la série",
+    "close": "Fermer",
+    "description": "Détails de correspondance avec la playlist pour l'élément sélectionné.",
+    "noMatch": "Aucune correspondance n'a été trouvée dans la playlist locale pour cet élément.",
+    "matchedMetadata": "Métadonnées locales associées",
+    "occurrencesSection": "Occurrences dans la playlist",
+    "noOccurrences": "Cet élément est associé mais n'a encore aucune occurrence dans la playlist.",
+    "occurrenceResolution": "Résolution",
+    "occurrenceState": "État",
+    "unknownResolution": "Inconnue",
+    "episodesSection": "Épisodes surveillés",
+    "episode": "S{{season}}E{{episode}}",
+    "episodeMatched": "Correspondance trouvée",
+    "episodeUnmatched": "Aucune correspondance",
+    "loading": "Chargement des détails...",
+    "loadFailed": "Échec du chargement des détails."
+  }
+}

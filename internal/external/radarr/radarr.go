@@ -117,6 +117,31 @@ func (c *Client) GetMissingMovies(ctx context.Context, opts FetchOptions) ([]Mov
 	return all, nil
 }
 
+// GetAllMovies retrieves every movie known to Radarr in a single call, regardless
+// of monitored/hasFile status. Unlike GetMissingMovies (which paginates the
+// wanted/missing endpoint and only returns eligible-for-download movies), this
+// returns the full lightweight catalog so callers can decide which subset
+// (e.g. monitored-only) and which page to work with.
+func (c *Client) GetAllMovies(ctx context.Context) ([]Movie, error) {
+	endpoint := "/api/v3/movie"
+
+	var movies []Movie
+	err := retry.Do(ctx, c.retryConfig, func() error {
+		m, err := c.getMovies(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		movies = m
+		return nil
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return nil, apperrors.ExternalServiceError("radarr", "failed to get all movies", err)
+	}
+
+	return movies, nil
+}
+
 // GetMovieDetails retrieves detailed information for a specific movie
 func (c *Client) GetMovieDetails(ctx context.Context, id int) (*Movie, error) {
 	endpoint := fmt.Sprintf("/api/v3/movie/%d", id)

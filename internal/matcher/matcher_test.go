@@ -833,6 +833,170 @@ func TestFindMovieDownloadCandidatesExcludesDownloaded(t *testing.T) {
 	}
 }
 
+func TestMatchMoviesBatch(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 1001
+	movies := []models.Movie{
+		{TMDBID: 603, TVDBID: &tvdbID, TMDBTitle: "The Matrix", TMDBYear: 1999},
+		{TMDBID: 27205, TMDBTitle: "Inception", TMDBYear: 2010},
+		{TMDBID: 155, TMDBTitle: "The Dark Knight", TMDBYear: 2008},
+	}
+	for i := range movies {
+		if err := db.Create(&movies[i]).Error; err != nil {
+			t.Fatalf("failed to create movie: %v", err)
+		}
+	}
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "The Matrix (different)", Year: 1999, TvdbID: tvdbID, TMDBID: 99999}, // TVDB hit
+		{ID: 2, Title: "Some Other Title", Year: 2010, TMDBID: 27205},                        // TMDB hit
+		{ID: 3, Title: "Dark Knight", Year: 2008, TMDBID: 88888},                              // fuzzy-only hit
+		{ID: 4, Title: "Completely Unknown Movie", Year: 2025, TMDBID: 77777},                 // no match
+	}
+
+	results, err := MatchMoviesBatch(db, radarrMovies)
+	if err != nil {
+		t.Fatalf("MatchMoviesBatch returned error: %v", err)
+	}
+
+	if !results[1].Matched || results[1].Movie == nil || results[1].Movie.TMDBID != 603 {
+		t.Errorf("expected radarr movie 1 to match via TVDB id, got %+v", results[1])
+	}
+	if !results[2].Matched || results[2].Movie == nil || results[2].Movie.TMDBID != 27205 {
+		t.Errorf("expected radarr movie 2 to match via TMDB id, got %+v", results[2])
+	}
+	if !results[3].Matched || results[3].Movie == nil || results[3].Movie.TMDBID != 155 {
+		t.Errorf("expected radarr movie 3 to match via fuzzy title+year, got %+v", results[3])
+	}
+	if results[4].Matched {
+		t.Errorf("expected radarr movie 4 to have no match, got %+v", results[4])
+	}
+}
+
+func TestFindAllMovieOccurrencesIncludesDownloaded(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 155, TMDBTitle: "The Dark Knight", TMDBYear: 2008}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	lineURL := "http://example.com/stream.mkv"
+	res720p := "720p"
+	line := models.ProcessedLine{
+		MovieID: &movie.ID, TvgName: "The Dark Knight 720p", LineURL: &lineURL,
+		LineContent: "#EXTINF", LineHash: "hash-dk-720p", GroupTitle: "Movies",
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded,
+		Resolution: &res720p,
+	}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	// Contrast with FindMovieDownloadCandidates, which must keep excluding it.
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("expected FindMovieDownloadCandidates to exclude downloaded occurrence, got %d", len(candidates))
+	}
+
+	occurrences, err := FindAllMovieOccurrences(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindAllMovieOccurrences returned error: %v", err)
+	}
+	if len(occurrences) != 1 {
+		t.Fatalf("expected FindAllMovieOccurrences to include the downloaded occurrence, got %d", len(occurrences))
+	}
+	if occurrences[0].State != models.StateDownloaded {
+		t.Errorf("expected downloaded state, got %s", occurrences[0].State)
+	}
+}
+
+func TestFindAllTVShowOccurrencesIncludesDownloaded(t *testing.T) {
+	db := setupTestDB(t)
+
+	season, episode := 1, 1
+	tvshow := models.TVShow{TMDBID: 1396, TMDBTitle: "Breaking Bad", Season: &season, Episode: &episode}
+	if err := db.Create(&tvshow).Error; err != nil {
+		t.Fatalf("failed to create tvshow: %v", err)
+	}
+
+	lineURL := "http://example.com/stream.mkv"
+	line := models.ProcessedLine{
+		TVShowID: &tvshow.ID, TvgName: "Breaking Bad S01E01", LineURL: &lineURL,
+		LineContent: "#EXTINF", LineHash: "hash-bb-s01e01", GroupTitle: "Series",
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded,
+	}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	candidates, err := FindTVShowDownloadCandidates(db, tvshow.ID)
+	if err != nil {
+		t.Fatalf("FindTVShowDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("expected FindTVShowDownloadCandidates to exclude downloaded occurrence, got %d", len(candidates))
+	}
+
+	occurrences, err := FindAllTVShowOccurrences(db, tvshow.ID)
+	if err != nil {
+		t.Fatalf("FindAllTVShowOccurrences returned error: %v", err)
+	}
+	if len(occurrences) != 1 {
+		t.Fatalf("expected FindAllTVShowOccurrences to include the downloaded occurrence, got %d", len(occurrences))
+	}
+}
+
+func TestMatchSeriesEpisodesAggregate(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 2002
+	s1e1, s1e2 := 1, 1
+	e2 := 2
+	if err := db.Create(&models.TVShow{TMDBID: 9999, TVDBID: &tvdbID, TMDBTitle: "Some Show", Season: &s1e1, Episode: &s1e2}).Error; err != nil {
+		t.Fatalf("failed to create tvshow: %v", err)
+	}
+
+	t.Run("zero monitored episodes", func(t *testing.T) {
+		matched, total, err := MatchSeriesEpisodesAggregate(db, tvdbID, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if matched != 0 || total != 0 {
+			t.Errorf("expected 0/0, got %d/%d", matched, total)
+		}
+	})
+
+	t.Run("partial match", func(t *testing.T) {
+		monitored := []SeasonEpisode{{Season: 1, Episode: 1}, {Season: 1, Episode: 2}}
+		matched, total, err := MatchSeriesEpisodesAggregate(db, tvdbID, monitored)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if matched != 1 || total != 2 {
+			t.Errorf("expected 1/2, got %d/%d", matched, total)
+		}
+	})
+
+	t.Run("full match", func(t *testing.T) {
+		if err := db.Create(&models.TVShow{TMDBID: 9999, TVDBID: &tvdbID, TMDBTitle: "Some Show", Season: &s1e1, Episode: &e2}).Error; err != nil {
+			t.Fatalf("failed to create second episode: %v", err)
+		}
+		monitored := []SeasonEpisode{{Season: 1, Episode: 1}, {Season: 1, Episode: 2}}
+		matched, total, err := MatchSeriesEpisodesAggregate(db, tvdbID, monitored)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if matched != 2 || total != 2 {
+			t.Errorf("expected 2/2, got %d/%d", matched, total)
+		}
+	})
+}
+
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

@@ -10,13 +10,14 @@ import { usePlaylistGroups } from './hooks/usePlaylistGroups';
 import { useFilters } from './hooks/useFilters';
 import { useLogs } from './hooks/useLogs';
 import { useDownloads } from './hooks/useDownloads';
+import { useRadarrSonarr } from './hooks/useRadarrSonarr';
 import { useURLState, URLStateSchema } from './hooks/useURLState';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
 import { resolveRenameFolderName } from './utils/renameDialog';
 
-const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads'];
+const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr'];
 
 const TAB_URL_SCHEMA = {
   tab: {
@@ -41,6 +42,7 @@ import { PlaylistTab } from './components/PlaylistTab';
 import { FiltersTab } from './components/FiltersTab';
 import { LogsTab } from './components/LogsTab';
 import { DownloadsTab } from './components/DownloadsTab';
+import { RadarrSonarrTab } from './components/RadarrSonarrTab';
 
 import { CreateFilterDialog } from './components/CreateFilterDialog';
 import { MoveFolderDialog } from './components/MoveFolderDialog';
@@ -87,6 +89,11 @@ export default function App() {
     typeFilter, setTypeFilter, problemFilter, setProblemFilter,
     configPaths, fetchDownloads, updateDownloadPath
   } = useDownloads(activeTab === 'downloads');
+
+  const {
+    filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
+    seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries,
+  } = useRadarrSonarr(activeTab === 'radarr-sonarr');
 
   const [isCreateFilterOpen, setIsCreateFilterOpen] = useState(false);
   const [isMoveOpen, setIsMoveOpen] = useState(false);
@@ -181,6 +188,7 @@ export default function App() {
     { value: 'filters', icon: '🔍', label: t('tabs.filters') },
     { value: 'logs', icon: '⚙️', label: t('tabs.logs') },
     { value: 'downloads', icon: '📥', label: t('tabs.downloads') },
+    { value: 'radarr-sonarr', icon: '🎯', label: t('tabs.radarrSonarr') },
   ];
 
   return (
@@ -208,6 +216,7 @@ export default function App() {
           <Tabs.Trigger value="filters" className="segmented-tabs-trigger">🔍 {t('tabs.filters')}</Tabs.Trigger>
           <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ {t('tabs.logs')}</Tabs.Trigger>
           <Tabs.Trigger value="downloads" className="segmented-tabs-trigger">📥 {t('tabs.downloads')}</Tabs.Trigger>
+          <Tabs.Trigger value="radarr-sonarr" className="segmented-tabs-trigger">🎯 {t('tabs.radarrSonarr')}</Tabs.Trigger>
         </Tabs.List>
 
         <PlaylistTab
@@ -241,6 +250,15 @@ export default function App() {
           typeFilter={typeFilter} setTypeFilter={setTypeFilter} problemFilter={problemFilter} setProblemFilter={setProblemFilter}
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}
           onOpenRenameDialog={openRenameDialog}
+        />
+
+        <RadarrSonarrTab
+          filmsItems={filmsItems} filmsLoading={filmsLoading} filmsError={filmsError}
+          filmsTotal={filmsTotal} filmsPage={filmsPage} setFilmsPage={setFilmsPage}
+          filmsLimit={filmsLimit} fetchFilms={fetchFilms}
+          seriesItems={seriesItems} seriesLoading={seriesLoading} seriesError={seriesError}
+          seriesTotal={seriesTotal} seriesPage={seriesPage} setSeriesPage={setSeriesPage}
+          seriesLimit={seriesLimit} fetchSeries={fetchSeries}
         />
       </Tabs.Root>
 

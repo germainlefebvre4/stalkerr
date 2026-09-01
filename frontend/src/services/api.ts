@@ -8,7 +8,11 @@ import {
   StatsResponse,
   FilterConfig,
   TMDBSearchResult,
-  RenameDownloadResponse
+  RenameDownloadResponse,
+  RadarrMovieListItem,
+  SonarrSeriesListItem,
+  RadarrMovieMatchesResponse,
+  SonarrSeriesEpisodesResponse
 } from '../types';
 
 export class ApiError extends Error {
@@ -259,6 +263,30 @@ export const api = {
 
   async forceDownload(id: number): Promise<{ status: string; processed_line_id: number }> {
     const res = await fetch(`/api/v1/items/${id}/force-download`, { method: 'POST' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async listRadarrMovies(page: number, limit: number = 20): Promise<PaginatedResponse<RadarrMovieListItem>> {
+    const res = await fetch(`/api/v1/radarr/movies?limit=${limit}&offset=${(page - 1) * limit}`);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async listSonarrSeries(page: number, limit: number = 20): Promise<PaginatedResponse<SonarrSeriesListItem>> {
+    const res = await fetch(`/api/v1/sonarr/series?limit=${limit}&offset=${(page - 1) * limit}`);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getRadarrMovieMatches(radarrId: number): Promise<RadarrMovieMatchesResponse> {
+    const res = await fetch(`/api/v1/radarr/movies/${radarrId}/matches`);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getSonarrSeriesEpisodes(sonarrId: number): Promise<SonarrSeriesEpisodesResponse> {
+    const res = await fetch(`/api/v1/sonarr/series/${sonarrId}/episodes`);
     if (!res.ok) return throwApiError(res);
     return res.json();
   }

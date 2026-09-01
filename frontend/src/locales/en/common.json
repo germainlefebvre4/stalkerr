@@ -12,7 +12,8 @@
     "playlist": "M3U Playlist",
     "filters": "Sorting Filters",
     "logs": "Processing",
-    "downloads": "Downloads"
+    "downloads": "Downloads",
+    "radarrSonarr": "Radarr / Sonarr"
   },
   "toasts": {
     "resetSuccess": "Pipeline reset successfully! Ready for reprocessing.",
@@ -63,6 +64,10 @@
     "rename_target_exists": "A file or folder already exists at that destination.",
     "rename_failed": "Failed to rename the item. Please try again.",
     "database_update_failed": "The file was moved, but the database could not be updated. Please refresh.",
+    "radarr_not_configured": "Radarr is not configured.",
+    "sonarr_not_configured": "Sonarr is not configured.",
+    "radarr_unreachable": "Failed to reach Radarr. Please try again.",
+    "sonarr_unreachable": "Failed to reach Sonarr. Please try again.",
     "generic": "Something went wrong. Please try again."
   }
 }

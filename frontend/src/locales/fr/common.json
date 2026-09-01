@@ -12,7 +12,8 @@
     "playlist": "Playlist M3U",
     "filters": "Filtres de Tri",
     "logs": "Traitements",
-    "downloads": "Téléchargements"
+    "downloads": "Téléchargements",
+    "radarrSonarr": "Radarr / Sonarr"
   },
   "toasts": {
     "resetSuccess": "Flux réinitialisé avec succès ! Prêt pour le retraitement.",
@@ -63,6 +64,10 @@
     "rename_target_exists": "Un fichier ou dossier existe déjà à cet emplacement de destination.",
     "rename_failed": "Le renommage de l'item a échoué. Veuillez réessayer.",
     "database_update_failed": "Le fichier a été déplacé, mais la base de données n'a pas pu être mise à jour. Veuillez rafraîchir.",
+    "radarr_not_configured": "Radarr n'est pas configuré.",
+    "sonarr_not_configured": "Sonarr n'est pas configuré.",
+    "radarr_unreachable": "Impossible de joindre Radarr. Veuillez réessayer.",
+    "sonarr_unreachable": "Impossible de joindre Sonarr. Veuillez réessayer.",
     "generic": "Une erreur est survenue. Veuillez réessayer."
   }
 }

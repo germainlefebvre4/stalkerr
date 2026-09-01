@@ -115,6 +115,37 @@ func (c *Client) GetMissingSeries(ctx context.Context) ([]Series, error) {
 	return missing, nil
 }
 
+// GetAllMonitoredSeries retrieves every monitored series in Sonarr, regardless of
+// missing-episode status. Unlike GetMissingSeries (which also requires
+// EpisodeFileCount < TotalEpisodeCount), a fully-downloaded monitored series is
+// still included here.
+func (c *Client) GetAllMonitoredSeries(ctx context.Context) ([]Series, error) {
+	endpoint := "/api/v3/series"
+
+	var allSeries []Series
+	err := retry.Do(ctx, c.retryConfig, func() error {
+		series, err := c.getSeries(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		allSeries = series
+		return nil
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get all monitored series", err)
+	}
+
+	var monitored []Series
+	for _, s := range allSeries {
+		if s.Monitored {
+			monitored = append(monitored, s)
+		}
+	}
+
+	return monitored, nil
+}
+
 // GetSeriesDetails retrieves detailed information for a specific series
 func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) {
 	endpoint := fmt.Sprintf("/api/v3/series/%d", id)

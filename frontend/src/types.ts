@@ -149,6 +149,46 @@ export interface FilterConfig {
   is_runtime: boolean;
 }
 
+export interface OccurrenceResponse {
+  id: number;
+  resolution?: string;
+  state: string;
+}
+
+export interface RadarrMovieListItem {
+  radarr_id: number;
+  title: string;
+  year: number;
+  has_file: boolean;
+  matched: boolean;
+  movie_id?: number;
+}
+
+export interface SonarrSeriesListItem {
+  sonarr_id: number;
+  title: string;
+  year: number;
+  matched_count: number;
+  monitored_count: number;
+}
+
+export interface RadarrMovieMatchesResponse {
+  matched: boolean;
+  movie?: MovieResponse;
+  occurrences: OccurrenceResponse[];
+}
+
+export interface SonarrSeriesEpisodeItem {
+  season: number;
+  episode: number;
+  matched: boolean;
+  occurrences: OccurrenceResponse[];
+}
+
+export interface SonarrSeriesEpisodesResponse {
+  episodes: SonarrSeriesEpisodeItem[];
+}
+
 export interface TMDBSearchResult {
   id: number;
   title: string;
