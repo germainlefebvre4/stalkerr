@@ -559,6 +559,26 @@ input, select {
   }
 }
 
+.drawer-content--secondary {
+  background-color: var(--bg-card);
+  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.15);
+  position: fixed;
+  top: 0;
+  right: 550px;
+  bottom: 0;
+  width: 100%;
+  max-width: 550px;
+  padding: 2rem;
+  z-index: 101;
+  border-left: 1px solid var(--border-color);
+  outline: none;
+  animation: drawerShow 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+}
+
 /* Copiable code block and technical section */
 .technical-block-container {
   position: relative;

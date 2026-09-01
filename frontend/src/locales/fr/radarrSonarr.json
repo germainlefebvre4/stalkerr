@@ -43,10 +43,12 @@
     "occurrenceState": "État",
     "unknownResolution": "Inconnue",
     "episodesSection": "Épisodes surveillés",
-    "episode": "S{{season}}E{{episode}}",
+    "episode": "S{{season}} E{{episode}}",
     "episodeMatched": "Correspondance trouvée",
     "episodeUnmatched": "Aucune correspondance",
+    "episodeNoOccurrences": "Aucune occurrence dans la playlist pour cet épisode.",
     "loading": "Chargement des détails...",
-    "loadFailed": "Échec du chargement des détails."
+    "loadFailed": "Échec du chargement des détails.",
+    "backToOccurrences": "← Retour aux occurrences"
   }
 }

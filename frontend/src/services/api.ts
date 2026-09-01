@@ -289,5 +289,11 @@ export const api = {
     const res = await fetch(`/api/v1/sonarr/series/${sonarrId}/episodes`);
     if (!res.ok) return throwApiError(res);
     return res.json();
+  },
+
+  async getItem(id: number): Promise<PlaylistItem> {
+    const res = await fetch(`/api/v1/items/${id}`);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
   }
 };

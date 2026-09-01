@@ -2,10 +2,11 @@ import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, OccurrenceResponse, PlaylistItem } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { getPipelineStateBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
+import { MediaOccurrenceDrawer, MediaOccurrenceDrawerBody } from './MediaOccurrenceDrawer';
 import { api, ApiError } from '../services/api';
 
 interface RadarrSonarrTabProps {
@@ -34,12 +35,17 @@ function seriesBadgeClass(matched: number, monitored: number): string {
   return 'badge-progress';
 }
 
+function padNumber(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 export function RadarrSonarrTab({
   filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
   seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries,
 }: RadarrSonarrTabProps) {
   const { t } = useTranslation('radarrSonarr');
   const { t: tCommon } = useTranslation('common');
+  const { t: tPlaylist } = useTranslation('playlist');
   const isMobile = useIsMobile();
 
   const [selectedMovie, setSelectedMovie] = React.useState<RadarrMovieListItem | null>(null);
@@ -48,6 +54,9 @@ export function RadarrSonarrTab({
   const [seriesDetail, setSeriesDetail] = React.useState<SonarrSeriesEpisodesResponse | null>(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [detailError, setDetailError] = React.useState<string | null>(null);
+  const [expandedEpisode, setExpandedEpisode] = React.useState<{ season: number; episode: number } | null>(null);
+  const [detailItem, setDetailItem] = React.useState<PlaylistItem | null>(null);
+  const [drawerView, setDrawerView] = React.useState<'occurrences' | 'detail'>('occurrences');
 
   React.useEffect(() => {
     if (!selectedMovie) return;
@@ -78,16 +87,39 @@ export function RadarrSonarrTab({
   const openMovie = (item: RadarrMovieListItem) => {
     setSelectedSeries(null);
     setSelectedMovie(item);
+    setExpandedEpisode(null);
+    setDetailItem(null);
+    setDrawerView('occurrences');
   };
   const openSeries = (item: SonarrSeriesListItem) => {
     setSelectedMovie(null);
     setSelectedSeries(item);
+    setExpandedEpisode(null);
+    setDetailItem(null);
+    setDrawerView('occurrences');
   };
   const closeDrawer = () => {
     setSelectedMovie(null);
     setSelectedSeries(null);
     setMovieDetail(null);
     setSeriesDetail(null);
+    setExpandedEpisode(null);
+    setDetailItem(null);
+    setDrawerView('occurrences');
+  };
+
+  const handleOccurrenceClick = (occurrenceId: number) => {
+    api.getItem(occurrenceId)
+      .then(resolved => {
+        setDetailItem(resolved);
+        if (isMobile) setDrawerView('detail');
+      })
+      .catch(err => console.error('Failed to load occurrence detail', err));
+  };
+
+  const handleBackToOccurrences = () => {
+    setDrawerView('occurrences');
+    setDetailItem(null);
   };
 
   return (
@@ -244,105 +276,182 @@ export function RadarrSonarrTab({
       <Dialog.Root open={!!selectedMovie || !!selectedSeries} onOpenChange={(open) => !open && closeDrawer()}>
         <Dialog.Portal>
           <Dialog.Overlay className="drawer-overlay" />
-          <Dialog.Content className="drawer-content">
+          <Dialog.Content
+            className="drawer-content"
+            onInteractOutside={(e) => {
+              if ((e.target as HTMLElement)?.closest?.('.drawer-content--secondary')) {
+                e.preventDefault();
+              }
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
               <Dialog.Title style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)', margin: 0 }}>
-                {selectedMovie ? t('drawer.movieTitle') : t('drawer.seriesTitle')}
+                {isMobile && drawerView === 'detail'
+                  ? tPlaylist('drawer.title')
+                  : (selectedMovie ? t('drawer.movieTitle') : t('drawer.seriesTitle'))}
               </Dialog.Title>
-              <Dialog.Close className="btn-secondary" style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}>
-                {t('drawer.close')}
-              </Dialog.Close>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {isMobile && drawerView === 'detail' && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}
+                    onClick={handleBackToOccurrences}
+                  >
+                    {t('drawer.backToOccurrences')}
+                  </button>
+                )}
+                <Dialog.Close className="btn-secondary" style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}>
+                  {t('drawer.close')}
+                </Dialog.Close>
+              </div>
             </div>
             <Dialog.Description style={{ display: 'none' }}>{t('drawer.description')}</Dialog.Description>
 
-            {detailLoading && (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('drawer.loading')}</div>
-            )}
+            {isMobile && drawerView === 'detail' && detailItem ? (
+              <MediaOccurrenceDrawerBody item={detailItem} />
+            ) : (
+              <>
+                {detailLoading && (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('drawer.loading')}</div>
+                )}
 
-            {detailError && (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>{t('drawer.loadFailed')}</div>
-            )}
+                {detailError && (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>{t('drawer.loadFailed')}</div>
+                )}
 
-            {!detailLoading && !detailError && selectedMovie && movieDetail && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
-                  {selectedMovie.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedMovie.year})</span>
-                </div>
+                {!detailLoading && !detailError && selectedMovie && movieDetail && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
+                      {selectedMovie.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedMovie.year})</span>
+                    </div>
 
-                {!movieDetail.matched ? (
-                  <div style={{ backgroundColor: 'var(--bg-app)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                    {t('drawer.noMatch')}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <h3 className="drawer-section-title">{t('drawer.occurrencesSection')}</h3>
-                    {movieDetail.occurrences.length === 0 ? (
-                      <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>{t('drawer.noOccurrences')}</div>
+                    {!movieDetail.matched ? (
+                      <div style={{ backgroundColor: 'var(--bg-app)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                        {t('drawer.noMatch')}
+                      </div>
                     ) : (
-                      <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                        <table className="custom-table">
-                          <thead>
-                            <tr>
-                              <th>{t('drawer.occurrenceResolution')}</th>
-                              <th>{t('drawer.occurrenceState')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {movieDetail.occurrences.map(occ => (
-                              <tr key={occ.id}>
-                                <td>{occ.resolution || t('drawer.unknownResolution')}</td>
-                                <td><span className={`badge ${getPipelineStateBadgeClass(occ.state)}`}>{occ.state}</span></td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <h3 className="drawer-section-title">{t('drawer.occurrencesSection')}</h3>
+                        {movieDetail.occurrences.length === 0 ? (
+                          <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>{t('drawer.noOccurrences')}</div>
+                        ) : (
+                          <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                            <table className="custom-table">
+                              <thead>
+                                <tr>
+                                  <th>{t('drawer.occurrenceResolution')}</th>
+                                  <th>{t('drawer.occurrenceState')}</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {movieDetail.occurrences.map(occ => (
+                                  <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
+                                    <td>{occ.resolution || t('drawer.unknownResolution')}</td>
+                                    <td><span className={`badge ${getPipelineStateBadgeClass(occ.state)}`}>{occ.state}</span></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {!detailLoading && !detailError && selectedSeries && seriesDetail && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
-                  {selectedSeries.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedSeries.year})</span>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <h3 className="drawer-section-title">{t('drawer.episodesSection')}</h3>
-                  {seriesDetail.episodes.length === 0 ? (
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>{t('series.empty')}</div>
-                  ) : (
-                    <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                      <table className="custom-table">
-                        <thead>
-                          <tr>
-                            <th></th>
-                            <th>{t('drawer.occurrenceState')}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {seriesDetail.episodes.map(ep => (
-                            <tr key={`${ep.season}-${ep.episode}`}>
-                              <td style={{ fontWeight: 600 }}>{t('drawer.episode', { season: ep.season, episode: ep.episode })}</td>
-                              <td>
-                                <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
-                                  {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {!detailLoading && !detailError && selectedSeries && seriesDetail && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
+                      {selectedSeries.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedSeries.year})</span>
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <h3 className="drawer-section-title">{t('drawer.episodesSection')}</h3>
+                      {seriesDetail.episodes.length === 0 ? (
+                        <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>{t('series.empty')}</div>
+                      ) : (
+                        <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                          <table className="custom-table">
+                            <thead>
+                              <tr>
+                                <th></th>
+                                <th>{t('drawer.occurrenceState')}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {seriesDetail.episodes.map(ep => {
+                                const isExpanded = expandedEpisode?.season === ep.season && expandedEpisode?.episode === ep.episode;
+                                return (
+                                  <React.Fragment key={`${ep.season}-${ep.episode}`}>
+                                    <tr
+                                      className="clickable-row"
+                                      onClick={() => setExpandedEpisode(isExpanded ? null : { season: ep.season, episode: ep.episode })}
+                                    >
+                                      <td style={{ fontWeight: 600 }}>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</td>
+                                      <td>
+                                        <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
+                                          {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                    {isExpanded && (
+                                      <tr>
+                                        <td colSpan={2} style={{ padding: 0, backgroundColor: 'var(--bg-app)' }}>
+                                          {ep.occurrences.length === 0 ? (
+                                            <div style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                              {t('drawer.episodeNoOccurrences')}
+                                            </div>
+                                          ) : (
+                                            <div style={{ padding: '0.75rem 1rem' }}>
+                                              <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                                                <table className="custom-table">
+                                                  <thead>
+                                                    <tr>
+                                                      <th>{t('drawer.occurrenceResolution')}</th>
+                                                      <th>{t('drawer.occurrenceState')}</th>
+                                                    </tr>
+                                                  </thead>
+                                                  <tbody>
+                                                    {ep.occurrences.map((occ: OccurrenceResponse) => (
+                                                      <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
+                                                        <td>{occ.resolution || t('drawer.unknownResolution')}</td>
+                                                        <td><span className={`badge ${getPipelineStateBadgeClass(occ.state)}`}>{occ.state}</span></td>
+                                                      </tr>
+                                                    ))}
+                                                  </tbody>
+                                                </table>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {!isMobile && (
+        <MediaOccurrenceDrawer
+          item={detailItem}
+          onOpenChange={(open) => !open && setDetailItem(null)}
+          contentClassName="drawer-content--secondary"
+          withOverlay={false}
+          modal={false}
+        />
+      )}
     </Tabs.Content>
   );
 }

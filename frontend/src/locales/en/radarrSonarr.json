@@ -43,10 +43,12 @@
     "occurrenceState": "State",
     "unknownResolution": "Unknown",
     "episodesSection": "Monitored episodes",
-    "episode": "S{{season}}E{{episode}}",
+    "episode": "S{{season}} E{{episode}}",
     "episodeMatched": "Matched",
     "episodeUnmatched": "No match",
+    "episodeNoOccurrences": "No playlist occurrences for this episode.",
     "loading": "Loading details...",
-    "loadFailed": "Failed to load details."
+    "loadFailed": "Failed to load details.",
+    "backToOccurrences": "← Back to occurrences"
   }
 }
