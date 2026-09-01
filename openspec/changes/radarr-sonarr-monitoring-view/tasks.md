@@ -39,4 +39,4 @@
 ## 6. Verification
 
 - [x] 6.1 Run the frontend test suite/lint and the Go test suite end to end and confirm both are green.
-- [ ] 6.2 Launch the app (with Radarr/Sonarr configured against a real or test instance) and manually walk through: opening the new tab, paginating both sections, refreshing each independently, triggering an error in one section without affecting the other, and opening the sidepanel for a matched movie, an unmatched movie, and a series.
+- [x] 6.2 Launch the app (with Radarr/Sonarr configured against a real or test instance) and manually walk through: opening the new tab, paginating both sections, refreshing each independently, triggering an error in one section without affecting the other, and opening the sidepanel for a matched movie, an unmatched movie, and a series.

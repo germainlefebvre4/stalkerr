@@ -184,7 +184,7 @@ export default function App() {
   };
 
   const tabs = [
-    { value: 'playlist', icon: '🗒️', label: t('tabs.playlist') },
+    { value: 'playlist', icon: '🎬', label: t('tabs.playlist') },
     { value: 'filters', icon: '🔍', label: t('tabs.filters') },
     { value: 'logs', icon: '⚙️', label: t('tabs.logs') },
     { value: 'downloads', icon: '📥', label: t('tabs.downloads') },
@@ -212,7 +212,7 @@ export default function App() {
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="segmented-tabs-list">
-          <Tabs.Trigger value="playlist" className="segmented-tabs-trigger">🗒️ {t('tabs.playlist')}</Tabs.Trigger>
+          <Tabs.Trigger value="playlist" className="segmented-tabs-trigger">🎬 {t('tabs.playlist')}</Tabs.Trigger>
           <Tabs.Trigger value="filters" className="segmented-tabs-trigger">🔍 {t('tabs.filters')}</Tabs.Trigger>
           <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ {t('tabs.logs')}</Tabs.Trigger>
           <Tabs.Trigger value="downloads" className="segmented-tabs-trigger">📥 {t('tabs.downloads')}</Tabs.Trigger>

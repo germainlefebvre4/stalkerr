@@ -9,11 +9,11 @@
     "checking": "Vérification..."
   },
   "tabs": {
-    "playlist": "Playlist M3U",
-    "filters": "Filtres de Tri",
+    "playlist": "Playlist",
+    "filters": "Filtres",
     "logs": "Traitements",
     "downloads": "Téléchargements",
-    "radarrSonarr": "Radarr / Sonarr"
+    "radarrSonarr": "Arr-Suite"
   },
   "toasts": {
     "resetSuccess": "Flux réinitialisé avec succès ! Prêt pour le retraitement.",

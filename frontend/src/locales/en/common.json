@@ -9,11 +9,11 @@
     "checking": "Checking..."
   },
   "tabs": {
-    "playlist": "M3U Playlist",
-    "filters": "Sorting Filters",
+    "playlist": "Playlist",
+    "filters": "Filters",
     "logs": "Processing",
     "downloads": "Downloads",
-    "radarrSonarr": "Radarr / Sonarr"
+    "radarrSonarr": "Arr-Suite"
   },
   "toasts": {
     "resetSuccess": "Pipeline reset successfully! Ready for reprocessing.",
