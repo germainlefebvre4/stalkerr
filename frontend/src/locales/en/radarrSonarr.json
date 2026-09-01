@@ -60,6 +60,7 @@
     "occurrenceState": "State",
     "unknownResolution": "Unknown",
     "episodesSection": "Monitored episodes",
+    "season": "Season {{season}}",
     "episode": "S{{season}} E{{episode}}",
     "episodeMatched": "Matched",
     "episodeUnmatched": "No match",

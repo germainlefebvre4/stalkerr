@@ -2,7 +2,7 @@ import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, OccurrenceResponse, PlaylistItem, RadarrSonarrStats } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useRadarrSonarrView } from '../hooks/useRadarrSonarrView';
 import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
@@ -88,7 +88,8 @@ export function RadarrSonarrTab({
   const [seriesDetail, setSeriesDetail] = React.useState<SonarrSeriesEpisodesResponse | null>(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [detailError, setDetailError] = React.useState<string | null>(null);
-  const [expandedEpisode, setExpandedEpisode] = React.useState<{ season: number; episode: number } | null>(null);
+  const [expandedSeason, setExpandedSeason] = React.useState<number | null>(null);
+  const [expandedEpisode, setExpandedEpisode] = React.useState<number | null>(null);
   const [detailItem, setDetailItem] = React.useState<PlaylistItem | null>(null);
   const [drawerView, setDrawerView] = React.useState<'occurrences' | 'detail'>('occurrences');
 
@@ -121,6 +122,7 @@ export function RadarrSonarrTab({
   const openMovie = (item: RadarrMovieListItem) => {
     setSelectedSeries(null);
     setSelectedMovie(item);
+    setExpandedSeason(null);
     setExpandedEpisode(null);
     setDetailItem(null);
     setDrawerView('occurrences');
@@ -128,6 +130,7 @@ export function RadarrSonarrTab({
   const openSeries = (item: SonarrSeriesListItem) => {
     setSelectedMovie(null);
     setSelectedSeries(item);
+    setExpandedSeason(null);
     setExpandedEpisode(null);
     setDetailItem(null);
     setDrawerView('occurrences');
@@ -137,10 +140,28 @@ export function RadarrSonarrTab({
     setSelectedSeries(null);
     setMovieDetail(null);
     setSeriesDetail(null);
+    setExpandedSeason(null);
     setExpandedEpisode(null);
     setDetailItem(null);
     setDrawerView('occurrences');
   };
+
+  const seasonGroups = React.useMemo(() => {
+    if (!seriesDetail) return [];
+    const bySeason = new Map<number, SonarrSeriesEpisodeItem[]>();
+    for (const ep of seriesDetail.episodes) {
+      const list = bySeason.get(ep.season);
+      if (list) list.push(ep);
+      else bySeason.set(ep.season, [ep]);
+    }
+    return Array.from(bySeason.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([season, episodes]) => {
+        const sortedEpisodes = [...episodes].sort((a, b) => a.episode - b.episode);
+        const matchedCount = sortedEpisodes.filter(ep => ep.matched).length;
+        return { season, matchedCount, totalCount: sortedEpisodes.length, episodes: sortedEpisodes };
+      });
+  }, [seriesDetail]);
 
   const handleOccurrenceClick = (occurrenceId: number) => {
     api.getItem(occurrenceId)
@@ -156,13 +177,55 @@ export function RadarrSonarrTab({
     setDetailItem(null);
   };
 
+  const renderOccurrences = (occurrences: OccurrenceResponse[]) => {
+    if (isMobile) {
+      return (
+        <div>
+          {occurrences.map(occ => (
+            <div key={occ.id} className="mobile-list-card" onClick={() => handleOccurrenceClick(occ.id)}>
+              <div className="mobile-list-card-main">
+                <span className="mobile-list-card-title">{occ.resolution || t('drawer.unknownResolution')}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                <span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(occ.state))}`}>{getProcessingStatus(occ.state)}</span>
+                <span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(occ.state))}`}>{getDownloadStatus(occ.state) === 'not_downloaded' ? tPlaylist('pipelineStatus.notDownloaded') : getDownloadStatus(occ.state)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        <table className="custom-table">
+          <thead>
+            <tr>
+              <th>{t('drawer.occurrenceResolution')}</th>
+              <th>{tPlaylist('drawer.processingStatus')}</th>
+              <th>{tPlaylist('drawer.downloadStatus')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {occurrences.map(occ => (
+              <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
+                <td>{occ.resolution || t('drawer.unknownResolution')}</td>
+                <td><span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(occ.state))}`}>{getProcessingStatus(occ.state)}</span></td>
+                <td><span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(occ.state))}`}>{getDownloadStatus(occ.state) === 'not_downloaded' ? tPlaylist('pipelineStatus.notDownloaded') : getDownloadStatus(occ.state)}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const filmsEmptyMessage = filmsSearch ? t('films.noResults') : t('films.empty');
   const seriesEmptyMessage = seriesSearch ? t('series.noResults') : t('series.empty');
 
   return (
     <Tabs.Content value="radarr-sonarr" className="card tab-panel">
       <Tabs.Root value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'resume' | 'radarr' | 'sonarr')}>
-        <Tabs.List className="segmented-tabs-list">
+        <Tabs.List className="segmented-tabs-list radarr-sonarr-subtabs">
           <Tabs.Trigger value="resume" className="segmented-tabs-trigger">{t('subTabs.resume')}</Tabs.Trigger>
           <Tabs.Trigger value="radarr" className="segmented-tabs-trigger"><img src={radarrIcon} alt="" className="tab-icon" />{t('subTabs.radarr')}</Tabs.Trigger>
           <Tabs.Trigger value="sonarr" className="segmented-tabs-trigger"><img src={sonarrIcon} alt="" className="tab-icon" />{t('subTabs.sonarr')}</Tabs.Trigger>
@@ -445,28 +508,7 @@ export function RadarrSonarrTab({
                         <h3 className="drawer-section-title">{t('drawer.occurrencesSection')}</h3>
                         {movieDetail.occurrences.length === 0 ? (
                           <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>{t('drawer.noOccurrences')}</div>
-                        ) : (
-                          <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                            <table className="custom-table">
-                              <thead>
-                                <tr>
-                                  <th>{t('drawer.occurrenceResolution')}</th>
-                                  <th>{tPlaylist('drawer.processingStatus')}</th>
-                                  <th>{tPlaylist('drawer.downloadStatus')}</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {movieDetail.occurrences.map(occ => (
-                                  <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
-                                    <td>{occ.resolution || t('drawer.unknownResolution')}</td>
-                                    <td><span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(occ.state))}`}>{getProcessingStatus(occ.state)}</span></td>
-                                    <td><span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(occ.state))}`}>{getDownloadStatus(occ.state) === 'not_downloaded' ? tPlaylist('pipelineStatus.notDownloaded') : getDownloadStatus(occ.state)}</span></td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                        ) : renderOccurrences(movieDetail.occurrences)}
                       </div>
                     )}
                   </div>
@@ -480,72 +522,116 @@ export function RadarrSonarrTab({
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       <h3 className="drawer-section-title">{t('drawer.episodesSection')}</h3>
-                      {seriesDetail.episodes.length === 0 ? (
+                      {seasonGroups.length === 0 ? (
                         <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>{t('series.empty')}</div>
                       ) : (
-                        <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                          <table className="custom-table">
-                            <thead>
-                              <tr>
-                                <th></th>
-                                <th>{t('drawer.occurrenceState')}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {seriesDetail.episodes.map(ep => {
-                                const isExpanded = expandedEpisode?.season === ep.season && expandedEpisode?.episode === ep.episode;
-                                return (
-                                  <React.Fragment key={`${ep.season}-${ep.episode}`}>
-                                    <tr
-                                      className="clickable-row"
-                                      onClick={() => setExpandedEpisode(isExpanded ? null : { season: ep.season, episode: ep.episode })}
-                                    >
-                                      <td style={{ fontWeight: 600 }}>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</td>
-                                      <td>
-                                        <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
-                                          {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                    {isExpanded && (
-                                      <tr>
-                                        <td colSpan={2} style={{ padding: 0, backgroundColor: 'var(--bg-app)' }}>
-                                          {ep.occurrences.length === 0 ? (
-                                            <div style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                                              {t('drawer.episodeNoOccurrences')}
-                                            </div>
-                                          ) : (
-                                            <div style={{ padding: '0.75rem 1rem' }}>
-                                              <div className="table-flush" style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                                                <table className="custom-table">
-                                                  <thead>
-                                                    <tr>
-                                                      <th>{t('drawer.occurrenceResolution')}</th>
-                                                      <th>{tPlaylist('drawer.processingStatus')}</th>
-                                                      <th>{tPlaylist('drawer.downloadStatus')}</th>
-                                                    </tr>
-                                                  </thead>
-                                                  <tbody>
-                                                    {ep.occurrences.map((occ: OccurrenceResponse) => (
-                                                      <tr key={occ.id} className="clickable-row" onClick={() => handleOccurrenceClick(occ.id)}>
-                                                        <td>{occ.resolution || t('drawer.unknownResolution')}</td>
-                                                        <td><span className={`badge ${getProcessingStatusBadgeClass(getProcessingStatus(occ.state))}`}>{getProcessingStatus(occ.state)}</span></td>
-                                                        <td><span className={`badge ${getDownloadStatusBadgeClass(getDownloadStatus(occ.state))}`}>{getDownloadStatus(occ.state) === 'not_downloaded' ? tPlaylist('pipelineStatus.notDownloaded') : getDownloadStatus(occ.state)}</span></td>
-                                                      </tr>
-                                                    ))}
-                                                  </tbody>
-                                                </table>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {seasonGroups.map(group => {
+                            const isSeasonExpanded = expandedSeason === group.season;
+                            return (
+                              <div key={group.season} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                                <div
+                                  className={`clickable-row${isSeasonExpanded ? ' clickable-row--active' : ''}`}
+                                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1.25rem' }}
+                                  onClick={() => {
+                                    setExpandedSeason(isSeasonExpanded ? null : group.season);
+                                    setExpandedEpisode(null);
+                                  }}
+                                >
+                                  <span style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>
+                                    <span style={{ marginRight: '0.5rem', display: 'inline-block', transform: isSeasonExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>
+                                    <span>{t('drawer.season', { season: group.season })}</span>
+                                  </span>
+                                  <span className={`badge ${seriesBadgeClass(group.matchedCount, group.totalCount)}`}>
+                                    {t('series.ratio', { matched: group.matchedCount, monitored: group.totalCount })}
+                                  </span>
+                                </div>
+                                {isSeasonExpanded && (
+                                  isMobile ? (
+                                    <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-app)', borderTop: '1px solid var(--border-color)' }}>
+                                      {group.episodes.map(ep => {
+                                        const isEpExpanded = expandedEpisode === ep.episode;
+                                        return (
+                                          <React.Fragment key={ep.episode}>
+                                            <div
+                                              className={`mobile-list-card${isEpExpanded ? ' clickable-row--active' : ''}`}
+                                              onClick={() => setExpandedEpisode(isEpExpanded ? null : ep.episode)}
+                                            >
+                                              <div className="mobile-list-card-main">
+                                                <span className="mobile-list-card-title">
+                                                  <span style={{ marginRight: '0.4rem', display: 'inline-block', transform: isEpExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>
+                                                  <span>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</span>
+                                                </span>
                                               </div>
+                                              <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
+                                                {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
+                                              </span>
                                             </div>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                                            {isEpExpanded && (
+                                              <div style={{ marginBottom: '0.75rem', padding: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                                                {ep.occurrences.length === 0 ? (
+                                                  <div style={{ padding: '0.5rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                                    {t('drawer.episodeNoOccurrences')}
+                                                  </div>
+                                                ) : renderOccurrences(ep.occurrences)}
+                                              </div>
+                                            )}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <table className="custom-table" style={{ borderTop: '1px solid var(--border-color)' }}>
+                                      <thead>
+                                        <tr>
+                                          <th></th>
+                                          <th>{t('drawer.occurrenceState')}</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {group.episodes.map(ep => {
+                                          const isEpExpanded = expandedEpisode === ep.episode;
+                                          return (
+                                            <React.Fragment key={ep.episode}>
+                                              <tr
+                                                className={`clickable-row${isEpExpanded ? ' clickable-row--active' : ''}`}
+                                                onClick={() => setExpandedEpisode(isEpExpanded ? null : ep.episode)}
+                                              >
+                                                <td style={{ fontWeight: 600 }}>
+                                                  <span style={{ marginRight: '0.5rem', display: 'inline-block', transform: isEpExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>
+                                                  <span>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</span>
+                                                </td>
+                                                <td>
+                                                  <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
+                                                    {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
+                                                  </span>
+                                                </td>
+                                              </tr>
+                                              {isEpExpanded && (
+                                                <tr>
+                                                  <td colSpan={2} style={{ padding: 0 }}>
+                                                    {ep.occurrences.length === 0 ? (
+                                                      <div style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem', backgroundColor: 'var(--bg-app)' }}>
+                                                        {t('drawer.episodeNoOccurrences')}
+                                                      </div>
+                                                    ) : (
+                                                      <div style={{ padding: '1rem 1.25rem', backgroundColor: 'var(--bg-app)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
+                                                        {renderOccurrences(ep.occurrences)}
+                                                      </div>
+                                                    )}
+                                                  </td>
+                                                </tr>
+                                              )}
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  )
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

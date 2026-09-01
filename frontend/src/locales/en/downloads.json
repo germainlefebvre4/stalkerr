@@ -59,7 +59,7 @@
   "expandDetails": "Show details",
   "collapseDetails": "Hide details",
   "drawer": {
-    "title": "📥 Download Details",
+    "title": "Download Details",
     "close": "Close ✕",
     "description": "Full status, file, technical, and validation details for this download.",
     "statusSection": "Status & Progress",

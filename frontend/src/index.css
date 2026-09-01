@@ -546,7 +546,7 @@ input, select {
   right: 0;
   bottom: 0;
   width: 100%;
-  max-width: 550px;
+  max-width: 750px;
   padding: 2rem;
   z-index: 101;
   border-left: 1px solid var(--border-color);
@@ -572,10 +572,10 @@ input, select {
   box-shadow: -4px 0 24px rgba(15, 23, 42, 0.15);
   position: fixed;
   top: 0;
-  right: 550px;
+  right: 750px;
   bottom: 0;
   width: 100%;
-  max-width: 550px;
+  max-width: 750px;
   padding: 2rem;
   z-index: 101;
   border-left: 1px solid var(--border-color);
@@ -645,6 +645,16 @@ input, select {
 
 .clickable-row:hover td {
   background-color: rgba(99, 102, 241, 0.04) !important;
+}
+
+/* Active/expanded state for an accordion row (season header, episode row) */
+.clickable-row.clickable-row--active,
+.mobile-list-card.clickable-row--active {
+  background-color: rgba(99, 102, 241, 0.08);
+}
+
+.clickable-row.clickable-row--active td {
+  background-color: rgba(99, 102, 241, 0.08);
 }
 
 /* Page container */
@@ -891,6 +901,16 @@ input, select {
 @media (max-width: 767.98px) {
   .segmented-tabs-list {
     display: none;
+  }
+
+  .segmented-tabs-list.radarr-sonarr-subtabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .radarr-sonarr-subtabs .segmented-tabs-trigger {
+    flex-shrink: 0;
   }
 
   .mobile-tab-bar {

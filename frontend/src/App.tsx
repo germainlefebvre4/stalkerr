@@ -16,7 +16,6 @@ import { useIsMobile } from './hooks/useMediaQuery';
 import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
 import { resolveRenameFolderName } from './utils/renameDialog';
-import { tunarrIcon } from './assets/icons/tunarr.svg';
 
 const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr'];
 

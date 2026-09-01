@@ -87,13 +87,13 @@ describe('DownloadsTab sidepanel', () => {
     const download = { ...baseDownload, content: { type: 'movies' as const, title: 'Test Movie' } };
     renderDownloadsTab([download]);
 
-    expect(screen.queryByText('📥 Download Details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Download Details')).not.toBeInTheDocument();
 
     openDrawer(download);
-    expect(screen.getByText('📥 Download Details')).toBeInTheDocument();
+    expect(screen.getByText('Download Details')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Close ✕'));
-    expect(screen.queryByText('📥 Download Details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Download Details')).not.toBeInTheDocument();
   });
 
   it('does not show Move/Rename actions for a non-completed download', () => {
@@ -125,7 +125,7 @@ describe('DownloadsTab sidepanel', () => {
     const { rerender } = renderDownloadsTab([download]);
     openDrawer(download);
 
-    expect(screen.getByText('📥 Download Details')).toBeInTheDocument();
+    expect(screen.getByText('Download Details')).toBeInTheDocument();
 
     rerender(
       <I18nextProvider i18n={i18n}>
@@ -152,7 +152,7 @@ describe('DownloadsTab sidepanel', () => {
       </I18nextProvider>
     );
 
-    expect(screen.queryByText('📥 Download Details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Download Details')).not.toBeInTheDocument();
   });
 });
 

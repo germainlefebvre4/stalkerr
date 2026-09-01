@@ -1,14 +1,37 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act, waitFor } from '@testing-library/react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { RadarrSonarrTab } from './RadarrSonarrTab';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats, SonarrSeriesEpisodesResponse } from '../types';
+import { api } from '../services/api';
+import { useIsMobile } from '../hooks/useMediaQuery';
+
+vi.mock('../services/api', () => ({
+  api: {
+    getRadarrMovieMatches: vi.fn(),
+    getSonarrSeriesEpisodes: vi.fn(),
+    getItem: vi.fn(),
+  },
+  ApiError: class ApiError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.code = code;
+    }
+  },
+}));
+
+vi.mock('../hooks/useMediaQuery', () => ({
+  useIsMobile: vi.fn(() => false),
+}));
 
 afterEach(() => {
   cleanup();
   window.history.replaceState(null, '', '/');
+  vi.mocked(useIsMobile).mockReturnValue(false);
+  vi.clearAllMocks();
 });
 
 interface Overrides {
@@ -150,5 +173,105 @@ describe('RadarrSonarrTab search', () => {
     fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
 
     expect(screen.getByText('No monitored movies found')).toBeInTheDocument();
+  });
+});
+
+const seriesEpisodesFixture: SonarrSeriesEpisodesResponse = {
+  episodes: [
+    { season: 1, episode: 1, matched: true, occurrences: [] },
+    { season: 1, episode: 2, matched: false, occurrences: [] },
+    { season: 2, episode: 1, matched: true, occurrences: [{ id: 101, resolution: '1080p', state: 'downloaded' }] },
+    { season: 2, episode: 2, matched: true, occurrences: [] },
+  ],
+};
+
+const seriesFixture: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 3, monitored_count: 4 };
+
+function openExampleSeries(overrides: Overrides = {}) {
+  renderTab({ seriesItems: [seriesFixture], ...overrides });
+  fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+  fireEvent.click(screen.getByText('Example Series'));
+}
+
+describe('RadarrSonarrTab series season grouping', () => {
+  it('groups episodes by season with correct per-season matched/total counts', async () => {
+    vi.mocked(api.getSonarrSeriesEpisodes).mockResolvedValue(seriesEpisodesFixture);
+    openExampleSeries();
+
+    await waitFor(() => expect(screen.getByText('Season 1')).toBeInTheDocument());
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByText('Season 2')).toBeInTheDocument();
+    expect(screen.getByText('2/2')).toBeInTheDocument();
+  });
+
+  it('allows only one season to be expanded at a time', async () => {
+    vi.mocked(api.getSonarrSeriesEpisodes).mockResolvedValue(seriesEpisodesFixture);
+    openExampleSeries();
+    await waitFor(() => expect(screen.getByText('Season 1')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Season 1'));
+    expect(screen.getByText('S01 E01')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Season 2'));
+    expect(screen.queryByText('S01 E01')).not.toBeInTheDocument();
+    expect(screen.getByText('S02 E01')).toBeInTheDocument();
+  });
+
+  it('allows only one episode to be expanded at a time within a season, with a visible active state', async () => {
+    vi.mocked(api.getSonarrSeriesEpisodes).mockResolvedValue(seriesEpisodesFixture);
+    openExampleSeries();
+    await waitFor(() => expect(screen.getByText('Season 2')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Season 2'));
+    await waitFor(() => expect(screen.getByText('S02 E01')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('S02 E01'));
+    expect(screen.getByText('S02 E01').closest('tr')).toHaveClass('clickable-row--active');
+
+    fireEvent.click(screen.getByText('S02 E02'));
+    expect(screen.getByText('S02 E01').closest('tr')).not.toHaveClass('clickable-row--active');
+    expect(screen.getByText('S02 E02').closest('tr')).toHaveClass('clickable-row--active');
+  });
+});
+
+describe('RadarrSonarrTab mobile sub-tab switcher', () => {
+  it('renders with its own class and remains operable when isMobile is true', () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    renderTab({ seriesItems: [seriesFixture] });
+
+    const tabsList = screen.getByText('Radarr').closest('.segmented-tabs-list');
+    expect(tabsList).toHaveClass('radarr-sonarr-subtabs');
+
+    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    expect(screen.getByText('Example Series')).toBeInTheDocument();
+  });
+});
+
+describe('RadarrSonarrTab mobile sidepanel lists', () => {
+  it('renders movie occurrences as mobile list cards instead of a table', async () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    vi.mocked(api.getRadarrMovieMatches).mockResolvedValue({
+      matched: true,
+      occurrences: [{ id: 201, resolution: '1080p', state: 'downloaded' }],
+    });
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true };
+    renderTab({ filmsItems: [movie] });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.click(screen.getByText('Example Movie'));
+
+    await waitFor(() => expect(screen.getByText('1080p')).toBeInTheDocument());
+    expect(screen.getByText('1080p').closest('table')).toBeNull();
+    expect(screen.getByText('1080p').closest('.mobile-list-card')).not.toBeNull();
+  });
+
+  it('renders the season/episode list as mobile list cards instead of a table', async () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    vi.mocked(api.getSonarrSeriesEpisodes).mockResolvedValue(seriesEpisodesFixture);
+    openExampleSeries();
+    await waitFor(() => expect(screen.getByText('Season 1')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Season 1'));
+    expect(screen.getByText('S01 E01')).toBeInTheDocument();
+    expect(screen.getByText('S01 E01').closest('table')).toBeNull();
+    expect(screen.getByText('S01 E01').closest('.mobile-list-card')).not.toBeNull();
   });
 });
