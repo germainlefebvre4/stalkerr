@@ -165,9 +165,10 @@ export const api = {
     limit: number = 20,
     status?: string,
     type?: string,
-    problem?: string
+    problem?: string,
+    offset: number = 0
   ): Promise<PaginatedResponse<DownloadEnriched>> {
-    let url = `/api/v1/downloads?limit=${limit}`;
+    let url = `/api/v1/downloads?limit=${limit}&offset=${offset}`;
     if (status) url += `&status=${status}`;
     if (type) url += `&type=${type}`;
     if (problem) url += `&problem=${problem}`;

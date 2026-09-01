@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Progress from '@radix-ui/react-progress';
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { DownloadEnriched } from '../types';
 import { formatDate } from '../utils/date';
 import { DownloadsSummaryList } from './DownloadsSummaryList';
+import { Pagination } from './Pagination';
 
 interface DownloadsTabProps {
   downloads: DownloadEnriched[];
@@ -16,6 +17,11 @@ interface DownloadsTabProps {
   setTypeFilter: (type: string) => void;
   problemFilter: string;
   setProblemFilter: (problem: string) => void;
+  downloadsTotal: number;
+  downloadsPage: number;
+  setDownloadsPage: React.Dispatch<React.SetStateAction<number>>;
+  downloadsLimit: number;
+  setDownloadsLimit: (limit: number) => void;
   onFetchDownloads: () => void;
   onOpenMoveDialog: (item: DownloadEnriched) => void;
   onOpenRenameDialog: (item: DownloadEnriched) => void;
@@ -35,6 +41,11 @@ export function DownloadsTab({
   setTypeFilter,
   problemFilter,
   setProblemFilter,
+  downloadsTotal,
+  downloadsPage,
+  setDownloadsPage,
+  downloadsLimit,
+  setDownloadsLimit,
   onFetchDownloads,
   onOpenMoveDialog,
   onOpenRenameDialog
@@ -171,6 +182,15 @@ export function DownloadsTab({
         downloads={downloads}
         loading={downloadsLoading}
         onRowClick={item => setSelectedId(item.id)}
+      />
+
+      <Pagination
+        total={downloadsTotal}
+        page={downloadsPage}
+        setPage={setDownloadsPage}
+        limit={downloadsLimit}
+        setLimit={setDownloadsLimit}
+        limitOptions={[20, 50, 100]}
       />
 
       {/* Sidepanel de Détails Interactif (Drawer) */}

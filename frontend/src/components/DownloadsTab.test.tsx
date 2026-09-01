@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { I18nextProvider } from 'react-i18next';
@@ -8,7 +8,15 @@ import { DownloadEnriched } from '../types';
 
 afterEach(cleanup);
 
-function renderDownloadsTab(downloads: DownloadEnriched[]) {
+interface PaginationOverrides {
+  downloadsTotal?: number;
+  downloadsPage?: number;
+  setDownloadsPage?: (page: number | ((prev: number) => number)) => void;
+  downloadsLimit?: number;
+  setDownloadsLimit?: (limit: number) => void;
+}
+
+function renderDownloadsTab(downloads: DownloadEnriched[], overrides: PaginationOverrides = {}) {
   return render(
     <I18nextProvider i18n={i18n}>
       <Tabs.Root value="downloads">
@@ -21,6 +29,11 @@ function renderDownloadsTab(downloads: DownloadEnriched[]) {
           setTypeFilter={() => {}}
           problemFilter=""
           setProblemFilter={() => {}}
+          downloadsTotal={overrides.downloadsTotal ?? downloads.length}
+          downloadsPage={overrides.downloadsPage ?? 1}
+          setDownloadsPage={overrides.setDownloadsPage ?? (() => {})}
+          downloadsLimit={overrides.downloadsLimit ?? 20}
+          setDownloadsLimit={overrides.setDownloadsLimit ?? (() => {})}
           onFetchDownloads={() => {}}
           onOpenMoveDialog={() => {}}
           onOpenRenameDialog={() => {}}
@@ -126,6 +139,11 @@ describe('DownloadsTab sidepanel', () => {
             setTypeFilter={() => {}}
             problemFilter=""
             setProblemFilter={() => {}}
+            downloadsTotal={0}
+            downloadsPage={1}
+            setDownloadsPage={() => {}}
+            downloadsLimit={20}
+            setDownloadsLimit={() => {}}
             onFetchDownloads={() => {}}
             onOpenMoveDialog={() => {}}
             onOpenRenameDialog={() => {}}
@@ -135,5 +153,38 @@ describe('DownloadsTab sidepanel', () => {
     );
 
     expect(screen.queryByText('📥 Download Details')).not.toBeInTheDocument();
+  });
+});
+
+describe('DownloadsTab pagination', () => {
+  it('renders pagination controls below the list when there are downloads', () => {
+    renderDownloadsTab([], { downloadsTotal: 45, downloadsPage: 1, downloadsLimit: 20 });
+
+    expect(screen.getByTitle('Next page')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('20')).toBeInTheDocument();
+  });
+
+  it('does not render pagination controls when there are no downloads', () => {
+    renderDownloadsTab([], { downloadsTotal: 0 });
+
+    expect(screen.queryByTitle('Next page')).not.toBeInTheDocument();
+  });
+
+  it('navigating to another page calls setDownloadsPage with the target page', () => {
+    const setDownloadsPage = vi.fn();
+    renderDownloadsTab([], { downloadsTotal: 45, downloadsPage: 1, downloadsLimit: 20, setDownloadsPage });
+
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+
+    expect(setDownloadsPage).toHaveBeenCalledWith(2);
+  });
+
+  it('changing the items-per-page value calls setDownloadsLimit with the new limit', () => {
+    const setDownloadsLimit = vi.fn();
+    renderDownloadsTab([], { downloadsTotal: 45, downloadsPage: 1, downloadsLimit: 20, setDownloadsLimit });
+
+    fireEvent.change(screen.getByDisplayValue('20'), { target: { value: '50' } });
+
+    expect(setDownloadsLimit).toHaveBeenCalledWith(50);
   });
 });

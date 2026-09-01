@@ -124,32 +124,68 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 	}
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count downloads",
-		})
-		return
-	}
+	var enriched []DownloadEnrichedResponse
 
-	var downloads []models.DownloadInfo
-	if err := query.Preload("ProcessedLines.Movie").
-		Preload("ProcessedLines.TVShow").
-		Order("download_info.updated_at desc").
-		Limit(limit).Offset(offset).
-		Find(&downloads).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch downloads",
-		})
-		return
-	}
+	if problem != "" {
+		// The problem predicate is evaluated on parsed file metadata (fileparser),
+		// not a DB column, so it can't be pushed into the SQL WHERE clause: fetch
+		// the full status/type-matched set, filter in Go, then paginate the
+		// filtered slice so total/total_pages reflect the actual filtered count.
+		var downloads []models.DownloadInfo
+		if err := query.Preload("ProcessedLines.Movie").
+			Preload("ProcessedLines.TVShow").
+			Order("download_info.updated_at desc").
+			Find(&downloads).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: "failed to fetch downloads",
+			})
+			return
+		}
 
-	enriched := make([]DownloadEnrichedResponse, 0, len(downloads))
-	for _, dl := range downloads {
-		resp := enrichDownloadInfo(dl)
-		if matchesProblem(resp, problem) {
-			enriched = append(enriched, resp)
+		filtered := make([]DownloadEnrichedResponse, 0, len(downloads))
+		for _, dl := range downloads {
+			resp := enrichDownloadInfo(dl)
+			if matchesProblem(resp, problem) {
+				filtered = append(filtered, resp)
+			}
+		}
+
+		total = int64(len(filtered))
+		start := offset
+		if start > len(filtered) {
+			start = len(filtered)
+		}
+		end := start + limit
+		if end > len(filtered) {
+			end = len(filtered)
+		}
+		enriched = filtered[start:end]
+	} else {
+		if err := query.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: "failed to count downloads",
+			})
+			return
+		}
+
+		var downloads []models.DownloadInfo
+		if err := query.Preload("ProcessedLines.Movie").
+			Preload("ProcessedLines.TVShow").
+			Order("download_info.updated_at desc").
+			Limit(limit).Offset(offset).
+			Find(&downloads).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: "failed to fetch downloads",
+			})
+			return
+		}
+
+		enriched = make([]DownloadEnrichedResponse, 0, len(downloads))
+		for _, dl := range downloads {
+			enriched = append(enriched, enrichDownloadInfo(dl))
 		}
 	}
 

@@ -347,6 +347,97 @@ func TestListDownloadsEnriched(t *testing.T) {
 	if respType.Total != 2 {
 		t.Errorf("Expected 2 movies, got %d", respType.Total)
 	}
+
+	// 4. Seed enough additional missing-year downloads so the problem-filtered
+	// set spans more than one page, then verify total/total_pages/data are
+	// computed from the filtered set rather than the pre-filter count.
+	for i := 0; i < 25; i++ {
+		path := fmt.Sprintf("flatpath%d.mkv", i)
+		dl := models.DownloadInfo{
+			URL:          fmt.Sprintf("http://example.com/extra%d", i),
+			Status:       "completed",
+			DownloadPath: &path,
+			CreatedAt:    time.Now().Add(time.Duration(3+i) * time.Second),
+			UpdatedAt:    time.Now().Add(time.Duration(3+i) * time.Second),
+		}
+		db.Create(&dl)
+
+		pl := models.ProcessedLine{
+			LineContent:    fmt.Sprintf("extra content %d", i),
+			LineHash:       fmt.Sprintf("hash-extra-%d", i),
+			TvgName:        fmt.Sprintf("Extra %d", i),
+			ContentType:    "movies",
+			DownloadInfoID: &dl.ID,
+			State:          "downloaded",
+			ProcessedAt:    time.Now(),
+		}
+		db.Create(&pl)
+	}
+
+	// Total status/type-matched downloads is now 28 (3 original + 25 extra),
+	// but only 27 match problem=missing_year (dl2 and dl3 from the original
+	// seed, plus all 25 extras) — verify the reported total is the filtered
+	// count (27), not the pre-filter count (28).
+	reqMissingYearPage1, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year&limit=20&offset=0", nil)
+	wMissingYearPage1 := httptest.NewRecorder()
+	server.router.ServeHTTP(wMissingYearPage1, reqMissingYearPage1)
+
+	var respMissingYearPage1 struct {
+		Data       []DownloadEnrichedResponse `json:"data"`
+		Total      int64                      `json:"total"`
+		TotalPages int                        `json:"total_pages"`
+	}
+	if err := json.Unmarshal(wMissingYearPage1.Body.Bytes(), &respMissingYearPage1); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if respMissingYearPage1.Total != 27 {
+		t.Errorf("Expected filtered total 27, got %d", respMissingYearPage1.Total)
+	}
+	if respMissingYearPage1.TotalPages != 2 {
+		t.Errorf("Expected total_pages 2, got %d", respMissingYearPage1.TotalPages)
+	}
+	if len(respMissingYearPage1.Data) != 20 {
+		t.Errorf("Expected 20 items on page 1, got %d", len(respMissingYearPage1.Data))
+	}
+
+	// 5. A page beyond the first should return the remaining filtered items
+	// (7), staying consistent with the total reported for offset=0.
+	reqMissingYearPage2, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year&limit=20&offset=20", nil)
+	wMissingYearPage2 := httptest.NewRecorder()
+	server.router.ServeHTTP(wMissingYearPage2, reqMissingYearPage2)
+
+	var respMissingYearPage2 struct {
+		Data       []DownloadEnrichedResponse `json:"data"`
+		Total      int64                      `json:"total"`
+		TotalPages int                        `json:"total_pages"`
+	}
+	if err := json.Unmarshal(wMissingYearPage2.Body.Bytes(), &respMissingYearPage2); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if respMissingYearPage2.Total != 27 {
+		t.Errorf("Expected filtered total 27 on page 2, got %d", respMissingYearPage2.Total)
+	}
+	if len(respMissingYearPage2.Data) != 7 {
+		t.Errorf("Expected 7 remaining items on page 2, got %d", len(respMissingYearPage2.Data))
+	}
+
+	// The two pages should not overlap and together should cover the full
+	// filtered set.
+	seen := make(map[uint]bool)
+	for _, item := range respMissingYearPage1.Data {
+		seen[item.ID] = true
+	}
+	for _, item := range respMissingYearPage2.Data {
+		if seen[item.ID] {
+			t.Errorf("Item %d appeared on both page 1 and page 2", item.ID)
+		}
+		seen[item.ID] = true
+	}
+	if len(seen) != 27 {
+		t.Errorf("Expected 27 unique items across both pages, got %d", len(seen))
+	}
 }
 
 func TestEnrichDownloadInfo_RenameFolderName_Movie(t *testing.T) {
