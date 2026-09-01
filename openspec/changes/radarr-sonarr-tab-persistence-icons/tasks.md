@@ -1,6 +1,6 @@
 ## 1. Sub-tab persistence
 
-- [x] 1.1 Create `frontend/src/hooks/useRadarrSonarrView.ts`, modeled on `usePlaylistView.ts`: its own `useURLState` schema with a `subtab` field (`'resume' | 'radarr' | 'sonarr'`, default `'radarr'`, validated against those three values), exposing `activeSubTab` and `setActiveSubTab`. Verify it compiles and existing hooks/tests are unaffected.
+- [x] 1.1 Create `frontend/src/hooks/useRadarrSonarrView.ts`, modeled on `usePlaylistView.ts`: its own `useURLState` schema with a `subtab` field (`'resume' | 'radarr' | 'sonarr'`, default `'resume'`, validated against those three values), exposing `activeSubTab` and `setActiveSubTab`. Verify it compiles and existing hooks/tests are unaffected.
 - [x] 1.2 In `frontend/src/components/RadarrSonarrTab.tsx`, replace the local `React.useState<'resume' | 'radarr' | 'sonarr'>('radarr')` (line 65) with `useRadarrSonarrView()`, wiring `activeSubTab`/`setActiveSubTab` into the existing `Tabs.Root value`/`onValueChange` props. Verify `npm run build` (or `tsc --noEmit`) passes in `frontend/`.
 - [x] 1.3 Verify manually (or via test) that selecting the Radarr or Sonarr sub-tab, then reloading the page, keeps that same sub-tab selected, matching the Items/Grouped behavior on the Playlist tab.
 

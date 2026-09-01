@@ -59,11 +59,13 @@ function renderTab(overrides: Overrides = {}) {
 }
 
 describe('RadarrSonarrTab sub-tabs', () => {
-  it('defaults to the Radarr sub-tab and hides Résumé/Sonarr content', () => {
-    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true };
-    renderTab({ filmsItems: [movie] });
+  it('defaults to the Summary sub-tab and shows the monitoring summary', () => {
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 };
+    renderTab({ stats });
 
-    expect(screen.getByText('Example Movie')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 
   it('switching to the Sonarr sub-tab shows Séries content and hides Films', () => {
@@ -77,15 +79,13 @@ describe('RadarrSonarrTab sub-tabs', () => {
     expect(screen.queryByText('Example Movie')).not.toBeInTheDocument();
   });
 
-  it('switching to the Summary sub-tab shows the monitoring summary', () => {
-    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 };
-    renderTab({ stats });
+  it('switching to the Radarr sub-tab shows Films content', () => {
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true };
+    renderTab({ filmsItems: [movie] });
 
-    fireEvent.mouseDown(screen.getByText('Summary'), { button: 0 });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
 
-    expect(screen.getByText('10')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('Example Movie')).toBeInTheDocument();
   });
 });
 
@@ -122,6 +122,7 @@ describe('RadarrSonarrTab search', () => {
     vi.useFakeTimers();
     const setFilmsSearch = vi.fn();
     renderTab({ setFilmsSearch });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
 
     const input = screen.getByPlaceholderText('Search movies by title...');
     fireEvent.change(input, { target: { value: 'matrix' } });
@@ -138,6 +139,7 @@ describe('RadarrSonarrTab search', () => {
 
   it('shows a search-specific empty state distinct from the no-items empty state', () => {
     renderTab({ filmsSearch: 'nomatch', filmsItems: [] });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
 
     expect(screen.getByText('No movies match this search')).toBeInTheDocument();
     expect(screen.queryByText('No monitored movies found')).not.toBeInTheDocument();
@@ -145,6 +147,7 @@ describe('RadarrSonarrTab search', () => {
 
   it('shows the default empty state when there is no search term', () => {
     renderTab({ filmsItems: [] });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
 
     expect(screen.getByText('No monitored movies found')).toBeInTheDocument();
   });

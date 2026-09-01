@@ -5,7 +5,7 @@ const VALID_SUBTABS = ['resume', 'radarr', 'sonarr'];
 
 const RADARR_SONARR_VIEW_URL_SCHEMA = {
   subtab: {
-    default: 'radarr' as 'resume' | 'radarr' | 'sonarr',
+    default: 'resume' as 'resume' | 'radarr' | 'sonarr',
     parse: (raw: string) => raw as 'resume' | 'radarr' | 'sonarr',
     serialize: (v: 'resume' | 'radarr' | 'sonarr') => v,
     isValid: (v: 'resume' | 'radarr' | 'sonarr') => VALID_SUBTABS.includes(v),
