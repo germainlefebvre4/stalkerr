@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
@@ -7,6 +7,7 @@ import { formatDate } from '../utils/date';
 import { PlaylistItemsTable } from './PlaylistItemsTable';
 import { Pagination } from './Pagination';
 import { getLogStatusBadgeClass } from '../utils/logState';
+import { MediaOccurrenceDrawer } from './MediaOccurrenceDrawer';
 
 const RUN_ITEMS_LIMIT = 10;
 
@@ -30,11 +31,34 @@ export function RunItemsDialog({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
+  const [selectedItem, setSelectedItem] = useState<PlaylistItem | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     void Promise.resolve().then(() => setPage(1));
   }, [isOpen, log?.id]);
+
+  // Radix mounts MediaOccurrenceDrawer's Dialog.Content in its own portal, outside this
+  // dialog's Content subtree, so dismissing the drawer (its close button, outside click,
+  // or Escape) looks like an "outside interaction" to this dialog's own dismissable layer
+  // and would otherwise close it too. Suppress that for the interaction that just closed
+  // the drawer, then let the ref self-expire so it can't linger and swallow a later,
+  // unrelated close of this dialog.
+  const justClosedDrawerRef = useRef(false);
+
+  useEffect(() => {
+    if (selectedItem !== null) return;
+    const id = setTimeout(() => { justClosedDrawerRef.current = false; }, 0);
+    return () => clearTimeout(id);
+  }, [selectedItem]);
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open && (selectedItem || justClosedDrawerRef.current)) {
+      justClosedDrawerRef.current = false;
+      return;
+    }
+    onOpenChange(open);
+  }, [onOpenChange, selectedItem]);
 
   const refetch = useCallback(() => {
     if (!log) return;
@@ -55,10 +79,13 @@ export function RunItemsDialog({
   }, [isOpen, log?.id, page]);
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="dialog-content" style={{ maxWidth: '90%', display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflowY: 'auto' }}>
+        <Dialog.Content
+          className="dialog-content"
+          style={{ maxWidth: '90%', display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflowY: 'auto' }}
+        >
           <Dialog.Title style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-slate)', marginBottom: '0.5rem' }}>
             {t('runItemsDialog.title')}
           </Dialog.Title>
@@ -81,6 +108,7 @@ export function RunItemsDialog({
             items={items}
             loading={loading}
             showDateGroups={false}
+            onRowClick={setSelectedItem}
             onOpenOverride={(item) => onOpenOverride(item, refetch)}
             onResetPipeline={(id, contentType) => onResetPipeline(id, contentType, refetch)}
           />
@@ -93,6 +121,13 @@ export function RunItemsDialog({
           </div>
         </Dialog.Content>
       </Dialog.Portal>
+
+      <MediaOccurrenceDrawer
+        item={selectedItem}
+        onOpenChange={(open) => { if (!open) { justClosedDrawerRef.current = true; setSelectedItem(null); } }}
+        withOverlay={false}
+        modal={false}
+      />
     </Dialog.Root>
   );
 }

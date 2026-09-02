@@ -91,7 +91,7 @@
     "page": "Page {{current}} / {{total}}"
   },
   "drawer": {
-    "title": "📋 Track Details",
+    "title": "Track Details",
     "close": "Close ✕",
     "description": "Technical details and enrichment metadata of the playlist track.",
     "tmdbSection": "🎬 Metadata Enrichment (TMDB)",
