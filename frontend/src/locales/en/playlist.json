@@ -127,8 +127,11 @@
     "copiedBang": "✓ Copied!",
     "copyIcon": "📋 Copy",
     "rawUrlSection": "🔗 Raw stream URL",
+    "associate": {
+      "action": "Associate 🔍",
+      "title": "Correct or manually force the TMDB association"
+    },
     "forceDownload": {
-      "sectionTitle": "⬇️ Forced Download",
       "action": "Force download",
       "loading": "Sending…",
       "unavailableNotMatched": "Unavailable: this item isn't associated with a movie or TV show.",

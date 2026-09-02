@@ -76,7 +76,7 @@ The backend API MUST expose an endpoint `POST /api/v1/items/:id/override` to man
 
 ### Requirement: Frontend Interactive Manual Override Modal Dialog
 The React frontend dashboard MUST provide an interactive, accessible modal dialog to trigger manual overrides for items in the playlist.
-1. The modal MUST be opened by clicking an edit/search button next to any item in the playlist table.
+1. The modal MUST be opened by clicking an edit/search button next to any item in the playlist table, or by clicking the "Associate" action in the Track Details sidepanel (whether that sidepanel was opened from the Playlist tab or from the Radarr/Sonarr tab).
 2. The modal MUST display the item's original title and group category.
 3. If the item already has an associated `movie` or `tvshow` when the modal opens, the modal MUST display a persistent "current match" panel showing the current TMDB title and year, and - for a `tvshow` association - the current season and episode, plus who and when it was last overridden (`override_by`/`override_at`) when those are set. This panel MUST remain visible regardless of search input changes or TMDB result selection, and MUST NOT require a new TMDB result to be selected. It applies identically whether the current association came from automatic pipeline matching, a prior single-item override, or a prior bulk-associate batch.
 4. The modal MUST provide strict selection between **Film (movie)** and **Série TV (tvshow)** modes.
@@ -148,4 +148,8 @@ The React frontend dashboard MUST provide an interactive, accessible modal dialo
 #### Scenario: Bulk candidate row shows its existing match when already associated
 - **WHEN** the candidate list includes an entry that is already associated with a `tvshow` (e.g. from an earlier correction)
 - **THEN** that candidate's row SHALL display its current season/episode from that existing association rather than a freshly detected value
+
+#### Scenario: Opening the override modal from the Track Details sidepanel
+- **WHEN** the user clicks "Associate" in the Track Details sidepanel for a given occurrence
+- **THEN** the override modal SHALL open pre-targeted at that same occurrence, behaving identically to opening it from the Playlist table's row-level "Associate" button
 

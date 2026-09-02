@@ -13,6 +13,7 @@ import { api, ApiError } from '../services/api';
 
 interface MediaOccurrenceDrawerBodyProps {
   item: PlaylistItem;
+  onOpenOverride?: (item: PlaylistItem) => void;
 }
 
 /**
@@ -20,7 +21,7 @@ interface MediaOccurrenceDrawerBodyProps {
  * Exported separately so it can be embedded without its own `Dialog.Root` (see mobile usage
  * in `RadarrSonarrTab`, where a second dialog/overlay must never be mounted).
  */
-export function MediaOccurrenceDrawerBody({ item }: MediaOccurrenceDrawerBodyProps) {
+export function MediaOccurrenceDrawerBody({ item, onOpenOverride }: MediaOccurrenceDrawerBodyProps) {
   const { t, i18n } = useTranslation('playlist');
   const [copiedText, setCopiedText] = React.useState<'content' | 'url' | null>(null);
   const [forceDownloadStatus, setForceDownloadStatus] = React.useState<'idle' | 'loading' | 'queued' | 'error'>('idle');
@@ -56,6 +57,52 @@ export function MediaOccurrenceDrawerBody({ item }: MediaOccurrenceDrawerBodyPro
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, paddingBottom: '1rem' }}>
+
+      {/* Action bar: Associate + Force Download */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {onOpenOverride && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onOpenOverride(item)}
+              title={t('drawer.associate.title')}
+            >
+              {t('drawer.associate.action')}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={!isForceDownloadEligible || forceDownloadStatus === 'loading'}
+            onClick={handleForceDownload}
+            title={!isForceDownloadEligible ? (
+              !(item.movie || item.tvshow)
+                ? t('drawer.forceDownload.unavailableNotMatched')
+                : t('drawer.forceDownload.unavailableAlreadyHandled')
+            ) : undefined}
+          >
+            {forceDownloadStatus === 'loading' ? t('drawer.forceDownload.loading') : t('drawer.forceDownload.action')}
+          </button>
+        </div>
+        {!isForceDownloadEligible && (
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            {!(item.movie || item.tvshow)
+              ? t('drawer.forceDownload.unavailableNotMatched')
+              : t('drawer.forceDownload.unavailableAlreadyHandled')}
+          </span>
+        )}
+        {forceDownloadStatus === 'queued' && (
+          <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
+            {t('drawer.forceDownload.queued')}
+          </span>
+        )}
+        {forceDownloadStatus === 'error' && (
+          <span className="badge badge-failed" style={{ fontSize: '0.8rem' }}>
+            {t('drawer.forceDownload.errorPrefix')} {forceDownloadError}
+          </span>
+        )}
+      </div>
 
       {/* Section 1: Enrichissement Métadonnées (TMDB) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -193,45 +240,6 @@ export function MediaOccurrenceDrawerBody({ item }: MediaOccurrenceDrawerBodyPro
         </div>
       </div>
 
-      {/* Section 2.5: Forcer le Téléchargement (occurrence unique) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <h3 className="drawer-section-title">
-          {t('drawer.forceDownload.sectionTitle')}
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={!isForceDownloadEligible || forceDownloadStatus === 'loading'}
-            onClick={handleForceDownload}
-            title={!isForceDownloadEligible ? (
-              !(item.movie || item.tvshow)
-                ? t('drawer.forceDownload.unavailableNotMatched')
-                : t('drawer.forceDownload.unavailableAlreadyHandled')
-            ) : undefined}
-          >
-            {forceDownloadStatus === 'loading' ? t('drawer.forceDownload.loading') : t('drawer.forceDownload.action')}
-          </button>
-          {!isForceDownloadEligible && (
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              {!(item.movie || item.tvshow)
-                ? t('drawer.forceDownload.unavailableNotMatched')
-                : t('drawer.forceDownload.unavailableAlreadyHandled')}
-            </span>
-          )}
-          {forceDownloadStatus === 'queued' && (
-            <span className="badge badge-success" style={{ fontSize: '0.8rem' }}>
-              {t('drawer.forceDownload.queued')}
-            </span>
-          )}
-          {forceDownloadStatus === 'error' && (
-            <span className="badge badge-failed" style={{ fontSize: '0.8rem' }}>
-              {t('drawer.forceDownload.errorPrefix')} {forceDownloadError}
-            </span>
-          )}
-        </div>
-      </div>
-
       {/* Section 3: Informations de Provenance M3U */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <h3 className="drawer-section-title">
@@ -311,6 +319,7 @@ interface MediaOccurrenceDrawerProps {
   contentClassName?: string;
   withOverlay?: boolean;
   modal?: boolean;
+  onOpenOverride?: (item: PlaylistItem) => void;
 }
 
 export function MediaOccurrenceDrawer({
@@ -319,6 +328,7 @@ export function MediaOccurrenceDrawer({
   contentClassName = 'drawer-content',
   withOverlay = true,
   modal = true,
+  onOpenOverride,
 }: MediaOccurrenceDrawerProps) {
   const { t } = useTranslation('playlist');
 
@@ -340,7 +350,7 @@ export function MediaOccurrenceDrawer({
             {t('drawer.description')}
           </Dialog.Description>
 
-          {item && <MediaOccurrenceDrawerBody item={item} />}
+          {item && <MediaOccurrenceDrawerBody item={item} onOpenOverride={onOpenOverride} />}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

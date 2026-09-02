@@ -44,6 +44,8 @@ interface RadarrSonarrTabProps {
   statsLoading: boolean;
   statsError: string | null;
   fetchStats: () => void;
+
+  onOpenOverride?: (item: PlaylistItem, onSuccess?: () => void) => void;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -64,6 +66,7 @@ export function RadarrSonarrTab({
   seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
   seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter,
   stats, statsLoading, statsError, fetchStats,
+  onOpenOverride,
 }: RadarrSonarrTabProps) {
   const { t } = useTranslation('radarrSonarr');
   const { t: tCommon } = useTranslation('common');
@@ -180,6 +183,12 @@ export function RadarrSonarrTab({
   const handleBackToOccurrences = () => {
     setDrawerView('occurrences');
     setDetailItem(null);
+  };
+
+  const handleDrawerOpenOverride = (item: PlaylistItem) => {
+    onOpenOverride?.(item, () => {
+      api.getItem(item.id).then(setDetailItem).catch(() => {});
+    });
   };
 
   const renderOccurrences = (occurrences: OccurrenceResponse[]) => {
@@ -513,7 +522,7 @@ export function RadarrSonarrTab({
             <Dialog.Description style={{ display: 'none' }}>{t('drawer.description')}</Dialog.Description>
 
             {isMobile && drawerView === 'detail' && detailItem ? (
-              <MediaOccurrenceDrawerBody item={detailItem} />
+              <MediaOccurrenceDrawerBody item={detailItem} onOpenOverride={handleDrawerOpenOverride} />
             ) : (
               <>
                 {detailLoading && (
@@ -681,6 +690,7 @@ export function RadarrSonarrTab({
           contentClassName="drawer-content--secondary"
           withOverlay={false}
           modal={false}
+          onOpenOverride={handleDrawerOpenOverride}
         />
       )}
     </Tabs.Content>

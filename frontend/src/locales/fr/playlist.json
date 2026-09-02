@@ -127,8 +127,11 @@
     "copiedBang": "✓ Copié !",
     "copyIcon": "📋 Copier",
     "rawUrlSection": "🔗 URL brute du flux",
+    "associate": {
+      "action": "Associer 🔍",
+      "title": "Corriger ou forcer manuellement l'association TMDB"
+    },
     "forceDownload": {
-      "sectionTitle": "⬇️ Téléchargement Forcé",
       "action": "Forcer le téléchargement",
       "loading": "Envoi en cours…",
       "unavailableNotMatched": "Indisponible : cet item n'est associé à aucun film ou série.",

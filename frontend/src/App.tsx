@@ -270,6 +270,7 @@ export default function App() {
           seriesSearch={seriesSearch} setSeriesSearch={setSeriesSearch}
           seriesFilter={seriesFilter} setSeriesFilter={setSeriesFilter}
           stats={radarrSonarrStats} statsLoading={radarrSonarrStatsLoading} statsError={radarrSonarrStatsError} fetchStats={fetchRadarrSonarrStats}
+          onOpenOverride={handleOpenOverride}
         />
       </Tabs.Root>
 

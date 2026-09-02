@@ -7,6 +7,7 @@ import { PlaylistItemsTable } from './PlaylistItemsTable';
 import { PlaylistGroupedView } from './PlaylistGroupedView';
 import { Pagination } from './Pagination';
 import { MediaOccurrenceDrawer } from './MediaOccurrenceDrawer';
+import { api } from '../services/api';
 
 interface PlaylistTabProps {
   playlist: PlaylistItem[];
@@ -29,7 +30,7 @@ interface PlaylistTabProps {
   playlistOrder: string;
   setPlaylistSort: (column: string) => void;
   playlistLoading: boolean;
-  onOpenOverride: (item: PlaylistItem) => void;
+  onOpenOverride: (item: PlaylistItem, onSuccess?: () => void) => void;
   onResetPipeline: (id: number, contentType: string) => void;
   playlistView: 'items' | 'grouped';
   setPlaylistView: (view: 'items' | 'grouped') => void;
@@ -77,6 +78,12 @@ export function PlaylistTab({
   const isMobile = useIsMobile();
   const [selectedItem, setSelectedItem] = React.useState<PlaylistItem | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = React.useState(false);
+
+  const handleDrawerOpenOverride = (item: PlaylistItem) => {
+    onOpenOverride(item, () => {
+      api.getItem(item.id).then(setSelectedItem).catch(() => {});
+    });
+  };
 
   const activeAdvancedFilterCount = [
     playlistSearchName,
@@ -329,6 +336,7 @@ export function PlaylistTab({
       <MediaOccurrenceDrawer
         item={selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
+        onOpenOverride={handleDrawerOpenOverride}
       />
     </Tabs.Content>
   );

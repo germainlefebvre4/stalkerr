@@ -66,6 +66,40 @@ The Radarr sub-tab SHALL provide a search field that filters the movies table by
 - **WHEN** the user clears the search field
 - **THEN** the table SHALL return to showing the full paginated, unfiltered list
 
+### Requirement: Match-status filter control on the Films section
+The Radarr sub-tab SHALL provide a match-status filter control (All / Matched / No match) that filters the Films table by playlist match status across the entire monitored catalog, applied before pagination. The selected filter SHALL persist across a page refresh, following the same URL-persistence pattern already used for the sub-tab selection.
+
+#### Scenario: Filtering to unmatched movies
+- **WHEN** the user selects "No match" in the Films filter control
+- **THEN** the table SHALL update to show only movies with no playlist match, re-paginated from the first page
+
+#### Scenario: Filtering to matched movies
+- **WHEN** the user selects "Matched" in the Films filter control
+- **THEN** the table SHALL update to show only movies with a playlist match, re-paginated from the first page
+
+#### Scenario: Filter persists across a page refresh
+- **WHEN** the user selects a match-status filter and then refreshes the page
+- **THEN** the same filter SHALL remain selected and applied after the page reloads
+
+#### Scenario: Filter combined with search
+- **WHEN** the user has both a search term and a match-status filter active
+- **THEN** the table SHALL show only movies satisfying both constraints
+
+#### Scenario: Selecting "All" restores the unfiltered list
+- **WHEN** the user selects "All" in the Films filter control
+- **THEN** the table SHALL return to showing every monitored movie regardless of match status
+
+### Requirement: Occurrence count column in the Films table
+The Films table SHALL include a column showing each movie's total playlist occurrence count, counting every matching playlist entry including duplicates at different resolutions or qualities.
+
+#### Scenario: Movie with multiple quality occurrences
+- **WHEN** a matched movie has several playlist occurrences in different resolutions
+- **THEN** the Occurrences column SHALL display the total count of those occurrences
+
+#### Scenario: Unmatched movie shows zero occurrences
+- **WHEN** a movie has no playlist match
+- **THEN** the Occurrences column SHALL display 0
+
 ### Requirement: Séries section lists Sonarr monitored series with aggregate match status
 The tab SHALL include a Séries section listing Sonarr-monitored series, each showing at minimum its title and an aggregate ratio of matched vs. monitored episodes (e.g. "8/12"), with pagination controls. Per-episode detail is not shown in this list view.
 
@@ -91,6 +125,40 @@ The Sonarr sub-tab SHALL provide a search field that filters the series table by
 #### Scenario: Clearing the search term restores the full list
 - **WHEN** the user clears the search field
 - **THEN** the table SHALL return to showing the full paginated, unfiltered list
+
+### Requirement: Match-status filter control on the Séries section
+The Sonarr sub-tab SHALL provide a match-status filter control (All / Matched / No match) that filters the Séries table by whether a series has at least one matched monitored episode, applied before pagination. The selected filter SHALL persist across a page refresh, following the same URL-persistence pattern already used for the sub-tab selection.
+
+#### Scenario: Filtering to series with no matched episodes
+- **WHEN** the user selects "No match" in the Séries filter control
+- **THEN** the table SHALL update to show only series with zero matched monitored episodes, re-paginated from the first page
+
+#### Scenario: Filtering to series with at least one matched episode
+- **WHEN** the user selects "Matched" in the Séries filter control
+- **THEN** the table SHALL update to show only series with at least one matched monitored episode, re-paginated from the first page
+
+#### Scenario: Filter persists across a page refresh
+- **WHEN** the user selects a match-status filter and then refreshes the page
+- **THEN** the same filter SHALL remain selected and applied after the page reloads
+
+#### Scenario: Filter combined with search
+- **WHEN** the user has both a search term and a match-status filter active
+- **THEN** the table SHALL show only series satisfying both constraints
+
+#### Scenario: Selecting "All" restores the unfiltered list
+- **WHEN** the user selects "All" in the Séries filter control
+- **THEN** the table SHALL return to showing every monitored series regardless of match status
+
+### Requirement: Occurrence count column in the Séries table
+The Séries table SHALL include a column showing each series' total playlist occurrence count, aggregated across all of its monitored episodes and counting every matching playlist entry including duplicates at different resolutions or qualities.
+
+#### Scenario: Series with matched episodes having multiple occurrences
+- **WHEN** a series has several monitored episodes, each with one or more playlist occurrences
+- **THEN** the Occurrences column SHALL display the sum of occurrences across all of that series' monitored episodes
+
+#### Scenario: Series with no matched episodes shows zero occurrences
+- **WHEN** a series has zero monitored episodes with a playlist match
+- **THEN** the Occurrences column SHALL display 0
 
 ### Requirement: Résumé sub-tab shows a monitoring summary
 The Résumé sub-tab SHALL display, for Radarr, the total number of monitored movies and how many of them are matched vs. unmatched in the local playlist, computed across the full monitored catalog; and, for Sonarr, the total number of monitored series only, without a matched/unmatched breakdown.
@@ -168,11 +236,11 @@ Selecting a movie or series row SHALL open a sidepanel showing the matched local
 - **THEN** its occurrence and episode tables SHALL render as a mobile-appropriate list layout instead of the fixed-width desktop table, without requiring horizontal scrolling to read a row
 
 ### Requirement: Selecting an occurrence opens the full media detail drawer
-Selecting a playlist occurrence row (a movie's occurrence, or one of a series episode's occurrences after expanding it) SHALL open the same media detail drawer used by the Playlist tab for that occurrence - TMDB metadata, pipeline state, M3U provenance, raw line and stream URL, and the force-download action - rather than only the resolution/state summary shown in the occurrences list.
+Selecting a playlist occurrence row (a movie's occurrence, or one of a series episode's occurrences after expanding it) SHALL open the same media detail drawer used by the Playlist tab for that occurrence - TMDB metadata, pipeline state, M3U provenance, raw line and stream URL, the "Associate" action, and the force-download action - rather than only the resolution/state summary shown in the occurrences list.
 
 #### Scenario: Opening a movie occurrence's detail
 - **WHEN** the user selects an occurrence row in a matched movie's sidepanel
-- **THEN** the full media detail drawer SHALL open for that occurrence, including its force-download action if eligible
+- **THEN** the full media detail drawer SHALL open for that occurrence, including its "Associate" action and its force-download action if eligible
 
 #### Scenario: Detail drawer stacks beside the occurrences sidepanel on desktop
 - **WHEN** the media detail drawer is opened from the occurrences sidepanel on a desktop-width viewport
@@ -181,6 +249,10 @@ Selecting a playlist occurrence row (a movie's occurrence, or one of a series ep
 #### Scenario: Detail view replaces the sidepanel on mobile
 - **WHEN** the media detail drawer is opened from the occurrences sidepanel on a mobile-width viewport
 - **THEN** the detail view SHALL replace the occurrences sidepanel's content in place, and the user SHALL be able to return to the occurrences list from it
+
+#### Scenario: Associate action available from the Radarr/Sonarr detail drawer
+- **WHEN** the user opens the media detail drawer from the Radarr/Sonarr tab's occurrences sidepanel
+- **THEN** the "Associate" action SHALL be present and functional, letting the user correct or confirm the occurrence's TMDB match without leaving the Radarr/Sonarr tab
 
 ### Requirement: Séries episode rows expand to reveal their occurrences
 Each monitored-episode row in the Séries sidepanel SHALL be expandable to reveal that episode's own playlist occurrences (at least resolution, processing status, and download status per occurrence, with processing status and download status shown as two separate statuses rather than a single combined pipeline state), mirroring the Films occurrence list, before any occurrence can be selected to open the full media detail drawer. At most one episode row SHALL be expanded at a time; expanding an episode SHALL collapse any other expanded episode. An expanded episode row SHALL be visually distinguishable from collapsed episode rows. The occurrences revealed by an expanded episode SHALL be visually distinguishable from the episode rows above and below them, so that an occurrence cannot be mistaken for the next episode row.
