@@ -162,6 +162,7 @@ export interface RadarrMovieListItem {
   has_file: boolean;
   matched: boolean;
   movie_id?: number;
+  occurrence_count: number;
 }
 
 export interface SonarrSeriesListItem {
@@ -170,7 +171,10 @@ export interface SonarrSeriesListItem {
   year: number;
   matched_count: number;
   monitored_count: number;
+  occurrence_count: number;
 }
+
+export type MatchStatusFilter = '' | 'matched' | 'no_match';
 
 export interface RadarrMovieMatchesResponse {
   matched: boolean;

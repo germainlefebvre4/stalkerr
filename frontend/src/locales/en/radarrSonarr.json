@@ -24,7 +24,8 @@
     "table": {
       "title": "Title",
       "year": "Year",
-      "status": "Playlist match"
+      "status": "Playlist match",
+      "occurrences": "Occurrences"
     },
     "badge": {
       "matched": "Matched",
@@ -42,9 +43,15 @@
     "table": {
       "title": "Title",
       "year": "Year",
-      "status": "Monitored episodes matched"
+      "status": "Monitored episodes matched",
+      "occurrences": "Occurrences"
     },
     "ratio": "{{matched}}/{{monitored}}"
+  },
+  "filterStatus": {
+    "all": "All",
+    "matched": "Matched",
+    "noMatch": "No match"
   },
   "retry": "Retry",
   "drawer": {

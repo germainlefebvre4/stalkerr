@@ -13,7 +13,8 @@ import {
   SonarrSeriesListItem,
   RadarrMovieMatchesResponse,
   SonarrSeriesEpisodesResponse,
-  RadarrSonarrStats
+  RadarrSonarrStats,
+  MatchStatusFilter
 } from '../types';
 
 export class ApiError extends Error {
@@ -269,20 +270,29 @@ export const api = {
     return res.json();
   },
 
-  async listRadarrMovies(page: number, limit: number = 20, search?: string): Promise<PaginatedResponse<RadarrMovieListItem>> {
+  async listRadarrMovies(page: number, limit: number = 20, search?: string, filter?: MatchStatusFilter): Promise<PaginatedResponse<RadarrMovieListItem>> {
     let url = `/api/v1/radarr/movies?limit=${limit}&offset=${(page - 1) * limit}`;
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
+    }
+    if (filter) {
+      url += `&filter=${filter}`;
     }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);
     return res.json();
   },
 
-  async listSonarrSeries(page: number, limit: number = 20, search?: string): Promise<PaginatedResponse<SonarrSeriesListItem>> {
+  async listSonarrSeries(page: number, limit: number = 20, search?: string, filter?: MatchStatusFilter, refresh?: boolean): Promise<PaginatedResponse<SonarrSeriesListItem>> {
     let url = `/api/v1/sonarr/series?limit=${limit}&offset=${(page - 1) * limit}`;
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
+    }
+    if (filter) {
+      url += `&filter=${filter}`;
+    }
+    if (refresh) {
+      url += `&refresh=true`;
     }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);

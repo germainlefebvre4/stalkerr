@@ -30,21 +30,35 @@ const (
 
 // RadarrMovieListItem is one row of the Radarr monitoring list.
 type RadarrMovieListItem struct {
-	RadarrID int    `json:"radarr_id"`
-	Title    string `json:"title"`
-	Year     int    `json:"year"`
-	HasFile  bool   `json:"has_file"`
-	Matched  bool   `json:"matched"`
-	MovieID  *uint  `json:"movie_id,omitempty"`
+	RadarrID        int    `json:"radarr_id"`
+	Title           string `json:"title"`
+	Year            int    `json:"year"`
+	HasFile         bool   `json:"has_file"`
+	Matched         bool   `json:"matched"`
+	MovieID         *uint  `json:"movie_id,omitempty"`
+	OccurrenceCount int    `json:"occurrence_count"`
 }
 
 // SonarrSeriesListItem is one row of the Sonarr monitoring list, aggregated per series.
 type SonarrSeriesListItem struct {
-	SonarrID       int    `json:"sonarr_id"`
-	Title          string `json:"title"`
-	Year           int    `json:"year"`
-	MatchedCount   int    `json:"matched_count"`
-	MonitoredCount int    `json:"monitored_count"`
+	SonarrID        int    `json:"sonarr_id"`
+	Title           string `json:"title"`
+	Year            int    `json:"year"`
+	MatchedCount    int    `json:"matched_count"`
+	MonitoredCount  int    `json:"monitored_count"`
+	OccurrenceCount int    `json:"occurrence_count"`
+}
+
+// matchStatusFilter parses the "matched"/"no_match" match-status filter query
+// parameter shared by the Radarr and Sonarr listing endpoints. Any other value
+// (including absent/empty) is treated as no filter.
+func matchStatusFilter(c *gin.Context) string {
+	switch v := strings.TrimSpace(c.Query("filter")); v {
+	case "matched", "no_match":
+		return v
+	default:
+		return ""
+	}
 }
 
 // OccurrenceResponse is one playlist occurrence, regardless of pipeline state.
@@ -75,11 +89,16 @@ type SonarrSeriesEpisodesResponse struct {
 	Episodes []SonarrSeriesEpisodeItem `json:"episodes"`
 }
 
-// listRadarrMonitoredMovies handles GET /api/v1/radarr/movies?limit&offset.
+// listRadarrMonitoredMovies handles GET /api/v1/radarr/movies?limit&offset&filter&search.
 // Pagination happens before matching: the full Radarr movie list is fetched once,
 // filtered to monitored movies and sorted, then only the requested page's movies
-// are matched against the local playlist database. See
-// openspec/changes/radarr-sonarr-monitoring-view.
+// are matched against the local playlist database. When an optional match-status
+// `filter` (matched/no_match) is supplied, match status is instead computed for
+// the entire monitored (post-search) list before filtering and paginating, so the
+// filtered total and page are accurate - this is local-DB-only and cheap, mirroring
+// what the /stats endpoint already does. See
+// openspec/changes/radarr-sonarr-monitoring-view and
+// openspec/changes/radarr-sonarr-match-filters-and-counts.
 func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 	cfg := config.Get()
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
@@ -127,15 +146,61 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 		return strings.ToLower(monitored[i].Title) < strings.ToLower(monitored[j].Title)
 	})
 
-	total := len(monitored)
-	pageMovies := sliceRadarrMoviesPage(monitored, offset, limit)
-
 	db := database.Get()
-	matches, err := matcher.MatchMoviesBatch(db, pageMovies)
+	filter := matchStatusFilter(c)
+
+	var total int
+	var pageMovies []radarr.Movie
+	var matches map[int]matcher.MovieMatchResult
+
+	if filter != "" {
+		allMatches, err := matcher.MatchMoviesBatch(db, monitored)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: "failed to compute playlist match status",
+			})
+			return
+		}
+
+		filtered := make([]radarr.Movie, 0, len(monitored))
+		for _, m := range monitored {
+			matched := allMatches[m.ID].Matched
+			if (filter == "matched" && matched) || (filter == "no_match" && !matched) {
+				filtered = append(filtered, m)
+			}
+		}
+
+		total = len(filtered)
+		pageMovies = sliceRadarrMoviesPage(filtered, offset, limit)
+		matches = allMatches
+	} else {
+		total = len(monitored)
+		pageMovies = sliceRadarrMoviesPage(monitored, offset, limit)
+
+		pageMatches, err := matcher.MatchMoviesBatch(db, pageMovies)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error:   "database_error",
+				Message: "failed to compute playlist match status",
+			})
+			return
+		}
+		matches = pageMatches
+	}
+
+	matchedMovieIDs := make([]uint, 0, len(pageMovies))
+	for _, m := range pageMovies {
+		result := matches[m.ID]
+		if result.Matched && result.Movie != nil {
+			matchedMovieIDs = append(matchedMovieIDs, result.Movie.ID)
+		}
+	}
+	occurrenceCounts, err := matcher.CountMovieOccurrencesBatch(db, matchedMovieIDs)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error:   "database_error",
-			Message: "failed to compute playlist match status",
+			Message: "failed to compute playlist occurrence counts",
 		})
 		return
 	}
@@ -153,6 +218,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 		if result.Matched && result.Movie != nil {
 			movieID := result.Movie.ID
 			item.MovieID = &movieID
+			item.OccurrenceCount = occurrenceCounts[movieID]
 		}
 		items[i] = item
 	}
@@ -166,11 +232,19 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 	})
 }
 
-// listSonarrMonitoredSeries handles GET /api/v1/sonarr/series?limit&offset.
+// listSonarrMonitoredSeries handles GET /api/v1/sonarr/series?limit&offset&filter&search&refresh.
 // Pagination happens before the per-series episode fetch/matching: the full
 // monitored series list is fetched once, sorted, then only the requested page's
 // series get their monitored episodes fetched from Sonarr (concurrently, bounded
 // by the page size) and matched against the local playlist database.
+//
+// When an optional match-status `filter` (matched/no_match) is supplied, every
+// monitored (post-search) series' matched status is instead resolved via the
+// Sonarr match-status cache (populating it on a miss) before filtering and
+// paginating, avoiding a full per-series episode fan-out on every filtered
+// request. A truthy `refresh` query parameter (set by the Séries section's
+// manual refresh action) clears that cache first. See
+// openspec/changes/radarr-sonarr-match-filters-and-counts.
 func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 	cfg := config.Get()
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
@@ -181,7 +255,12 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		return
 	}
 
+	if refresh, _ := strconv.ParseBool(c.Query("refresh")); refresh {
+		sonarrMatchCache.clear()
+	}
+
 	limit, offset := parsePaginationBounded(c, radarrSonarrDefaultPageSize, radarrSonarrMaxPageSize)
+	filter := matchStatusFilter(c)
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
 	defer cancel()
@@ -217,16 +296,56 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		return strings.ToLower(allSeries[i].Title) < strings.ToLower(allSeries[j].Title)
 	})
 
-	total := len(allSeries)
-	pageSeries := sliceSonarrSeriesPage(allSeries, offset, limit)
-
-	type aggregateResult struct {
-		matched, monitored int
-		err                error
-	}
-	aggregates := make([]aggregateResult, len(pageSeries))
-
 	db := database.Get()
+
+	var total int
+	var pageSeries []sonarr.Series
+
+	if filter != "" {
+		type statusResult struct {
+			matched bool
+			err     error
+		}
+		statuses := make([]statusResult, len(allSeries))
+		var wg sync.WaitGroup
+		for i, series := range allSeries {
+			wg.Add(1)
+			go func(i int, series sonarr.Series) {
+				defer wg.Done()
+				matched, err := sonarrMatchCache.matchedStatus(ctx, client, db, series)
+				statuses[i] = statusResult{matched: matched, err: err}
+			}(i, series)
+		}
+		wg.Wait()
+
+		filtered := make([]sonarr.Series, 0, len(allSeries))
+		for i, series := range allSeries {
+			if statuses[i].err != nil {
+				c.JSON(http.StatusBadGateway, ErrorResponse{
+					Error:   "sonarr_unreachable",
+					Message: "failed to fetch episodes from Sonarr for one or more series",
+				})
+				return
+			}
+			matched := statuses[i].matched
+			if (filter == "matched" && matched) || (filter == "no_match" && !matched) {
+				filtered = append(filtered, series)
+			}
+		}
+
+		total = len(filtered)
+		pageSeries = sliceSonarrSeriesPage(filtered, offset, limit)
+	} else {
+		total = len(allSeries)
+		pageSeries = sliceSonarrSeriesPage(allSeries, offset, limit)
+	}
+
+	type detailResult struct {
+		details []matcher.SeriesEpisodeMatch
+		err     error
+	}
+	details := make([]detailResult, len(pageSeries))
+
 	var wg sync.WaitGroup
 	for i, series := range pageSeries {
 		wg.Add(1)
@@ -235,7 +354,7 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 
 			episodes, err := client.GetEpisodesBySeriesID(ctx, series.ID)
 			if err != nil {
-				aggregates[i].err = err
+				details[i].err = err
 				return
 			}
 
@@ -249,32 +368,42 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 				}
 			}
 
-			matched, monitoredTotal, err := matcher.MatchSeriesEpisodesAggregate(db, series.TvdbID, monitoredEpisodes)
+			result, err := matcher.MatchSeriesEpisodesDetail(db, series.TvdbID, monitoredEpisodes)
 			if err != nil {
-				aggregates[i].err = err
+				details[i].err = err
 				return
 			}
-			aggregates[i].matched = matched
-			aggregates[i].monitored = monitoredTotal
+			details[i].details = result
 		}(i, series)
 	}
 	wg.Wait()
 
 	items := make([]SonarrSeriesListItem, len(pageSeries))
 	for i, series := range pageSeries {
-		if aggregates[i].err != nil {
+		if details[i].err != nil {
 			c.JSON(http.StatusBadGateway, ErrorResponse{
 				Error:   "sonarr_unreachable",
 				Message: "failed to fetch episodes from Sonarr for one or more series",
 			})
 			return
 		}
+
+		matchedCount := 0
+		occurrenceCount := 0
+		for _, ep := range details[i].details {
+			if ep.Matched {
+				matchedCount++
+				occurrenceCount += len(ep.Occurrences)
+			}
+		}
+
 		items[i] = SonarrSeriesListItem{
-			SonarrID:       series.ID,
-			Title:          series.Title,
-			Year:           series.Year,
-			MatchedCount:   aggregates[i].matched,
-			MonitoredCount: aggregates[i].monitored,
+			SonarrID:        series.ID,
+			Title:           series.Title,
+			Year:            series.Year,
+			MatchedCount:    matchedCount,
+			MonitoredCount:  len(details[i].details),
+			OccurrenceCount: occurrenceCount,
 		}
 	}
 

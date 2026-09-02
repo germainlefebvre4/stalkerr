@@ -2,7 +2,7 @@ import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats, MatchStatusFilter } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useRadarrSonarrView } from '../hooks/useRadarrSonarrView';
 import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
@@ -23,6 +23,8 @@ interface RadarrSonarrTabProps {
   fetchFilms: () => void;
   filmsSearch: string;
   setFilmsSearch: (value: string) => void;
+  filmsFilter: MatchStatusFilter;
+  setFilmsFilter: (value: MatchStatusFilter) => void;
 
   seriesItems: SonarrSeriesListItem[];
   seriesLoading: boolean;
@@ -32,8 +34,11 @@ interface RadarrSonarrTabProps {
   setSeriesPage: React.Dispatch<React.SetStateAction<number>>;
   seriesLimit: number;
   fetchSeries: () => void;
+  refreshSeries: () => void;
   seriesSearch: string;
   setSeriesSearch: (value: string) => void;
+  seriesFilter: MatchStatusFilter;
+  setSeriesFilter: (value: MatchStatusFilter) => void;
 
   stats: RadarrSonarrStats | null;
   statsLoading: boolean;
@@ -55,9 +60,9 @@ function padNumber(n: number): string {
 
 export function RadarrSonarrTab({
   filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
-  filmsSearch, setFilmsSearch,
-  seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries,
-  seriesSearch, setSeriesSearch,
+  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter,
+  seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
+  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter,
   stats, statsLoading, statsError, fetchStats,
 }: RadarrSonarrTabProps) {
   const { t } = useTranslation('radarrSonarr');
@@ -287,14 +292,25 @@ export function RadarrSonarrTab({
               <button onClick={fetchFilms} className="btn-secondary">{t('films.refresh')}</button>
             </div>
 
-            <input
-              type="text"
-              placeholder={t('films.searchPlaceholder')}
-              value={filmsSearchInput}
-              onChange={e => setFilmsSearchInput(e.target.value)}
-              className="custom-input"
-              style={{ width: '100%', marginBottom: '1rem' }}
-            />
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder={t('films.searchPlaceholder')}
+                value={filmsSearchInput}
+                onChange={e => setFilmsSearchInput(e.target.value)}
+                className="custom-input"
+                style={{ flex: 1, minWidth: '200px' }}
+              />
+              <select
+                value={filmsFilter}
+                onChange={e => setFilmsFilter(e.target.value as MatchStatusFilter)}
+                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+              >
+                <option value="">{t('filterStatus.all')}</option>
+                <option value="matched">{t('filterStatus.matched')}</option>
+                <option value="no_match">{t('filterStatus.noMatch')}</option>
+              </select>
+            </div>
 
             {filmsError ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
@@ -312,7 +328,7 @@ export function RadarrSonarrTab({
                     <div key={item.radarr_id} className="mobile-list-card" onClick={() => openMovie(item)}>
                       <div className="mobile-list-card-main">
                         <span className="mobile-list-card-title">{item.title}</span>
-                        <span className="mobile-list-card-subtitle">{item.year}</span>
+                        <span className="mobile-list-card-subtitle">{item.year} · {t('films.table.occurrences')}: {item.occurrence_count}</span>
                       </div>
                       <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
                         {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
@@ -329,13 +345,14 @@ export function RadarrSonarrTab({
                       <th>{t('films.table.title')}</th>
                       <th>{t('films.table.year')}</th>
                       <th>{t('films.table.status')}</th>
+                      <th>{t('films.table.occurrences')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filmsLoading && filmsItems.length === 0 ? (
-                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
+                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
                     ) : filmsItems.length === 0 ? (
-                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
+                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
                     ) : (
                       filmsItems.map(item => (
                         <tr key={item.radarr_id} className="clickable-row" onClick={() => openMovie(item)}>
@@ -346,6 +363,7 @@ export function RadarrSonarrTab({
                               {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
                             </span>
                           </td>
+                          <td>{item.occurrence_count}</td>
                         </tr>
                       ))
                     )}
@@ -368,17 +386,28 @@ export function RadarrSonarrTab({
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('series.heading')}</h2>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('series.subtitle')}</p>
               </div>
-              <button onClick={fetchSeries} className="btn-secondary">{t('series.refresh')}</button>
+              <button onClick={refreshSeries} className="btn-secondary">{t('series.refresh')}</button>
             </div>
 
-            <input
-              type="text"
-              placeholder={t('series.searchPlaceholder')}
-              value={seriesSearchInput}
-              onChange={e => setSeriesSearchInput(e.target.value)}
-              className="custom-input"
-              style={{ width: '100%', marginBottom: '1rem' }}
-            />
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder={t('series.searchPlaceholder')}
+                value={seriesSearchInput}
+                onChange={e => setSeriesSearchInput(e.target.value)}
+                className="custom-input"
+                style={{ flex: 1, minWidth: '200px' }}
+              />
+              <select
+                value={seriesFilter}
+                onChange={e => setSeriesFilter(e.target.value as MatchStatusFilter)}
+                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+              >
+                <option value="">{t('filterStatus.all')}</option>
+                <option value="matched">{t('filterStatus.matched')}</option>
+                <option value="no_match">{t('filterStatus.noMatch')}</option>
+              </select>
+            </div>
 
             {seriesError ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
@@ -396,7 +425,7 @@ export function RadarrSonarrTab({
                     <div key={item.sonarr_id} className="mobile-list-card" onClick={() => openSeries(item)}>
                       <div className="mobile-list-card-main">
                         <span className="mobile-list-card-title">{item.title}</span>
-                        <span className="mobile-list-card-subtitle">{item.year}</span>
+                        <span className="mobile-list-card-subtitle">{item.year} · {t('series.table.occurrences')}: {item.occurrence_count}</span>
                       </div>
                       <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
                         {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
@@ -413,13 +442,14 @@ export function RadarrSonarrTab({
                       <th>{t('series.table.title')}</th>
                       <th>{t('series.table.year')}</th>
                       <th>{t('series.table.status')}</th>
+                      <th>{t('series.table.occurrences')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {seriesLoading && seriesItems.length === 0 ? (
-                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
+                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
                     ) : seriesItems.length === 0 ? (
-                      <tr><td colSpan={3} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
+                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
                     ) : (
                       seriesItems.map(item => (
                         <tr key={item.sonarr_id} className="clickable-row" onClick={() => openSeries(item)}>
@@ -430,6 +460,7 @@ export function RadarrSonarrTab({
                               {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
                             </span>
                           </td>
+                          <td>{item.occurrence_count}</td>
                         </tr>
                       ))
                     )}

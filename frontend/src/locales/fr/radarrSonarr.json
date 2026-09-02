@@ -24,7 +24,8 @@
     "table": {
       "title": "Titre",
       "year": "Année",
-      "status": "Correspondance playlist"
+      "status": "Correspondance playlist",
+      "occurrences": "Occurrences"
     },
     "badge": {
       "matched": "Correspondance trouvée",
@@ -42,9 +43,15 @@
     "table": {
       "title": "Titre",
       "year": "Année",
-      "status": "Épisodes surveillés en correspondance"
+      "status": "Épisodes surveillés en correspondance",
+      "occurrences": "Occurrences"
     },
     "ratio": "{{matched}}/{{monitored}}"
+  },
+  "filterStatus": {
+    "all": "Tous",
+    "matched": "Correspondance trouvée",
+    "noMatch": "Aucune correspondance"
   },
   "retry": "Réessayer",
   "drawer": {

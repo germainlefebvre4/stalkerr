@@ -517,6 +517,35 @@ func MatchMoviesBatch(db *gorm.DB, movies []radarr.Movie) (map[int]MovieMatchRes
 	return results, nil
 }
 
+// CountMovieOccurrencesBatch returns, for each given local Movie ID, the total
+// number of ProcessedLine occurrences associated with it (regardless of
+// pipeline state, including duplicates at different resolutions/qualities),
+// using a single grouped COUNT query regardless of how many movie IDs are
+// passed in. A movie ID with no occurrences is simply absent from the result
+// map - callers should treat a missing entry as 0.
+func CountMovieOccurrencesBatch(db *gorm.DB, movieIDs []uint) (map[uint]int, error) {
+	counts := make(map[uint]int, len(movieIDs))
+	if len(movieIDs) == 0 {
+		return counts, nil
+	}
+
+	var rows []struct {
+		MovieID uint
+		Count   int
+	}
+	if err := db.Model(&models.ProcessedLine{}).
+		Select("movie_id, COUNT(*) as count").
+		Where("movie_id IN ?", movieIDs).
+		Group("movie_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.MovieID] = row.Count
+	}
+	return counts, nil
+}
+
 // FindAllMovieOccurrences returns every ProcessedLine associated with a movie,
 // regardless of pipeline state (including already-`downloaded` ones), ordered by
 // the same quality preference as FindMovieDownloadCandidates. Unlike

@@ -1,8 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, ApiError } from '../services/api';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats, MatchStatusFilter } from '../types';
+import { useURLState, URLStateSchema } from './useURLState';
 
 const PAGE_SIZE = 20;
+
+const VALID_MATCH_FILTERS: MatchStatusFilter[] = ['', 'matched', 'no_match'];
+
+// Kept as its own useURLState instance so the match-status filters don't
+// interact with the sub-tab toggle's URL state (see useRadarrSonarrView).
+const RADARR_SONARR_FILTER_URL_SCHEMA = {
+  filmsFilter: {
+    default: '' as MatchStatusFilter,
+    parse: (raw: string) => raw as MatchStatusFilter,
+    serialize: (v: MatchStatusFilter) => v,
+    isValid: (v: MatchStatusFilter) => VALID_MATCH_FILTERS.includes(v),
+  },
+  seriesFilter: {
+    default: '' as MatchStatusFilter,
+    parse: (raw: string) => raw as MatchStatusFilter,
+    serialize: (v: MatchStatusFilter) => v,
+    isValid: (v: MatchStatusFilter) => VALID_MATCH_FILTERS.includes(v),
+  },
+} satisfies URLStateSchema;
 
 // Each section (Films/Séries) owns fully independent loading/error/pagination
 // state and only ever fetches on an explicit trigger: the initial activation of
@@ -25,6 +45,10 @@ export function useRadarrSonarr(isActive: boolean) {
   const [seriesPage, setSeriesPage] = useState(1);
   const [seriesSearch, setSeriesSearchState] = useState('');
 
+  const [filterURLState, patchFilterURLState] = useURLState(RADARR_SONARR_FILTER_URL_SCHEMA);
+  const filmsFilter = filterURLState.filmsFilter;
+  const seriesFilter = filterURLState.seriesFilter;
+
   const [stats, setStats] = useState<RadarrSonarrStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
@@ -39,10 +63,20 @@ export function useRadarrSonarr(isActive: boolean) {
     setSeriesPage(1);
   }, []);
 
+  const setFilmsFilter = useCallback((value: MatchStatusFilter) => {
+    patchFilterURLState({ filmsFilter: value });
+    setFilmsPage(1);
+  }, [patchFilterURLState]);
+
+  const setSeriesFilter = useCallback((value: MatchStatusFilter) => {
+    patchFilterURLState({ seriesFilter: value });
+    setSeriesPage(1);
+  }, [patchFilterURLState]);
+
   const fetchFilms = useCallback(() => {
     setFilmsLoading(true);
     setFilmsError(null);
-    api.listRadarrMovies(filmsPage, PAGE_SIZE, filmsSearch)
+    api.listRadarrMovies(filmsPage, PAGE_SIZE, filmsSearch, filmsFilter)
       .then(data => {
         setFilmsItems(data.data || []);
         setFilmsTotal(data.total);
@@ -53,12 +87,14 @@ export function useRadarrSonarr(isActive: boolean) {
         setFilmsError(err instanceof ApiError ? err.code : 'generic');
       })
       .finally(() => setFilmsLoading(false));
-  }, [filmsPage, filmsSearch]);
+  }, [filmsPage, filmsSearch, filmsFilter]);
 
-  const fetchSeries = useCallback(() => {
+  // `refresh` clears the backend's Sonarr match-status cache before recomputing,
+  // matching the manual refresh button's contract - never set automatically.
+  const fetchSeries = useCallback((refresh?: boolean) => {
     setSeriesLoading(true);
     setSeriesError(null);
-    api.listSonarrSeries(seriesPage, PAGE_SIZE, seriesSearch)
+    api.listSonarrSeries(seriesPage, PAGE_SIZE, seriesSearch, seriesFilter, refresh)
       .then(data => {
         setSeriesItems(data.data || []);
         setSeriesTotal(data.total);
@@ -69,7 +105,7 @@ export function useRadarrSonarr(isActive: boolean) {
         setSeriesError(err instanceof ApiError ? err.code : 'generic');
       })
       .finally(() => setSeriesLoading(false));
-  }, [seriesPage, seriesSearch]);
+  }, [seriesPage, seriesSearch, seriesFilter]);
 
   const fetchStats = useCallback(() => {
     setStatsLoading(true);
@@ -83,17 +119,23 @@ export function useRadarrSonarr(isActive: boolean) {
       .finally(() => setStatsLoading(false));
   }, []);
 
+  // refreshSeries is the Séries section's manual refresh action: unlike the
+  // automatic fetch effect below, it clears the backend's Sonarr match-status
+  // cache so a subsequent filtered request recomputes rather than reusing a
+  // stale cached value.
+  const refreshSeries = useCallback(() => fetchSeries(true), [fetchSeries]);
+
   useEffect(() => {
     if (!isActive) return;
     void Promise.resolve().then(fetchFilms);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, filmsPage, filmsSearch]);
+  }, [isActive, filmsPage, filmsSearch, filmsFilter]);
 
   useEffect(() => {
     if (!isActive) return;
-    void Promise.resolve().then(fetchSeries);
+    void Promise.resolve().then(() => fetchSeries());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, seriesPage, seriesSearch]);
+  }, [isActive, seriesPage, seriesSearch, seriesFilter]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -103,9 +145,9 @@ export function useRadarrSonarr(isActive: boolean) {
 
   return {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit: PAGE_SIZE, fetchFilms,
-    filmsSearch, setFilmsSearch,
-    seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit: PAGE_SIZE, fetchSeries,
-    seriesSearch, setSeriesSearch,
+    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter,
+    seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit: PAGE_SIZE, fetchSeries, refreshSeries,
+    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter,
     stats, statsLoading, statsError, fetchStats,
   };
 }

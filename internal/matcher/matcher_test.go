@@ -951,6 +951,51 @@ func TestFindAllTVShowOccurrencesIncludesDownloaded(t *testing.T) {
 	}
 }
 
+func TestCountMovieOccurrencesBatch(t *testing.T) {
+	db := setupTestDB(t)
+
+	movieWithOccurrences := models.Movie{TMDBID: 603, TMDBTitle: "The Matrix", TMDBYear: 1999}
+	movieWithNone := models.Movie{TMDBID: 27205, TMDBTitle: "Inception", TMDBYear: 2010}
+	if err := db.Create(&movieWithOccurrences).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+	if err := db.Create(&movieWithNone).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	lineURL := "http://example.com/stream.mkv"
+	res720p, res1080p := "720p", "1080p"
+	occurrences := []models.ProcessedLine{
+		{MovieID: &movieWithOccurrences.ID, TvgName: "The Matrix 720p", LineURL: &lineURL, LineContent: "#EXTINF", LineHash: "hash-1", GroupTitle: "Movies", ContentType: models.ContentTypeMovies, State: models.StateProcessed, Resolution: &res720p},
+		{MovieID: &movieWithOccurrences.ID, TvgName: "The Matrix 1080p", LineURL: &lineURL, LineContent: "#EXTINF", LineHash: "hash-2", GroupTitle: "Movies", ContentType: models.ContentTypeMovies, State: models.StateDownloaded, Resolution: &res1080p},
+	}
+	for i := range occurrences {
+		if err := db.Create(&occurrences[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	counts, err := CountMovieOccurrencesBatch(db, []uint{movieWithOccurrences.ID, movieWithNone.ID})
+	if err != nil {
+		t.Fatalf("CountMovieOccurrencesBatch returned error: %v", err)
+	}
+
+	if counts[movieWithOccurrences.ID] != 2 {
+		t.Errorf("expected 2 occurrences for movie with duplicates, got %d", counts[movieWithOccurrences.ID])
+	}
+	if counts[movieWithNone.ID] != 0 {
+		t.Errorf("expected 0 occurrences for movie with none, got %d", counts[movieWithNone.ID])
+	}
+
+	empty, err := CountMovieOccurrencesBatch(db, nil)
+	if err != nil {
+		t.Fatalf("CountMovieOccurrencesBatch with no IDs returned error: %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("expected empty result for no movie IDs, got %+v", empty)
+	}
+}
+
 func TestMatchSeriesEpisodesAggregate(t *testing.T) {
 	db := setupTestDB(t)
 
