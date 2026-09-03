@@ -49,15 +49,32 @@ func testDeps(db *gorm.DB, radarrClient RadarrClient, sonarrClient SonarrClient)
 
 type fakeRadarr struct {
 	missing []radarr.Movie
+	// byTMDBID, when non-nil, backs GetMovieByTMDBID for tier-2 path lookups.
+	// A missing key returns (nil, nil) - "not found" - matching the real client.
+	byTMDBID map[int]*radarr.Movie
+	// tmdbLookupErr, when set, makes GetMovieByTMDBID fail for every call.
+	tmdbLookupErr error
 }
 
 func (f *fakeRadarr) GetMissingMovies(ctx context.Context, opts radarr.FetchOptions) ([]radarr.Movie, error) {
 	return f.missing, nil
 }
 
+func (f *fakeRadarr) GetMovieByTMDBID(ctx context.Context, tmdbID int) (*radarr.Movie, error) {
+	if f.tmdbLookupErr != nil {
+		return nil, f.tmdbLookupErr
+	}
+	return f.byTMDBID[tmdbID], nil
+}
+
 type fakeSonarr struct {
 	missing []sonarr.Episode
 	series  map[int]*sonarr.Series
+	// byTVDBID, when non-nil, backs GetSeriesByTVDBID for tier-2 path lookups.
+	// A missing key returns (nil, nil) - "not found" - matching the real client.
+	byTVDBID map[int]*sonarr.Series
+	// tvdbLookupErr, when set, makes GetSeriesByTVDBID fail for every call.
+	tvdbLookupErr error
 }
 
 func (f *fakeSonarr) GetMissingEpisodes(ctx context.Context, opts sonarr.FetchOptions) ([]sonarr.Episode, error) {
@@ -70,6 +87,13 @@ func (f *fakeSonarr) GetSeriesDetails(ctx context.Context, id int) (*sonarr.Seri
 		return nil, fmt.Errorf("series %d not found", id)
 	}
 	return s, nil
+}
+
+func (f *fakeSonarr) GetSeriesByTVDBID(ctx context.Context, tvdbID int) (*sonarr.Series, error) {
+	if f.tvdbLookupErr != nil {
+		return nil, f.tvdbLookupErr
+	}
+	return f.byTVDBID[tvdbID], nil
 }
 
 func strPtr(s string) *string { return &s }
@@ -141,18 +165,21 @@ func TestBuildStreams_TierClassification(t *testing.T) {
 		LineURL: strPtr("http://example.com/fresh.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}).Error)
 
-	// Movie 2: already has a downloaded line, plus an alternate candidate -> tier2.
+	// Movie 2: already has a downloaded line, plus a strictly-better alternate
+	// candidate (720p beats the downloaded 1080p) -> tier2.
 	upgradeMovie := models.Movie{TMDBID: 2, TVDBID: intPtr(1002), TMDBTitle: "Upgrade Movie", TMDBYear: 2022}
 	require.NoError(t, db.Create(&upgradeMovie).Error)
 	require.NoError(t, db.Create(&models.ProcessedLine{
 		LineContent: "l2a", LineHash: "l2a", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
 		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &upgradeMovie.ID,
-		LineURL: strPtr("http://example.com/upgrade-720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		LineURL: strPtr("http://example.com/upgrade-1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
 	}).Error)
 	require.NoError(t, db.Create(&models.ProcessedLine{
 		LineContent: "l2b", LineHash: "l2b", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
 		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &upgradeMovie.ID,
-		LineURL: strPtr("http://example.com/upgrade-1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		LineURL: strPtr("http://example.com/upgrade-720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
 	}).Error)
 
 	fr := &fakeRadarr{missing: []radarr.Movie{{ID: 1, Title: "Fresh Movie", Year: 2021, TvdbID: 1001, TMDBID: 1}}}
@@ -288,6 +315,293 @@ func TestBuildStreams_DedupTier2AgainstTier1_SynthesizedWins(t *testing.T) {
 	require.Equal(t, Tier1, streams[0].Tier)
 	require.Equal(t, fmt.Sprintf("movie:%d", movie.ID), streams[0].SourceKey)
 	require.NotNil(t, streams[0].Items[0].ResumeInfo)
+}
+
+// 3.3 Tier-2 gating: a worse-language untried candidate does not trigger an upgrade.
+func TestBuildTier2MovieStreams_WorseLanguageNoUpgrade(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 3, TMDBTitle: "No Upgrade Movie", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "wl1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vf.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VF"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "wl2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vostfr.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VOSTFR"),
+	}).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Empty(t, streams, "a worse-language untried candidate must not trigger a tier-2 upgrade")
+}
+
+// 3.3 Tier-2 gating: a worse-resolution-same-language untried candidate does not trigger an upgrade.
+func TestBuildTier2MovieStreams_WorseResolutionSameLanguageNoUpgrade(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 4, TMDBTitle: "No Upgrade Movie 2", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "wr1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vf-720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VF"), Resolution: strPtr("720p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "wr2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vf-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VF"), Resolution: strPtr("4K"),
+	}).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Empty(t, streams, "a worse-resolution untried candidate in the same language must not trigger a tier-2 upgrade")
+}
+
+// 3.3 Tier-2 gating: a strictly-better-language untried candidate triggers an upgrade.
+func TestBuildTier2MovieStreams_BetterLanguageTriggersUpgrade(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TMDBTitle: "Upgrade Movie 3", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "bl1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/multi.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("MULTI"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "bl2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vf.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VF"),
+	}).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1, "a strictly-better-language untried candidate must trigger a tier-2 upgrade")
+	require.Equal(t, "VF", *streams[0].Items[0].Candidates[0].Language)
+}
+
+// 3.3 Tier-2 gating: a strictly-better-resolution-same-language untried candidate triggers an upgrade.
+func TestBuildTier2MovieStreams_BetterResolutionSameLanguageTriggersUpgrade(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 6, TMDBTitle: "Upgrade Movie 4", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "br1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vf-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VF"), Resolution: strPtr("4K"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "br2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vf-720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Language: strPtr("VF"), Resolution: strPtr("720p"),
+	}).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1, "a strictly-better-resolution untried candidate in the same language must trigger a tier-2 upgrade")
+	require.Equal(t, "720p", *streams[0].Items[0].Candidates[0].Resolution)
+}
+
+// 4.4 A tier-2 movie stream resolves to the same BaseDestPath as its tier-1
+// counterpart would, when both use the same live Radarr Path.
+func TestBuildTier2MovieStreams_UsesLiveRadarrPath(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 7, TMDBTitle: "Live Path Movie", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "lp1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "lp2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	livePath := "/media/movies/Live Path Movie (2020)"
+	fr := &fakeRadarr{byTMDBID: map[int]*radarr.Movie{7: {ID: 70, TMDBID: 7, Path: livePath}}}
+
+	deps := testDeps(db, fr, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	expectedPath, _ := downloader.BuildRadarrDestPath(livePath, deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+}
+
+// 4.4 A Radarr lookup error for one tier-2 movie candidate skips it without
+// failing the whole BuildStreams call.
+func TestBuildTier2MovieStreams_LookupErrorSkipsCandidate(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 8, TMDBTitle: "Errored Movie", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "le1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "le2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	fr := &fakeRadarr{tmdbLookupErr: fmt.Errorf("radarr unreachable")}
+
+	deps := testDeps(db, fr, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err, "a per-candidate lookup error must not fail the whole build")
+	require.Empty(t, streams, "the candidate with the failed lookup must be skipped for this run")
+}
+
+// 4.4 A "not found" live Radarr lookup falls back to the config-based path.
+func TestBuildTier2MovieStreams_NotFoundFallsBackToConfigPath(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 9, TMDBTitle: "Gone From Radarr", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "nf1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "nf2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	// byTMDBID has no entry for TMDBID 9, so the fake returns (nil, nil) - "not found".
+	fr := &fakeRadarr{byTMDBID: map[int]*radarr.Movie{}}
+
+	deps := testDeps(db, fr, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	expectedPath, _ := downloader.BuildRadarrDestPath("", deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+}
+
+// 4.4 A tier-2 series stream resolves to the same BaseDestPath as its tier-1
+// counterpart would, when both use the same live Sonarr Path.
+func TestBuildTier2SeriesStreams_UsesLiveSonarrPath(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 888
+	ep := models.TVShow{TMDBID: 400, TVDBID: intPtr(tvdbID), TMDBTitle: "Live Path Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "sp1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "sp2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateProcessed, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	livePath := "/media/tv/Live Path Show"
+	fs := &fakeSonarr{byTVDBID: map[int]*sonarr.Series{tvdbID: {ID: 99, TvdbID: tvdbID, Path: livePath}}}
+
+	deps := testDeps(db, &fakeRadarr{}, fs)
+	streams, err := buildTier2SeriesStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	expectedPath, _ := downloader.BuildSonarrDestPath(livePath, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+}
+
+// 4.4 A Sonarr lookup error for one tier-2 series candidate skips it without
+// failing the whole BuildStreams call.
+func TestBuildTier2SeriesStreams_LookupErrorSkipsCandidate(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 889
+	ep := models.TVShow{TMDBID: 401, TVDBID: intPtr(tvdbID), TMDBTitle: "Errored Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "se1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "se2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateProcessed, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	fs := &fakeSonarr{tvdbLookupErr: fmt.Errorf("sonarr unreachable")}
+
+	deps := testDeps(db, &fakeRadarr{}, fs)
+	streams, err := buildTier2SeriesStreams(context.Background(), deps)
+	require.NoError(t, err, "a per-candidate lookup error must not fail the whole build")
+	require.Empty(t, streams, "the candidate with the failed lookup must be skipped for this run")
+}
+
+// 4.4 A "not found" live Sonarr lookup falls back to the config-based path.
+func TestBuildTier2SeriesStreams_NotFoundFallsBackToConfigPath(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 890
+	ep := models.TVShow{TMDBID: 402, TVDBID: intPtr(tvdbID), TMDBTitle: "Gone From Sonarr", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "nfs1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "nfs2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateProcessed, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	// byTVDBID has no entry for tvdbID, so the fake returns (nil, nil) - "not found".
+	fs := &fakeSonarr{byTVDBID: map[int]*sonarr.Series{}}
+
+	deps := testDeps(db, &fakeRadarr{}, fs)
+	streams, err := buildTier2SeriesStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	expectedPath, _ := downloader.BuildSonarrDestPath("", deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
 }
 
 // 2.3 A resumed item is attempted before a fresh item in the same stream.

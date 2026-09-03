@@ -8,6 +8,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/matcher"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
@@ -27,12 +28,14 @@ type BuildDeps struct {
 // RadarrClient is the subset of *radarr.Client BuildStreams depends on.
 type RadarrClient interface {
 	GetMissingMovies(ctx context.Context, opts radarr.FetchOptions) ([]radarr.Movie, error)
+	GetMovieByTMDBID(ctx context.Context, tmdbID int) (*radarr.Movie, error)
 }
 
 // SonarrClient is the subset of *sonarr.Client BuildStreams depends on.
 type SonarrClient interface {
 	GetMissingEpisodes(ctx context.Context, opts sonarr.FetchOptions) ([]sonarr.Episode, error)
 	GetSeriesDetails(ctx context.Context, id int) (*sonarr.Series, error)
+	GetSeriesByTVDBID(ctx context.Context, tvdbID int) (*sonarr.Series, error)
 }
 
 type tvdbSeasonKey struct {
@@ -68,12 +71,12 @@ func BuildStreams(ctx context.Context, deps BuildDeps) ([]*Stream, error) {
 	}
 	streams = append(streams, seriesStreams...)
 
-	tier2MovieStreams, err := buildTier2MovieStreams(deps)
+	tier2MovieStreams, err := buildTier2MovieStreams(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
 
-	tier2SeriesStreams, err := buildTier2SeriesStreams(deps)
+	tier2SeriesStreams, err := buildTier2SeriesStreams(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -259,9 +262,13 @@ func buildTier1SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, ma
 }
 
 // buildTier2MovieStreams classifies movies that already have a successful
-// download but still have another eligible (not-yet-downloaded) candidate —
-// the same eligibility rule as today's `--force` — as tier-2 upgrade streams.
-func buildTier2MovieStreams(deps BuildDeps) ([]*Stream, error) {
+// download but whose best untried candidate is strictly better (language,
+// then resolution) than the one already downloaded, as tier-2 upgrade
+// streams. A leftover candidate that is merely eligible but equal-or-worse no
+// longer qualifies. The destination path is sourced from a live Radarr
+// lookup, matching tier-1, so an accepted upgrade replaces the original file
+// instead of landing in a different folder.
+func buildTier2MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, error) {
 	var movies []models.Movie
 	if err := deps.DB.Find(&movies).Error; err != nil {
 		return nil, err
@@ -269,11 +276,11 @@ func buildTier2MovieStreams(deps BuildDeps) ([]*Stream, error) {
 
 	var streams []*Stream
 	for _, movie := range movies {
-		downloaded, err := countDownloaded(deps.DB, "movie_id", movie.ID)
+		downloadedLine, err := findDownloadedLine(deps.DB, "movie_id", movie.ID)
 		if err != nil {
 			return nil, err
 		}
-		if downloaded == 0 {
+		if downloadedLine == nil {
 			continue
 		}
 
@@ -284,8 +291,27 @@ func buildTier2MovieStreams(deps BuildDeps) ([]*Stream, error) {
 		if len(candidates) == 0 {
 			continue
 		}
+		if candidateRank(&candidates[0]) >= candidateRank(downloadedLine) {
+			continue
+		}
 
-		baseDestPath, _ := downloader.BuildRadarrDestPath("", deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
+		moviePath := ""
+		if deps.Radarr != nil {
+			radarrMovie, err := deps.Radarr.GetMovieByTMDBID(ctx, movie.TMDBID)
+			if err != nil {
+				logger.AppLogger().WithFields(map[string]interface{}{
+					"movie_id": movie.ID,
+					"tmdb_id":  movie.TMDBID,
+					"error":    err,
+				}).Warn("tier-2: failed to look up movie in Radarr, skipping upgrade for this run")
+				continue
+			}
+			if radarrMovie != nil {
+				moviePath = radarrMovie.Path
+			}
+		}
+
+		baseDestPath, _ := downloader.BuildRadarrDestPath(moviePath, deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
 		streams = append(streams, &Stream{
 			Tier:      Tier2,
 			SourceKey: fmt.Sprintf("movie:%d", movie.ID),
@@ -301,12 +327,15 @@ func buildTier2MovieStreams(deps BuildDeps) ([]*Stream, error) {
 }
 
 // buildTier2SeriesStreams classifies TV episodes that already have a
-// successful download but still have another eligible candidate as tier-2
+// successful download but whose best untried candidate is strictly better
+// (language, then resolution) than the one already downloaded, as tier-2
 // upgrade streams, grouped one stream per (series, season). Tier-2 streams do
 // not participate in the ascending-season-order queue: every one of their
 // episodes is already in a terminal (downloaded) state, so there is no
-// in-progress season to protect.
-func buildTier2SeriesStreams(deps BuildDeps) ([]*Stream, error) {
+// in-progress season to protect. The destination path is sourced from a live
+// Sonarr lookup, matching tier-1, so an accepted upgrade replaces the
+// original file instead of landing in a different folder.
+func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, error) {
 	var episodes []models.TVShow
 	if err := deps.DB.Find(&episodes).Error; err != nil {
 		return nil, err
@@ -314,17 +343,18 @@ func buildTier2SeriesStreams(deps BuildDeps) ([]*Stream, error) {
 
 	seasonMap := make(map[tvdbSeasonKey]*seasonBuild)
 	var seasonOrder []tvdbSeasonKey
+	seriesPathCache := make(map[int]string)
 
 	for _, ep := range episodes {
 		if ep.TVDBID == nil || ep.Season == nil || ep.Episode == nil {
 			continue
 		}
 
-		downloaded, err := countDownloaded(deps.DB, "tv_show_id", ep.ID)
+		downloadedLine, err := findDownloadedLine(deps.DB, "tv_show_id", ep.ID)
 		if err != nil {
 			return nil, err
 		}
-		if downloaded == 0 {
+		if downloadedLine == nil {
 			continue
 		}
 
@@ -335,8 +365,29 @@ func buildTier2SeriesStreams(deps BuildDeps) ([]*Stream, error) {
 		if len(candidates) == 0 {
 			continue
 		}
+		if candidateRank(&candidates[0]) >= candidateRank(downloadedLine) {
+			continue
+		}
 
-		baseDestPath, _ := downloader.BuildSonarrDestPath("", deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
+		seriesPath, ok := seriesPathCache[*ep.TVDBID]
+		if !ok {
+			if deps.Sonarr != nil {
+				series, err := deps.Sonarr.GetSeriesByTVDBID(ctx, *ep.TVDBID)
+				if err != nil {
+					logger.AppLogger().WithFields(map[string]interface{}{
+						"tvdb_id": *ep.TVDBID,
+						"error":   err,
+					}).Warn("tier-2: failed to look up series in Sonarr, skipping upgrade for this run")
+					continue
+				}
+				if series != nil {
+					seriesPath = series.Path
+				}
+			}
+			seriesPathCache[*ep.TVDBID] = seriesPath
+		}
+
+		baseDestPath, _ := downloader.BuildSonarrDestPath(seriesPath, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
 
 		key := tvdbSeasonKey{tvdbID: *ep.TVDBID, season: *ep.Season}
 		sb, ok := seasonMap[key]
@@ -368,12 +419,28 @@ func buildTier2SeriesStreams(deps BuildDeps) ([]*Stream, error) {
 	return streams, nil
 }
 
-func countDownloaded(db *gorm.DB, column string, id uint) (int64, error) {
-	var count int64
-	err := db.Model(&models.ProcessedLine{}).
-		Where(fmt.Sprintf("%s = ? AND state = ?", column), id, models.StateDownloaded).
-		Count(&count).Error
-	return count, err
+// findDownloadedLine returns the best-ranked already-downloaded ProcessedLine
+// for the given movie/TV-show occurrence (by candidateRank), or nil if none
+// has been downloaded yet. When more than one occurrence has been downloaded,
+// the best-ranked one represents what the user already effectively has, so
+// tier-2 gating compares untried candidates against it rather than an
+// arbitrary one.
+func findDownloadedLine(db *gorm.DB, column string, id uint) (*models.ProcessedLine, error) {
+	var lines []models.ProcessedLine
+	if err := db.Where(fmt.Sprintf("%s = ? AND state = ?", column), id, models.StateDownloaded).Find(&lines).Error; err != nil {
+		return nil, err
+	}
+	if len(lines) == 0 {
+		return nil, nil
+	}
+
+	best := &lines[0]
+	for i := 1; i < len(lines); i++ {
+		if candidateRank(&lines[i]) < candidateRank(best) {
+			best = &lines[i]
+		}
+	}
+	return best, nil
 }
 
 // mergeIncompleteDownloads attaches any incomplete/interrupted DownloadInfo

@@ -642,6 +642,83 @@ func TestSetContentTypeResolutionNil(t *testing.T) {
 	}
 }
 
+func TestDetectLanguage(t *testing.T) {
+	tests := []struct {
+		name       string
+		tvgName    string
+		groupTitle string
+		want       *string
+	}{
+		{
+			name:    "VF entry",
+			tvgName: "Die Hart 2 (2024) FHD VF",
+			want:    strPtr("VF"),
+		},
+		{
+			name:    "MULTI entry",
+			tvgName: "Heist 88 (2024) HD MULTI",
+			want:    strPtr("MULTI"),
+		},
+		{
+			name:    "VOSTFR entry",
+			tvgName: "Clifford (FHD VOSTFR)",
+			want:    strPtr("VOSTFR"),
+		},
+		{
+			name:    "no language marker",
+			tvgName: "Venom (2018) HD",
+			want:    nil,
+		},
+		{
+			name:       "language marker only in group title",
+			tvgName:    "Show S01E01",
+			groupTitle: "Séries VF",
+			want:       strPtr("VF"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := detectLanguage(tt.tvgName, tt.groupTitle)
+			if tt.want == nil && got != nil {
+				t.Errorf("got %q, want nil", *got)
+			} else if tt.want != nil && got == nil {
+				t.Errorf("got nil, want %q", *tt.want)
+			} else if tt.want != nil && got != nil && *got != *tt.want {
+				t.Errorf("got %q, want %q", *got, *tt.want)
+			}
+		})
+	}
+}
+
+func TestSetContentTypeLanguage(t *testing.T) {
+	p := &Processor{
+		classifier: classifier.New(),
+	}
+
+	cl := classifier.Classification{ContentType: classifier.ContentTypeMovie}
+	opts := &ProcessOptions{SkipTMDB: true, TMDBLanguage: "en-US"}
+	stats := &Statistics{}
+
+	vfLine := &models.ProcessedLine{TvgName: "Die Hart 2 (2024) FHD VF"}
+	if err := p.setContentType(vfLine, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+	if vfLine.Language == nil || *vfLine.Language != "VF" {
+		t.Errorf("expected Language = 'VF', got %v", vfLine.Language)
+	}
+
+	unmarkedLine := &models.ProcessedLine{TvgName: "Venom (2018) HD"}
+	if err := p.setContentType(unmarkedLine, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+	if unmarkedLine.Language != nil {
+		t.Errorf("expected Language to be nil, got %q", *unmarkedLine.Language)
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
 func TestComputeLineHash(t *testing.T) {
 	hash1 := computeLineHash("Test Movie http://example.com/movie.mkv")
 	hash2 := computeLineHash("Test Movie http://example.com/movie.mkv")

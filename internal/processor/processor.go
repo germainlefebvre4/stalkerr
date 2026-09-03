@@ -271,6 +271,9 @@ func (p *Processor) setContentType(line *models.ProcessedLine, classification cl
 	// Persist resolution detected by the classifier
 	line.Resolution = classification.Resolution
 
+	// Persist language detected from the M3U entry's title or group
+	line.Language = detectLanguage(line.TvgName, line.GroupTitle)
+
 	// Determine language for TMDB
 	language := opts.TMDBLanguage
 	if language == "" {
@@ -525,6 +528,26 @@ func (p *Processor) enrichTVShowWithTMDBID(line *models.ProcessedLine, tmdbID in
 // qualitySuffixRe matches quality/language tokens at the end of a title,
 // e.g. "Movie SD", "Movie HD MULTI", "Movie FHD VOSTFR".
 var qualitySuffixRe = regexp.MustCompile(`(?i)\s+(?:SD|FHD|UHD|HD|4K|MULTI|VOSTFR|VF)(?:\s+.*)?$`)
+
+// languageTokenRe matches the same VF/MULTI/VOSTFR language markers recognized
+// by qualitySuffixRe, in either their trailing form ("Movie HD VF") or
+// parenthesized form ("Show (VF)"), so language detection shares a single
+// source of truth for the token list instead of a second, drifting regex.
+var languageTokenRe = regexp.MustCompile(`(?i)\b(VF|MULTI|VOSTFR)\b`)
+
+// detectLanguage extracts the language marker (VF, MULTI, or VOSTFR), if any,
+// from an M3U entry's title or group title. Returns nil when no marker is found.
+func detectLanguage(tvgName, groupTitle string) *string {
+	if m := languageTokenRe.FindStringSubmatch(tvgName); m != nil {
+		lang := strings.ToUpper(m[1])
+		return &lang
+	}
+	if m := languageTokenRe.FindStringSubmatch(groupTitle); m != nil {
+		lang := strings.ToUpper(m[1])
+		return &lang
+	}
+	return nil
+}
 
 // yearDashRe matches a year in the "Titre - YYYY" format at the end of a title,
 // e.g. "Super Dark Times - 2017". Requires a 19xx or 20xx year to avoid false positives.

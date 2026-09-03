@@ -800,6 +800,157 @@ func TestFindMovieDownloadCandidatesNilResolutionLast(t *testing.T) {
 	}
 }
 
+func TestFindMovieDownloadCandidatesLanguageBeforeResolution(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 604, TMDBTitle: "The Matrix Reloaded", TMDBYear: 2003}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	res1080p := "1080p"
+	langVF := "VF"
+	langMULTI := "MULTI"
+
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix Reloaded 720p MULTI", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-multi-720p", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res720p, Language: &langMULTI,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix Reloaded 1080p VF", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-vf-1080p", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res1080p, Language: &langVF,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+
+	// VF at 1080p must come before MULTI at 720p: language outranks resolution.
+	if candidates[0].Language == nil || *candidates[0].Language != "VF" {
+		t.Errorf("expected first candidate language 'VF', got %v", candidates[0].Language)
+	}
+	if candidates[1].Language == nil || *candidates[1].Language != "MULTI" {
+		t.Errorf("expected second candidate language 'MULTI', got %v", candidates[1].Language)
+	}
+}
+
+func TestFindMovieDownloadCandidatesUnmarkedLanguageBeforeVOSTFR(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 605, TMDBTitle: "The Matrix Revolutions", TMDBYear: 2003}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	langVOSTFR := "VOSTFR"
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix Revolutions VOSTFR", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-vostfr", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Language: &langVOSTFR,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix Revolutions", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-unmarked", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Language: nil,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+
+	// Unmarked language must come before VOSTFR.
+	if candidates[0].Language != nil {
+		t.Errorf("expected first candidate to have nil language, got %q", *candidates[0].Language)
+	}
+	if candidates[1].Language == nil || *candidates[1].Language != "VOSTFR" {
+		t.Errorf("expected second candidate language 'VOSTFR', got %v", candidates[1].Language)
+	}
+}
+
+func TestFindMovieDownloadCandidatesResolutionBreaksTieWithinLanguage(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 606, TMDBTitle: "John Wick", TMDBYear: 2014}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	res4K := "4K"
+	langVF := "VF"
+
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "John Wick 4K VF", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-vf-4k", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res4K, Language: &langVF,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "John Wick 720p VF", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-vf-720p", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res720p, Language: &langVF,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+
+	// Same language (VF): resolution still breaks the tie, 720p first.
+	if candidates[0].Resolution == nil || *candidates[0].Resolution != "720p" {
+		t.Errorf("expected first candidate resolution '720p', got %v", candidates[0].Resolution)
+	}
+	if candidates[1].Resolution == nil || *candidates[1].Resolution != "4K" {
+		t.Errorf("expected second candidate resolution '4K', got %v", candidates[1].Resolution)
+	}
+}
+
 func TestFindMovieDownloadCandidatesExcludesDownloaded(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -850,9 +1001,9 @@ func TestMatchMoviesBatch(t *testing.T) {
 
 	radarrMovies := []radarr.Movie{
 		{ID: 1, Title: "The Matrix (different)", Year: 1999, TvdbID: tvdbID, TMDBID: 99999}, // TVDB hit
-		{ID: 2, Title: "Some Other Title", Year: 2010, TMDBID: 27205},                        // TMDB hit
-		{ID: 3, Title: "Dark Knight", Year: 2008, TMDBID: 88888},                              // fuzzy-only hit
-		{ID: 4, Title: "Completely Unknown Movie", Year: 2025, TMDBID: 77777},                 // no match
+		{ID: 2, Title: "Some Other Title", Year: 2010, TMDBID: 27205},                       // TMDB hit
+		{ID: 3, Title: "Dark Knight", Year: 2008, TMDBID: 88888},                            // fuzzy-only hit
+		{ID: 4, Title: "Completely Unknown Movie", Year: 2025, TMDBID: 77777},               // no match
 	}
 
 	results, err := MatchMoviesBatch(db, radarrMovies)

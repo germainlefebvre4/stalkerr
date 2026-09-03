@@ -143,9 +143,14 @@ func (m *Matcher) FindBestMovieMatch(line *models.ProcessedLine, movies []radarr
 	return bestMatch
 }
 
-// resolutionOrderSQL is a CASE expression that maps resolution strings to sort priority.
-// 720p (1) is preferred first, then 1080p, 4K, 480p, and unknown/nil last (5).
-const resolutionOrderSQL = "CASE resolution WHEN '720p' THEN 1 WHEN '1080p' THEN 2 WHEN '4K' THEN 3 WHEN '480p' THEN 4 ELSE 5 END ASC, created_at DESC"
+// resolutionOrderSQL is a compound CASE expression that maps language and
+// resolution strings to sort priority. Language is primary: VF (1) is
+// preferred first, then MULTI (2), unspecified/NULL (3), then VOSTFR (4).
+// Resolution breaks ties within the same language tier: 720p (1) is preferred
+// first, then 1080p, 4K, 480p, and unknown/nil last (5). Recency breaks ties
+// within the same language-and-resolution tier.
+const resolutionOrderSQL = "CASE language WHEN 'VF' THEN 1 WHEN 'MULTI' THEN 2 WHEN 'VOSTFR' THEN 4 ELSE 3 END ASC, " +
+	"CASE resolution WHEN '720p' THEN 1 WHEN '1080p' THEN 2 WHEN '4K' THEN 3 WHEN '480p' THEN 4 ELSE 5 END ASC, created_at DESC"
 
 // FindMovieDownloadCandidates returns all eligible ProcessedLines for a movie ordered by
 // quality preference (720p → 1080p → 4K → 480p → nil) then by recency within the same tier.
