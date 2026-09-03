@@ -1,0 +1,57 @@
+{
+  "heading": "Naming Errors",
+  "subtitle": "Downloads whose organized file has an extension or year problem",
+  "refresh": "Refresh ↻",
+  "reasonFilter": {
+    "all": "All",
+    "unknownFormat": "Invalid extension",
+    "missingYear": "Missing year",
+    "yearMismatch": "Inconsistent year"
+  },
+  "loading": "Loading errors...",
+  "empty": "No errors detected",
+  "table": {
+    "headers": {
+      "title": "Download",
+      "reasons": "Problem(s)",
+      "year": "Year",
+      "extension": "Extension",
+      "location": "Location",
+      "completedAt": "Completed"
+    }
+  },
+  "badges": {
+    "missingYear": "⚠️ Missing year",
+    "yearMismatch": "⚠️ Inconsistent year",
+    "unknownFormat": "⚠️ Invalid extension"
+  },
+  "year": {
+    "detected": "Detected: {{year}}",
+    "expected": "Expected: {{year}}",
+    "unknown": "Unknown"
+  },
+  "unknownExtension": "Unknown",
+  "drawer": {
+    "title": "🩺 Error Diagnostic",
+    "close": "Close ✕",
+    "description": "Detailed diagnostic, file, matched content, status, and source for this errored download.",
+    "diagnosticSection": "Diagnostic",
+    "fileSection": "File",
+    "contentSection": "Matched Content",
+    "statusSection": "Status & Dates",
+    "sourceSection": "Source"
+  },
+  "folder": "📂 Folder: {{name}}/",
+  "genres": "🎭 Genres:",
+  "season": "Season {{season}} · Episode {{episode}}",
+  "completedAt": "📅 Completed {{date}}",
+  "updatedAt": "🕒 Updated {{date}}",
+  "status": {
+    "completed": "✅ Completed",
+    "downloading": "⏳ In progress",
+    "failedWithRetry": "❌ Failed ({{count}}×)",
+    "failed": "❌ Failed",
+    "pending": "⏳ Pending",
+    "retrying": "🔄 Retrying"
+  }
+}

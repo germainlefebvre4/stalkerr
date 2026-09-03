@@ -10,6 +10,7 @@ import { usePlaylistGroups } from './hooks/usePlaylistGroups';
 import { useFilters } from './hooks/useFilters';
 import { useLogs } from './hooks/useLogs';
 import { useDownloads } from './hooks/useDownloads';
+import { useErrorsTab } from './hooks/useErrorsTab';
 import { useRadarrSonarr } from './hooks/useRadarrSonarr';
 import { useURLState, URLStateSchema } from './hooks/useURLState';
 import { useIsMobile } from './hooks/useMediaQuery';
@@ -17,7 +18,11 @@ import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
 import { resolveRenameFolderName } from './utils/renameDialog';
 
-const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr'];
+const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr', 'errors'];
+
+// The Erreurs tab is desktop-only: it is never part of the mobile bottom tab
+// bar, so falling back off it while narrowing the viewport lands here.
+const MOBILE_FALLBACK_TAB = 'playlist';
 
 const TAB_URL_SCHEMA = {
   tab: {
@@ -42,6 +47,7 @@ import { PlaylistTab } from './components/PlaylistTab';
 import { FiltersTab } from './components/FiltersTab';
 import { LogsTab } from './components/LogsTab';
 import { DownloadsTab } from './components/DownloadsTab';
+import { ErrorsTab } from './components/ErrorsTab';
 import { RadarrSonarrTab } from './components/RadarrSonarrTab';
 
 import { CreateFilterDialog } from './components/CreateFilterDialog';
@@ -92,6 +98,11 @@ export default function App() {
   } = useDownloads(activeTab === 'downloads');
 
   const {
+    errors, errorsLoading, reasonFilter, setReasonFilter,
+    errorsPage, setErrorsPage, errorsLimit, setErrorsLimit, errorsTotal, fetchErrors
+  } = useErrorsTab(activeTab === 'errors');
+
+  const {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
     filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter,
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
@@ -131,6 +142,15 @@ export default function App() {
       fetchFilters();
     }
   }, [activeTab, fetchFilters]);
+
+  // The Erreurs tab is desktop-only (never in the mobile bottom tab bar): if
+  // the viewport narrows while it's active, fall back to another tab instead
+  // of continuing to render it.
+  useEffect(() => {
+    if (isMobile && activeTab === 'errors') {
+      setActiveTab(MOBILE_FALLBACK_TAB);
+    }
+  }, [isMobile, activeTab]);
 
   const translateApiError = useApiErrorMessage();
 
@@ -221,6 +241,7 @@ export default function App() {
           <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ {t('tabs.logs')}</Tabs.Trigger>
           <Tabs.Trigger value="downloads" className="segmented-tabs-trigger">📥 {t('tabs.downloads')}</Tabs.Trigger>
           <Tabs.Trigger value="radarr-sonarr" className="segmented-tabs-trigger">🎯 {t('tabs.radarrSonarr')}</Tabs.Trigger>
+          <Tabs.Trigger value="errors" className="segmented-tabs-trigger">🩺 {t('tabs.errors')}</Tabs.Trigger>
         </Tabs.List>
 
         <PlaylistTab
@@ -256,6 +277,13 @@ export default function App() {
           downloadsLimit={downloadsLimit} setDownloadsLimit={setDownloadsLimit}
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}
           onOpenRenameDialog={openRenameDialog}
+        />
+
+        <ErrorsTab
+          errors={errors} errorsLoading={errorsLoading} reasonFilter={reasonFilter} setReasonFilter={setReasonFilter}
+          errorsTotal={errorsTotal} errorsPage={errorsPage} setErrorsPage={setErrorsPage}
+          errorsLimit={errorsLimit} setErrorsLimit={setErrorsLimit}
+          onFetchErrors={fetchErrors}
         />
 
         <RadarrSonarrTab

@@ -1,0 +1,57 @@
+{
+  "heading": "Erreurs de Nommage",
+  "subtitle": "Téléchargements dont le fichier organisé a un problème d'extension ou d'année",
+  "refresh": "Actualiser ↻",
+  "reasonFilter": {
+    "all": "Tous",
+    "unknownFormat": "Extension invalide",
+    "missingYear": "Année manquante",
+    "yearMismatch": "Année incohérente"
+  },
+  "loading": "Chargement des erreurs...",
+  "empty": "Aucune erreur détectée",
+  "table": {
+    "headers": {
+      "title": "Téléchargement",
+      "reasons": "Problème(s)",
+      "year": "Année",
+      "extension": "Extension",
+      "location": "Emplacement",
+      "completedAt": "Complété le"
+    }
+  },
+  "badges": {
+    "missingYear": "⚠️ Année manquante",
+    "yearMismatch": "⚠️ Année incohérente",
+    "unknownFormat": "⚠️ Extension invalide"
+  },
+  "year": {
+    "detected": "Détectée : {{year}}",
+    "expected": "Attendue : {{year}}",
+    "unknown": "Inconnue"
+  },
+  "unknownExtension": "Inconnue",
+  "drawer": {
+    "title": "🩺 Diagnostic de l'Erreur",
+    "close": "Fermer ✕",
+    "description": "Diagnostic détaillé, fichier, contenu associé, statut et source de ce téléchargement en erreur.",
+    "diagnosticSection": "Diagnostic",
+    "fileSection": "Fichier",
+    "contentSection": "Contenu Associé",
+    "statusSection": "Statut et Dates",
+    "sourceSection": "Source"
+  },
+  "folder": "📂 Dossier : {{name}}/",
+  "genres": "🎭 Genres :",
+  "season": "Saison {{season}} · Épisode {{episode}}",
+  "completedAt": "📅 Complété le {{date}}",
+  "updatedAt": "🕒 Mis à jour le {{date}}",
+  "status": {
+    "completed": "✅ Complété",
+    "downloading": "⏳ En cours",
+    "failedWithRetry": "❌ Échec ({{count}}×)",
+    "failed": "❌ Échec",
+    "pending": "⏳ En attente",
+    "retrying": "🔄 Réessai"
+  }
+}

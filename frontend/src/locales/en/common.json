@@ -13,7 +13,8 @@
     "filters": "Filters",
     "logs": "Processing",
     "downloads": "Downloads",
-    "radarrSonarr": "Arr-Suite"
+    "radarrSonarr": "Arr-Suite",
+    "errors": "Errors"
   },
   "toasts": {
     "resetSuccess": "Pipeline reset successfully! Ready for reprocessing.",

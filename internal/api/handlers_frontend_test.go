@@ -440,6 +440,199 @@ func TestListDownloadsEnriched(t *testing.T) {
 	}
 }
 
+func TestListDownloadsEnriched_MultiValueProblemFilter(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Has year in path but invalid extension — should only match via unknown_format.
+	pathInvalidExt := "/media/movies/Inception (2010)/inception.xyz"
+	dlInvalidExt := models.DownloadInfo{
+		URL:          "http://example.com/inception",
+		Status:       "completed",
+		DownloadPath: &pathInvalidExt,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	db.Create(&dlInvalidExt)
+
+	// Missing year, valid extension — should only match via missing_year.
+	pathMissingYear := "avatar.mkv"
+	dlMissingYear := models.DownloadInfo{
+		URL:          "http://example.com/avatar",
+		Status:       "completed",
+		DownloadPath: &pathMissingYear,
+		CreatedAt:    time.Now().Add(time.Second),
+		UpdatedAt:    time.Now().Add(time.Second),
+	}
+	db.Create(&dlMissingYear)
+
+	// Neither problem — has year in path and valid extension.
+	pathClean := "/media/movies/The.Matrix.1999/matrix.mkv"
+	dlClean := models.DownloadInfo{
+		URL:          "http://example.com/matrix",
+		Status:       "completed",
+		DownloadPath: &pathClean,
+		CreatedAt:    time.Now().Add(time.Second * 2),
+		UpdatedAt:    time.Now().Add(time.Second * 2),
+	}
+	db.Create(&dlClean)
+
+	server := NewServer()
+
+	// Combined filter should return the union of both problem types.
+	req, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year,unknown_format", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data  []DownloadEnrichedResponse `json:"data"`
+		Total int64                      `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if resp.Total != 2 {
+		t.Errorf("Expected 2 downloads matching combined filter, got %d", resp.Total)
+	}
+
+	matched := make(map[uint]bool)
+	for _, item := range resp.Data {
+		matched[item.ID] = true
+	}
+	if !matched[dlInvalidExt.ID] {
+		t.Error("Expected invalid-extension download to match the combined filter")
+	}
+	if !matched[dlMissingYear.ID] {
+		t.Error("Expected missing-year download to match the combined filter")
+	}
+	if matched[dlClean.ID] {
+		t.Error("Did not expect the clean download to match the combined filter")
+	}
+
+	// Single value keeps its existing exact-match behavior.
+	reqSingle, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year", nil)
+	wSingle := httptest.NewRecorder()
+	server.router.ServeHTTP(wSingle, reqSingle)
+
+	var respSingle struct {
+		Data  []DownloadEnrichedResponse `json:"data"`
+		Total int64                      `json:"total"`
+	}
+	if err := json.Unmarshal(wSingle.Body.Bytes(), &respSingle); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if respSingle.Total != 1 {
+		t.Errorf("Expected 1 download matching single-value filter, got %d", respSingle.Total)
+	}
+}
+
+func TestListDownloadsEnriched_MultiValueProblemFilterPagination(t *testing.T) {
+	db := setupTestDB(t)
+
+	// 3 downloads matching missing_year only.
+	for i := 0; i < 3; i++ {
+		path := fmt.Sprintf("flatpath%d.mkv", i)
+		dl := models.DownloadInfo{
+			URL:          fmt.Sprintf("http://example.com/missing-year-%d", i),
+			Status:       "completed",
+			DownloadPath: &path,
+			CreatedAt:    time.Now().Add(time.Duration(i) * time.Second),
+			UpdatedAt:    time.Now().Add(time.Duration(i) * time.Second),
+		}
+		db.Create(&dl)
+	}
+	// 2 downloads matching unknown_format only.
+	for i := 0; i < 2; i++ {
+		path := fmt.Sprintf("/media/movies/Extra %d (2010)/extra%d.xyz", i, i)
+		dl := models.DownloadInfo{
+			URL:          fmt.Sprintf("http://example.com/unknown-format-%d", i),
+			Status:       "completed",
+			DownloadPath: &path,
+			CreatedAt:    time.Now().Add(time.Duration(3+i) * time.Second),
+			UpdatedAt:    time.Now().Add(time.Duration(3+i) * time.Second),
+		}
+		db.Create(&dl)
+	}
+	// A clean download present in the pre-filter set but matching neither problem.
+	pathClean := "/media/movies/The.Matrix.1999/matrix.mkv"
+	dlClean := models.DownloadInfo{
+		URL:          "http://example.com/matrix",
+		Status:       "completed",
+		DownloadPath: &pathClean,
+		CreatedAt:    time.Now().Add(time.Second * 10),
+		UpdatedAt:    time.Now().Add(time.Second * 10),
+	}
+	db.Create(&dlClean)
+
+	server := NewServer()
+
+	// Pre-filter set is 6, but only 5 match the combined filter — verify total
+	// and paginated data reflect the filtered count, not the pre-filter count.
+	req, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year,unknown_format&limit=3&offset=0", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	var resp struct {
+		Data       []DownloadEnrichedResponse `json:"data"`
+		Total      int64                      `json:"total"`
+		TotalPages int                        `json:"total_pages"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if resp.Total != 5 {
+		t.Errorf("Expected filtered total 5, got %d", resp.Total)
+	}
+	if resp.TotalPages != 2 {
+		t.Errorf("Expected total_pages 2, got %d", resp.TotalPages)
+	}
+	if len(resp.Data) != 3 {
+		t.Errorf("Expected 3 items on page 1, got %d", len(resp.Data))
+	}
+
+	reqPage2, _ := http.NewRequest("GET", "/api/v1/downloads?problem=missing_year,unknown_format&limit=3&offset=3", nil)
+	wPage2 := httptest.NewRecorder()
+	server.router.ServeHTTP(wPage2, reqPage2)
+
+	var respPage2 struct {
+		Data       []DownloadEnrichedResponse `json:"data"`
+		Total      int64                      `json:"total"`
+		TotalPages int                        `json:"total_pages"`
+	}
+	if err := json.Unmarshal(wPage2.Body.Bytes(), &respPage2); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if respPage2.Total != 5 {
+		t.Errorf("Expected filtered total 5 on page 2, got %d", respPage2.Total)
+	}
+	if len(respPage2.Data) != 2 {
+		t.Errorf("Expected 2 remaining items on page 2, got %d", len(respPage2.Data))
+	}
+
+	seen := make(map[uint]bool)
+	for _, item := range resp.Data {
+		seen[item.ID] = true
+	}
+	for _, item := range respPage2.Data {
+		if seen[item.ID] {
+			t.Errorf("Item %d appeared on both page 1 and page 2", item.ID)
+		}
+		seen[item.ID] = true
+	}
+	if len(seen) != 5 {
+		t.Errorf("Expected 5 unique items across both pages, got %d", len(seen))
+	}
+	if seen[dlClean.ID] {
+		t.Error("Did not expect the clean download to appear in the filtered pages")
+	}
+}
+
 func TestListDownloadsEnriched_TargetAndStagingPaths(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -543,6 +736,58 @@ func TestListDownloadsEnriched_TargetAndStagingPaths(t *testing.T) {
 	}
 	if completedItem["download_path"] != completedPath {
 		t.Errorf("Expected download_path %q, got %v", completedPath, completedItem["download_path"])
+	}
+}
+
+func TestEnrichDownloadInfo_FileInfo_PrefersTargetPathOverExtensionlessDownloadPathWhenNotCompleted(t *testing.T) {
+	setupTestDB(t)
+
+	// force-download prefills download_path early with an extensionless
+	// resume-target base path (see force_download.go persistForceDownloadPath),
+	// well before the download completes. file_info must not be derived from
+	// that extensionless path while the download is still in progress.
+	extensionlessDownloadPath := "/downloads/radarr/Prefilled Movie (2024)/Prefilled Movie (2024) [1080p]"
+	targetPath := extensionlessDownloadPath + ".mkv"
+	dl := models.DownloadInfo{
+		URL:          "http://example.com/prefilled-movie",
+		Status:       "downloading",
+		DownloadPath: &extensionlessDownloadPath,
+		TargetPath:   &targetPath,
+	}
+
+	resp := enrichDownloadInfo(dl)
+
+	if resp.FileInfo == nil {
+		t.Fatal("expected FileInfo to be set")
+	}
+	if resp.FileInfo.Extension != ".mkv" {
+		t.Errorf("expected FileInfo.Extension '.mkv' (from target_path), got %q", resp.FileInfo.Extension)
+	}
+	// RenameFolderName stays tied to the real download_path regardless of status.
+	if resp.RenameFolderName == nil {
+		t.Error("expected RenameFolderName to still be derived from download_path")
+	}
+}
+
+func TestEnrichDownloadInfo_FileInfo_UsesDownloadPathWhenCompleted(t *testing.T) {
+	setupTestDB(t)
+
+	downloadPath := "/downloads/radarr/Completed Movie (2024)/Completed Movie (2024) [1080p].mkv"
+	staleTargetPath := "/downloads/radarr/Completed Movie (2024)/Completed Movie (2024) [1080p].mp4"
+	dl := models.DownloadInfo{
+		URL:          "http://example.com/completed-movie",
+		Status:       "completed",
+		DownloadPath: &downloadPath,
+		TargetPath:   &staleTargetPath,
+	}
+
+	resp := enrichDownloadInfo(dl)
+
+	if resp.FileInfo == nil {
+		t.Fatal("expected FileInfo to be set")
+	}
+	if resp.FileInfo.Extension != ".mkv" {
+		t.Errorf("expected FileInfo.Extension '.mkv' (from download_path), got %q", resp.FileInfo.Extension)
 	}
 }
 

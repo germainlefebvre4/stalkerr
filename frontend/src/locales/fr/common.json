@@ -13,7 +13,8 @@
     "filters": "Filtres",
     "logs": "Traitements",
     "downloads": "Téléchargements",
-    "radarrSonarr": "Arr-Suite"
+    "radarrSonarr": "Arr-Suite",
+    "errors": "Erreurs"
   },
   "toasts": {
     "resetSuccess": "Flux réinitialisé avec succès ! Prêt pour le retraitement.",

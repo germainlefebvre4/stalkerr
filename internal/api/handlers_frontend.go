@@ -224,8 +224,21 @@ func enrichDownloadInfo(dl models.DownloadInfo) DownloadEnrichedResponse {
 		contentYear = contentInfo.Year
 	}
 
+	// file_info describes the file's expected shape (folder/name/format/resolution).
+	// download_path is only guaranteed to be the real, final, correctly-extensioned
+	// path once the download is completed: force-download prefills it early with an
+	// extensionless resume-target base path (see force_download.go persistForceDownloadPath),
+	// so prefer target_path (URL-guessed extension) while the download isn't done yet.
+	fileInfoSourcePath := dl.DownloadPath
+	if dl.Status != string(models.DownloadStatusCompleted) && dl.TargetPath != nil && *dl.TargetPath != "" {
+		fileInfoSourcePath = dl.TargetPath
+	}
+	if fileInfoSourcePath != nil && *fileInfoSourcePath != "" {
+		resp.FileInfo = fileparser.Parse(*fileInfoSourcePath, contentYear)
+	}
+
+	// Renaming always operates on the real file, so it stays tied to download_path only.
 	if dl.DownloadPath != nil && *dl.DownloadPath != "" {
-		resp.FileInfo = fileparser.Parse(*dl.DownloadPath, contentYear)
 		renameName := renameFolderName(*dl.DownloadPath)
 		resp.RenameFolderName = &renameName
 	}
@@ -275,6 +288,16 @@ func matchesProblem(resp DownloadEnrichedResponse, filter string) bool {
 	if filter == "" {
 		return true
 	}
+	values := strings.Split(filter, ",")
+	for _, value := range values {
+		if matchesSingleProblem(resp, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesSingleProblem(resp DownloadEnrichedResponse, filter string) bool {
 	if resp.FileInfo == nil {
 		return false
 	}
