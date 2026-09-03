@@ -7,6 +7,7 @@ metadata:
     {{- include "stalkerr.labels" . | nindent 4 }}
     app.kubernetes.io/component: cronjob-process
 spec:
+  timeZone: {{ .Values.jobs.process.timeZone | quote }}
   schedule: {{ .Values.jobs.process.schedule | quote }}
   concurrencyPolicy: {{ .Values.jobs.process.concurrencyPolicy }}
   successfulJobsHistoryLimit: {{ .Values.jobs.process.successfulJobsHistoryLimit }}

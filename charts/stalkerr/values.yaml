@@ -166,6 +166,7 @@ jobs:
   # M3U playlist download job
   m3uDownload:
     enabled: true
+    timeZone: "Europe/Paris"
     schedule: "30 23 * * *"  # Daily at 23:30
     concurrencyPolicy: Forbid
     successfulJobsHistoryLimit: 1
@@ -182,6 +183,7 @@ jobs:
   # M3U processing job (TMDB enrichment)
   process:
     enabled: true
+    timeZone: "Europe/Paris"
     schedule: "0 0 * * *"  # Daily at midnight
     concurrencyPolicy: Forbid
     successfulJobsHistoryLimit: 1
@@ -199,6 +201,7 @@ jobs:
   # their forceSync variants)
   download:
     enabled: true
+    timeZone: "Europe/Paris"
     schedule: "0 */2 * * *"  # Every 2 hours
     concurrencyPolicy: Forbid
     successfulJobsHistoryLimit: 1

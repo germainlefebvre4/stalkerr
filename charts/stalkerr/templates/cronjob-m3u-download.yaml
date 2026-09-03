@@ -7,6 +7,7 @@ metadata:
     {{- include "stalkerr.labels" . | nindent 4 }}
     app.kubernetes.io/component: cronjob-m3u-download
 spec:
+  timeZone: {{ .Values.jobs.m3uDownload.timeZone | quote }}
   schedule: {{ .Values.jobs.m3uDownload.schedule | quote }}
   concurrencyPolicy: {{ .Values.jobs.m3uDownload.concurrencyPolicy }}
   successfulJobsHistoryLimit: {{ .Values.jobs.m3uDownload.successfulJobsHistoryLimit }}
