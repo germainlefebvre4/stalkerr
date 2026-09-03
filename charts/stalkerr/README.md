@@ -292,7 +292,7 @@ helm install stalkerr charts/stalkerr \
   --namespace media \
   --set secrets.existingSecret=stalkerr-secrets \
   --set storage.media.existingClaim=jellyfin-media \
-  --set config.m3u.downloadUrl="YOUR_M3U_URL"
+  --set config.m3u.download.url="YOUR_M3U_URL"
 ```
 
 ## Storage Paths and Media Organization
