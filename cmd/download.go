@@ -123,15 +123,17 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		}
 
 		fmt.Println("Reconciling completed download paths...")
-		reconcileDownloadPaths(ctx, db, radarrFullClient, sonarrFullClient, verbose)
+		movieMonitored, seriesMonitored := reconcileDownloadPaths(ctx, db, radarrFullClient, sonarrFullClient, verbose)
 
 		fmt.Println("Building stream set...")
 		streams, err := scheduler.BuildStreams(ctx, scheduler.BuildDeps{
-			Config:       cfg,
-			Radarr:       radarrClient,
-			Sonarr:       sonarrClient,
-			DB:           db,
-			StateManager: dl.GetStateManager(),
+			Config:                 cfg,
+			Radarr:                 radarrClient,
+			Sonarr:                 sonarrClient,
+			DB:                     db,
+			StateManager:           dl.GetStateManager(),
+			MonitoredMovieTMDBIDs:  movieMonitored,
+			MonitoredSeriesTVDBIDs: seriesMonitored,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error building streams: %v\n", err)
@@ -181,8 +183,15 @@ func init() {
 // either service is tolerated: that service's corrections are skipped for
 // this run (logged, not fatal) rather than failing the run's primary
 // scheduling work, and the run retries reconciliation next time it runs.
-func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *radarr.Client, sonarrClient *sonarr.Client, verbose bool) {
+//
+// It also returns a monitored-status snapshot (true/false keyed by
+// Movie.TMDBID / TVDBID, entry present only for a fetched item) built from
+// the exact same library fetch, for skip-monitored-check-on-resume's
+// mergeIncompleteDownloads check — this adds no further Radarr/Sonarr API
+// calls beyond what path reconciliation already makes.
+func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *radarr.Client, sonarrClient *sonarr.Client, verbose bool) (movieMonitored map[int]bool, seriesMonitored map[int]bool) {
 	movieTMDBPaths := map[int]string{}
+	movieMonitored = map[int]bool{}
 	if radarrClient != nil {
 		movies, err := radarrClient.GetAllMovies(ctx)
 		if err != nil {
@@ -194,13 +203,18 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 				if m.Path != "" {
 					movieTMDBPaths[m.TMDBID] = m.Path
 				}
+				movieMonitored[m.TMDBID] = m.Monitored
 			}
 		}
 	}
 
+	// GetAllSeries (unlike GetAllMonitoredSeries) returns every series
+	// regardless of monitored status, so an unmonitored series can still be
+	// recorded as monitored=false here instead of merely being absent.
 	seriesTVDBPaths := map[int]string{}
+	seriesMonitored = map[int]bool{}
 	if sonarrClient != nil {
-		series, err := sonarrClient.GetAllMonitoredSeries(ctx)
+		series, err := sonarrClient.GetAllSeries(ctx)
 		if err != nil {
 			if verbose {
 				fmt.Printf("Warning: failed to fetch Sonarr library for path reconciliation, skipping: %v\n", err)
@@ -210,15 +224,16 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 				if s.Path != "" {
 					seriesTVDBPaths[s.TvdbID] = s.Path
 				}
+				seriesMonitored[s.TvdbID] = s.Monitored
 			}
 		}
 	}
 
-	if len(movieTMDBPaths) == 0 && len(seriesTVDBPaths) == 0 {
-		return
+	if len(movieTMDBPaths) > 0 || len(seriesTVDBPaths) > 0 {
+		api.ReconcileScheduledDownloadPaths(db, movieTMDBPaths, seriesTVDBPaths)
 	}
 
-	api.ReconcileScheduledDownloadPaths(db, movieTMDBPaths, seriesTVDBPaths)
+	return movieMonitored, seriesMonitored
 }
 
 func printDryRunPlan(streams []*scheduler.Stream) {

@@ -17,6 +17,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
+	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
@@ -306,6 +307,111 @@ func newTestRadarrClient(baseURL string) *radarr.Client {
 		Timeout:     5 * time.Second,
 		RetryConfig: retry.Config{MaxAttempts: 1},
 	})
+}
+
+func newTestSonarrClient(baseURL string) *sonarr.Client {
+	return sonarr.New(sonarr.Config{
+		BaseURL:     baseURL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+}
+
+// 2.1 reconcileDownloadPaths also returns a monitored-status snapshot built
+// from the same already-fetched Radarr/Sonarr libraries (including an
+// explicit unmonitored series, which GetAllSeries - unlike
+// GetAllMonitoredSeries - must still surface).
+func TestReconcileDownloadPaths_ReturnsMonitoredMaps(t *testing.T) {
+	db := setupDownloadTestDB(t)
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 1, "tmdbId": 42, "path": "/downloads/radarr/Monitored Movie", "monitored": true},
+			{"id": 2, "tmdbId": 43, "path": "/downloads/radarr/Unmonitored Movie", "monitored": false},
+		})
+	}))
+	defer radarrServer.Close()
+
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 1, "tvdbId": 200, "path": "/downloads/sonarr/Monitored Show", "monitored": true},
+			{"id": 2, "tvdbId": 201, "path": "/downloads/sonarr/Unmonitored Show", "monitored": false},
+		})
+	}))
+	defer sonarrServer.Close()
+
+	movieMonitored, seriesMonitored := reconcileDownloadPaths(
+		context.Background(), db,
+		newTestRadarrClient(radarrServer.URL), newTestSonarrClient(sonarrServer.URL),
+		false,
+	)
+
+	require.Equal(t, true, movieMonitored[42])
+	require.Equal(t, false, movieMonitored[43])
+	require.Equal(t, true, seriesMonitored[200])
+	require.Equal(t, false, seriesMonitored[201], "an unmonitored series must be explicitly recorded false, not merely absent")
+}
+
+// 2.2 End-to-end: a movie confirmed unmonitored via the live Radarr fetch
+// results in its incomplete download not appearing in the built stream set,
+// while a monitored movie's incomplete download still resumes.
+func TestReconcileDownloadPaths_UnmonitoredMovieExcludedFromBuiltStreams(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	unmonitoredMovie := models.Movie{TMDBID: 43, TMDBTitle: "Unmonitored Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&unmonitoredMovie).Error)
+	unmonitoredLine := models.ProcessedLine{
+		LineContent: "unmonitored", LineHash: "hash-unmonitored", TvgName: "Unmonitored Movie",
+		ContentType: models.ContentTypeMovies, MovieID: &unmonitoredMovie.ID,
+		State: models.StateDownloading, ProcessedAt: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&unmonitoredLine).Error)
+	unmonitoredDl := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&unmonitoredDl).Error)
+	require.NoError(t, db.Model(&unmonitoredLine).Update("download_info_id", unmonitoredDl.ID).Error)
+
+	monitoredMovie := models.Movie{TMDBID: 44, TMDBTitle: "Monitored Movie", TMDBYear: 2020}
+	require.NoError(t, db.Create(&monitoredMovie).Error)
+	monitoredLine := models.ProcessedLine{
+		LineContent: "monitored", LineHash: "hash-monitored", TvgName: "Monitored Movie",
+		ContentType: models.ContentTypeMovies, MovieID: &monitoredMovie.ID,
+		State: models.StateDownloading, ProcessedAt: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&monitoredLine).Error)
+	monitoredDl := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&monitoredDl).Error)
+	require.NoError(t, db.Model(&monitoredLine).Update("download_info_id", monitoredDl.ID).Error)
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 1, "tmdbId": 43, "path": filepath.Join(tempDir, "Unmonitored Movie"), "monitored": false},
+			{"id": 2, "tmdbId": 44, "path": filepath.Join(tempDir, "Monitored Movie"), "monitored": true},
+		})
+	}))
+	defer radarrServer.Close()
+
+	movieMonitored, seriesMonitored := reconcileDownloadPaths(
+		context.Background(), db, newTestRadarrClient(radarrServer.URL), nil, false,
+	)
+
+	streams, err := scheduler.BuildStreams(context.Background(), scheduler.BuildDeps{
+		Config: &config.Config{
+			Downloads: config.DownloadsConfig{MoviesPath: filepath.Join(tempDir, "movies"), MaxRetryAttempts: 5},
+		},
+		DB:                     db,
+		StateManager:           downloader.NewStateManager(downloader.DefaultStateManagerConfig()),
+		MonitoredMovieTMDBIDs:  movieMonitored,
+		MonitoredSeriesTVDBIDs: seriesMonitored,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, streams, 1, "only the monitored movie's incomplete download should be resumed")
+	require.Equal(t, fmt.Sprintf("movie:%d", monitoredMovie.ID), streams[0].SourceKey)
 }
 
 // 2.2 Scheduled reconciliation: a completed download whose stored root

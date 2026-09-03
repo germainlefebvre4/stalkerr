@@ -23,6 +23,15 @@ type BuildDeps struct {
 	Sonarr       SonarrClient
 	DB           *gorm.DB
 	StateManager *downloader.StateManager
+
+	// MonitoredMovieTMDBIDs and MonitoredSeriesTVDBIDs are an optional
+	// snapshot of Radarr's/Sonarr's current monitored status, keyed by
+	// Movie.TMDBID / TVDBID, true when monitored. Both are nil-safe: a nil
+	// (or missing-key) lookup means "unconfirmed", not "unmonitored", so
+	// omitting them preserves BuildStreams' previous behavior entirely.
+	// Only mergeIncompleteDownloads consults them (see its doc comment).
+	MonitoredMovieTMDBIDs  map[int]bool
+	MonitoredSeriesTVDBIDs map[int]bool
 }
 
 // RadarrClient is the subset of *radarr.Client BuildStreams depends on.
@@ -457,6 +466,13 @@ func findDownloadedLine(db *gorm.DB, column string, id uint) (*models.ProcessedL
 // known Sonarr series ID, so (uniquely among tier-1 streams) it does not
 // participate in the ascending-season-order queue; this is an accepted,
 // narrow trade-off for an edge case outside the normal fetch path.
+//
+// An incomplete download whose movie/series is confirmed unmonitored in
+// Radarr/Sonarr (deps.MonitoredMovieTMDBIDs/MonitoredSeriesTVDBIDs) is left
+// out of this run's stream set entirely instead of being resumed. A miss in
+// either map (nil map, movie/series not currently in the fetched library, or
+// the library fetch failed this run) is always treated as "unconfirmed",
+// never as "unmonitored", so it is still resumed as before.
 func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map[uint]*Stream, seriesByTVDBSeason map[tvdbSeasonKey]*Stream) ([]*Stream, error) {
 	incomplete, err := deps.StateManager.GetIncompleteDownloads(ctx, deps.Config.Downloads.MaxRetryAttempts, 0)
 	if err != nil {
@@ -476,6 +492,11 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 		switch line.ContentType {
 		case models.ContentTypeMovies:
 			if line.Movie == nil {
+				continue
+			}
+			if monitored, known := deps.MonitoredMovieTMDBIDs[line.Movie.TMDBID]; known && !monitored {
+				// Confirmed no longer monitored in Radarr: don't resume it,
+				// whether or not a tier-1 stream already exists for it.
 				continue
 			}
 			stream, ok := movieByID[line.Movie.ID]
@@ -502,6 +523,11 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 		case models.ContentTypeTVShows:
 			show := line.TVShow
 			if show == nil || show.TVDBID == nil || show.Season == nil || show.Episode == nil {
+				continue
+			}
+			if monitored, known := deps.MonitoredSeriesTVDBIDs[*show.TVDBID]; known && !monitored {
+				// Confirmed no longer monitored in Sonarr: don't resume any
+				// of this series' incomplete episodes.
 				continue
 			}
 			key := tvdbSeasonKey{tvdbID: *show.TVDBID, season: *show.Season}

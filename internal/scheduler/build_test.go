@@ -752,3 +752,125 @@ func TestBuildStreams_FullIntegration(t *testing.T) {
 	sched := NewScheduler(streams, 0)
 	require.Equal(t, 2, sched.Remaining(), "movie stream + season 1 claimable; season 2 pending")
 }
+
+// A stuck movie download whose movie is confirmed unmonitored in Radarr
+// SHALL NOT be resumed - mirrors TestBuildStreams_DedupTier2AgainstTier1_SynthesizedWins's
+// setup (movie not reported missing by Radarr, so mergeIncompleteDownloads
+// would otherwise synthesize a fresh tier-1 stream for it) but with an
+// explicit monitored:false entry for the movie's TMDBID.
+func TestMergeIncompleteDownloads_SkipsUnmonitoredMovie(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Stuck Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "s3", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{} // movie not reported missing by Radarr
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	deps := testDeps(db, fr, fs)
+	deps.MonitoredMovieTMDBIDs = map[int]bool{5: false}
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Empty(t, streams, "confirmed-unmonitored movie's incomplete download should not be resumed or synthesized into a stream")
+}
+
+// The same stuck movie download resumes as before when the movie is absent
+// from the monitored map entirely (unconfirmed, e.g. no Radarr match or the
+// library fetch failed this run) - only an explicit false blocks resumption.
+func TestMergeIncompleteDownloads_MovieAbsentFromMonitoredMap_StillResumed(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Stuck Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "s3", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{}
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	// No MonitoredMovieTMDBIDs set at all (nil map): must behave exactly as
+	// it did before this change.
+	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Len(t, streams, 1, "unconfirmed monitored status should still resume the incomplete download")
+	require.Equal(t, Tier1, streams[0].Tier)
+	require.NotNil(t, streams[0].Items[0].ResumeInfo)
+}
+
+// A stuck TV-episode download whose series is confirmed unmonitored in
+// Sonarr SHALL NOT be resumed. The series is absent from Sonarr's missing
+// list entirely, so mergeIncompleteDownloads would otherwise synthesize a
+// fresh season stream for it from local DB state alone.
+func TestMergeIncompleteDownloads_SkipsUnmonitoredSeries(t *testing.T) {
+	db := setupTestDB(t)
+
+	seriesTvdbID := 888
+	e1 := models.TVShow{TMDBID: 400, TVDBID: intPtr(seriesTvdbID), TMDBTitle: "Unmonitored Show", TMDBYear: 2018, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&e1).Error)
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck-ep", LineHash: "se1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloading, TVShowID: &e1.ID,
+		LineURL: strPtr("http://example.com/stuck-e1.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{}
+	fs := &fakeSonarr{} // series not reported missing by Sonarr at all
+
+	deps := testDeps(db, fr, fs)
+	deps.MonitoredSeriesTVDBIDs = map[int]bool{seriesTvdbID: false}
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Empty(t, streams, "confirmed-unmonitored series' incomplete episode should not be resumed or synthesized into a stream")
+}
+
+// The same stuck episode download resumes as before when its series is
+// absent from the monitored map entirely (unconfirmed).
+func TestMergeIncompleteDownloads_SeriesAbsentFromMonitoredMap_StillResumed(t *testing.T) {
+	db := setupTestDB(t)
+
+	seriesTvdbID := 888
+	e1 := models.TVShow{TMDBID: 400, TVDBID: intPtr(seriesTvdbID), TMDBTitle: "Show", TMDBYear: 2018, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&e1).Error)
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck-ep", LineHash: "se1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloading, TVShowID: &e1.ID,
+		LineURL: strPtr("http://example.com/stuck-e1.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{}
+	fs := &fakeSonarr{}
+
+	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Len(t, streams, 1, "unconfirmed monitored status should still resume the incomplete episode")
+	require.Equal(t, Tier1, streams[0].Tier)
+	require.NotNil(t, streams[0].Items[0].ResumeInfo)
+}

@@ -74,6 +74,47 @@ func TestGetMissingSeries(t *testing.T) {
 	}
 }
 
+func TestGetAllSeries(t *testing.T) {
+	series := []Series{
+		{ID: 1, Title: "Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 3, Title: "Unmonitored", TvdbID: 103, Monitored: false, TotalEpisodeCount: 10, EpisodeFileCount: 0},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/series" {
+			t.Errorf("expected path /api/v3/series, got %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(series)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	result, err := client.GetAllSeries(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected both monitored and unmonitored series to be returned, got %d", len(result))
+	}
+	byID := map[int]Series{}
+	for _, s := range result {
+		byID[s.ID] = s
+	}
+	if !byID[1].Monitored {
+		t.Errorf("expected series 1 to be monitored")
+	}
+	if byID[3].Monitored {
+		t.Errorf("expected series 3 to be unmonitored")
+	}
+}
+
 func TestGetAllMonitoredSeries(t *testing.T) {
 	series := []Series{
 		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
