@@ -25,6 +25,7 @@ interface DownloadsTabProps {
   onFetchDownloads: () => void;
   onOpenMoveDialog: (item: DownloadEnriched) => void;
   onOpenRenameDialog: (item: DownloadEnriched) => void;
+  onResyncPath: (item: DownloadEnriched) => Promise<void>;
 }
 
 function filepathBase(path: string) {
@@ -48,11 +49,19 @@ export function DownloadsTab({
   setDownloadsLimit,
   onFetchDownloads,
   onOpenMoveDialog,
-  onOpenRenameDialog
+  onOpenRenameDialog,
+  onResyncPath
 }: DownloadsTabProps) {
   const { t, i18n } = useTranslation('downloads');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selectedItem = downloads.find(d => d.id === selectedId) ?? null;
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleResyncClick = () => {
+    if (!selectedItem) return;
+    setIsResyncing(true);
+    onResyncPath(selectedItem).finally(() => setIsResyncing(false));
+  };
 
   useEffect(() => {
     if (selectedId !== null && !selectedItem) {
@@ -379,6 +388,14 @@ export function DownloadsTab({
                       </button>
                       <button onClick={() => onOpenRenameDialog(selectedItem)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
                         {t('rename')}
+                      </button>
+                      <button
+                        onClick={handleResyncClick}
+                        disabled={isResyncing}
+                        className="btn-secondary"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                      >
+                        {isResyncing ? t('resync.inProgress') : t('resync.action')}
                       </button>
                     </div>
                   </div>

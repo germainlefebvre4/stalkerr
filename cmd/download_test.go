@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,9 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
+	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -295,3 +298,109 @@ func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
 }
 
 func strPtrDL(s string) *string { return &s }
+
+func newTestRadarrClient(baseURL string) *radarr.Client {
+	return radarr.New(radarr.Config{
+		BaseURL:     baseURL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+}
+
+// 2.2 Scheduled reconciliation: a completed download whose stored root
+// doesn't match the fake Radarr library fixture is corrected, and a download
+// with no library match is left untouched.
+func TestReconcileDownloadPaths_CorrectsMatchedRow_LeavesUnmatchedUntouched(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	newRoot := filepath.Join(tempDir, "movies", "Dune Part Two (2021)")
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 1, "tmdbId": 42, "path": newRoot},
+		})
+	}))
+	defer radarrServer.Close()
+
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	require.NoError(t, db.Create(&movie).Error)
+
+	oldPath := filepath.Join(tempDir, "movies", "Dune (2021)", "Dune (2021).mkv")
+	require.NoError(t, os.MkdirAll(filepath.Dir(oldPath), 0755))
+	require.NoError(t, os.WriteFile(oldPath, []byte("content"), 0644))
+
+	dl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &oldPath}
+	require.NoError(t, db.Create(&dl).Error)
+	line := models.ProcessedLine{
+		LineContent: "dune", LineHash: "hash-dune", TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &movie.ID, DownloadInfoID: &dl.ID,
+		State: models.StateDownloaded, ProcessedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&line).Error)
+
+	unmatchedMovie := models.Movie{TMDBID: 99, TMDBTitle: "Unmatched", TMDBYear: 2020}
+	require.NoError(t, db.Create(&unmatchedMovie).Error)
+	unmatchedPath := filepath.Join(tempDir, "movies", "Unmatched (2020)", "Unmatched (2020).mkv")
+	require.NoError(t, os.MkdirAll(filepath.Dir(unmatchedPath), 0755))
+	require.NoError(t, os.WriteFile(unmatchedPath, []byte("content"), 0644))
+	unmatchedDl := models.DownloadInfo{URL: "http://example.com/unmatched", Status: "completed", DownloadPath: &unmatchedPath}
+	require.NoError(t, db.Create(&unmatchedDl).Error)
+	unmatchedLine := models.ProcessedLine{
+		LineContent: "unmatched", LineHash: "hash-unmatched", TvgName: "Unmatched",
+		ContentType: models.ContentTypeMovies, MovieID: &unmatchedMovie.ID, DownloadInfoID: &unmatchedDl.ID,
+		State: models.StateDownloaded, ProcessedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&unmatchedLine).Error)
+
+	reconcileDownloadPaths(context.Background(), db, newTestRadarrClient(radarrServer.URL), nil, false)
+
+	var updated models.DownloadInfo
+	require.NoError(t, db.First(&updated, dl.ID).Error)
+	expectedNewPath := filepath.Join(newRoot, "Dune (2021).mkv")
+	require.NotNil(t, updated.DownloadPath)
+	require.Equal(t, expectedNewPath, *updated.DownloadPath)
+
+	var untouched models.DownloadInfo
+	require.NoError(t, db.First(&untouched, unmatchedDl.ID).Error)
+	require.NotNil(t, untouched.DownloadPath)
+	require.Equal(t, unmatchedPath, *untouched.DownloadPath)
+}
+
+// 2.3 The run tolerates a Radarr fetch failure: reconciliation is skipped
+// (no panic, no row mutated) rather than failing the run's primary work.
+func TestReconcileDownloadPaths_ToleratesRadarrFetchFailure(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer radarrServer.Close()
+
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	require.NoError(t, db.Create(&movie).Error)
+
+	oldPath := filepath.Join(tempDir, "movies", "Dune (2021)", "Dune (2021).mkv")
+	require.NoError(t, os.MkdirAll(filepath.Dir(oldPath), 0755))
+	require.NoError(t, os.WriteFile(oldPath, []byte("content"), 0644))
+
+	dl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &oldPath}
+	require.NoError(t, db.Create(&dl).Error)
+	line := models.ProcessedLine{
+		LineContent: "dune", LineHash: "hash-dune", TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &movie.ID, DownloadInfoID: &dl.ID,
+		State: models.StateDownloaded, ProcessedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&line).Error)
+
+	require.NotPanics(t, func() {
+		reconcileDownloadPaths(context.Background(), db, newTestRadarrClient(radarrServer.URL), nil, false)
+	})
+
+	var unchanged models.DownloadInfo
+	require.NoError(t, db.First(&unchanged, dl.ID).Error)
+	require.NotNil(t, unchanged.DownloadPath)
+	require.Equal(t, oldPath, *unchanged.DownloadPath)
+}

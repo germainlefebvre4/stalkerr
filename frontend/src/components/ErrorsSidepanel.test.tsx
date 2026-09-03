@@ -63,6 +63,8 @@ describe('ErrorsSidepanel', () => {
       expect(screen.queryByText(/Forcer le téléchargement/)).not.toBeInTheDocument();
       expect(screen.queryByText('Move ⇄')).not.toBeInTheDocument();
       expect(screen.queryByText('Rename ✎')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Resynchroniser/)).not.toBeInTheDocument();
+      expect(screen.queryByText('Resync ⟲')).not.toBeInTheDocument();
     }
   });
 

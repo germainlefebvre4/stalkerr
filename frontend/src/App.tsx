@@ -207,6 +207,21 @@ export default function App() {
     updateDownloadPath(id, newPath);
   };
 
+  const handleResyncPath = (item: DownloadEnriched): Promise<void> => {
+    return api.resyncDownloadPath(item.id)
+      .then((res) => {
+        if (res.status === 'corrected' && res.new_path) {
+          updateDownloadPath(item.id, res.new_path);
+          showToast(t('downloads:resync.correctedMessage'));
+        } else if (res.status === 'already_up_to_date') {
+          showToast(t('downloads:resync.alreadyUpToDateMessage'));
+        } else {
+          showToast(t('downloads:resync.notManagedMessage'), 'error');
+        }
+      })
+      .catch(err => showToast(translateApiError(err), 'error'));
+  };
+
   const tabs = [
     { value: 'playlist', icon: '🎬', label: t('tabs.playlist') },
     { value: 'filters', icon: '🔍', label: t('tabs.filters') },
@@ -277,6 +292,7 @@ export default function App() {
           downloadsLimit={downloadsLimit} setDownloadsLimit={setDownloadsLimit}
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}
           onOpenRenameDialog={openRenameDialog}
+          onResyncPath={handleResyncPath}
         />
 
         <ErrorsTab

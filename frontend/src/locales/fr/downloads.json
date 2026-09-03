@@ -39,6 +39,13 @@
   },
   "move": "Déplacer ⇄",
   "rename": "Renommer ✎",
+  "resync": {
+    "action": "Resynchroniser ⟲",
+    "inProgress": "Resynchronisation…",
+    "correctedMessage": "Chemin resynchronisé avec Radarr/Sonarr.",
+    "alreadyUpToDateMessage": "Le chemin est déjà à jour avec Radarr/Sonarr.",
+    "notManagedMessage": "Cet élément n'est pas géré par Radarr/Sonarr."
+  },
   "folder": "📂 Dossier : {{name}}/",
   "plannedPath": "📍 Emplacement prévu (non définitif) : {{path}}",
   "stagingPath": "📦 Fichier temporaire (peut ne plus exister) : {{path}}",

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/glefebvre/stalkeer/internal/api"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
@@ -17,6 +18,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 )
 
 var downloadCmd = &cobra.Command{
@@ -74,8 +76,9 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		dl := downloader.New(time.Duration(cfg.Downloads.Timeout)*time.Second, cfg.Downloads.RetryAttempts, cfg.Downloads.MinFileSizeMB)
 
 		var radarrClient scheduler.RadarrClient
+		var radarrFullClient *radarr.Client
 		if cfg.Radarr.URL != "" && cfg.Radarr.APIKey != "" {
-			radarrClient = radarr.New(radarr.Config{
+			radarrFullClient = radarr.New(radarr.Config{
 				BaseURL: cfg.Radarr.URL,
 				APIKey:  cfg.Radarr.APIKey,
 				Timeout: time.Duration(cfg.Downloads.Timeout) * time.Second,
@@ -88,13 +91,15 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 					JitterFraction:    0.1,
 				},
 			})
+			radarrClient = radarrFullClient
 		} else if verbose {
 			fmt.Println("Radarr is not configured, skipping movie fetch")
 		}
 
 		var sonarrClient scheduler.SonarrClient
+		var sonarrFullClient *sonarr.Client
 		if cfg.Sonarr.URL != "" && cfg.Sonarr.APIKey != "" {
-			sonarrClient = sonarr.New(sonarr.Config{
+			sonarrFullClient = sonarr.New(sonarr.Config{
 				BaseURL: cfg.Sonarr.URL,
 				APIKey:  cfg.Sonarr.APIKey,
 				Timeout: time.Duration(cfg.Downloads.Timeout) * time.Second,
@@ -107,6 +112,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 					JitterFraction:    0.1,
 				},
 			})
+			sonarrClient = sonarrFullClient
 		} else if verbose {
 			fmt.Println("Sonarr is not configured, skipping episode fetch")
 		}
@@ -115,6 +121,9 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 			fmt.Fprintln(os.Stderr, "Error: neither Radarr nor Sonarr is configured")
 			os.Exit(1)
 		}
+
+		fmt.Println("Reconciling completed download paths...")
+		reconcileDownloadPaths(ctx, db, radarrFullClient, sonarrFullClient, verbose)
 
 		fmt.Println("Building stream set...")
 		streams, err := scheduler.BuildStreams(ctx, scheduler.BuildDeps{
@@ -163,6 +172,53 @@ func init() {
 	downloadCmd.Flags().Int("parallel", 0, "number of concurrent worker streams")
 	downloadCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.AddCommand(downloadCmd)
+}
+
+// reconcileDownloadPaths fetches the current Radarr/Sonarr full libraries
+// (one call each, distinct from the missing-content fetches BuildStreams
+// performs) and corrects any completed download's stored download_path that
+// has drifted from its movie's/series' current path. A fetch failure for
+// either service is tolerated: that service's corrections are skipped for
+// this run (logged, not fatal) rather than failing the run's primary
+// scheduling work, and the run retries reconciliation next time it runs.
+func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *radarr.Client, sonarrClient *sonarr.Client, verbose bool) {
+	movieTMDBPaths := map[int]string{}
+	if radarrClient != nil {
+		movies, err := radarrClient.GetAllMovies(ctx)
+		if err != nil {
+			if verbose {
+				fmt.Printf("Warning: failed to fetch Radarr library for path reconciliation, skipping: %v\n", err)
+			}
+		} else {
+			for _, m := range movies {
+				if m.Path != "" {
+					movieTMDBPaths[m.TMDBID] = m.Path
+				}
+			}
+		}
+	}
+
+	seriesTVDBPaths := map[int]string{}
+	if sonarrClient != nil {
+		series, err := sonarrClient.GetAllMonitoredSeries(ctx)
+		if err != nil {
+			if verbose {
+				fmt.Printf("Warning: failed to fetch Sonarr library for path reconciliation, skipping: %v\n", err)
+			}
+		} else {
+			for _, s := range series {
+				if s.Path != "" {
+					seriesTVDBPaths[s.TvdbID] = s.Path
+				}
+			}
+		}
+	}
+
+	if len(movieTMDBPaths) == 0 && len(seriesTVDBPaths) == 0 {
+		return
+	}
+
+	api.ReconcileScheduledDownloadPaths(db, movieTMDBPaths, seriesTVDBPaths)
 }
 
 func printDryRunPlan(streams []*scheduler.Stream) {

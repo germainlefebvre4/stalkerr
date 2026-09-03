@@ -157,6 +157,7 @@ func (s *Server) setupRoutes() {
 		v1.GET("/downloads", s.listDownloadsEnriched)
 		v1.GET("/downloads/simple", s.listDownloads)
 		v1.POST("/downloads/:id/rename", s.renameDownload)
+		v1.POST("/downloads/:id/resync-path", s.resyncDownloadPath)
 		v1.GET("/config/paths", s.getConfigPaths)
 	}
 }

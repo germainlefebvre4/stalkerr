@@ -39,6 +39,13 @@
   },
   "move": "Move ⇄",
   "rename": "Rename ✎",
+  "resync": {
+    "action": "Resync ⟲",
+    "inProgress": "Resyncing…",
+    "correctedMessage": "Path resynced with Radarr/Sonarr.",
+    "alreadyUpToDateMessage": "Path already up to date with Radarr/Sonarr.",
+    "notManagedMessage": "This item is not managed by Radarr/Sonarr."
+  },
   "folder": "📂 Folder: {{name}}/",
   "plannedPath": "📍 Planned location (not final): {{path}}",
   "stagingPath": "📦 Temporary file (may no longer exist): {{path}}",

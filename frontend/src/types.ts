@@ -131,6 +131,14 @@ export interface RenameDownloadResponse {
   new_path: string;
 }
 
+export type ResyncPathOutcome = 'corrected' | 'already_up_to_date' | 'not_managed_by_radarr_sonarr';
+
+export interface ResyncPathResponse {
+  status: ResyncPathOutcome;
+  old_path?: string;
+  new_path?: string;
+}
+
 export interface ConfigPaths {
   movies_path: string;
   tvshows_path: string;

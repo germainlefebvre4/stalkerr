@@ -14,6 +14,7 @@ interface PaginationOverrides {
   setDownloadsPage?: (page: number | ((prev: number) => number)) => void;
   downloadsLimit?: number;
   setDownloadsLimit?: (limit: number) => void;
+  onResyncPath?: (item: DownloadEnriched) => Promise<void>;
 }
 
 function renderDownloadsTab(downloads: DownloadEnriched[], overrides: PaginationOverrides = {}) {
@@ -37,6 +38,7 @@ function renderDownloadsTab(downloads: DownloadEnriched[], overrides: Pagination
           onFetchDownloads={() => {}}
           onOpenMoveDialog={() => {}}
           onOpenRenameDialog={() => {}}
+          onResyncPath={overrides.onResyncPath ?? (() => Promise.resolve())}
         />
       </Tabs.Root>
     </I18nextProvider>
@@ -96,7 +98,7 @@ describe('DownloadsTab sidepanel', () => {
     expect(screen.queryByText('Download Details')).not.toBeInTheDocument();
   });
 
-  it('does not show Move/Rename actions for a non-completed download', () => {
+  it('does not show Move/Rename/Resync actions for a non-completed download', () => {
     const download = {
       ...baseDownload,
       status: 'downloading' as const,
@@ -109,15 +111,28 @@ describe('DownloadsTab sidepanel', () => {
 
     expect(screen.queryByText('Move ⇄')).not.toBeInTheDocument();
     expect(screen.queryByText('Rename ✎')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resync ⟲')).not.toBeInTheDocument();
   });
 
-  it('shows Move/Rename actions in the drawer for a completed download', () => {
+  it('shows Move/Rename/Resync actions in the drawer for a completed download', () => {
     const download = { ...baseDownload, status: 'completed' as const, content: { type: 'movies' as const, title: 'Done Movie' } };
     renderDownloadsTab([download]);
     openDrawer(download);
 
     expect(screen.getByText('Move ⇄')).toBeInTheDocument();
     expect(screen.getByText('Rename ✎')).toBeInTheDocument();
+    expect(screen.getByText('Resync ⟲')).toBeInTheDocument();
+  });
+
+  it('calls onResyncPath with the selected download when Resync is clicked', () => {
+    const download = { ...baseDownload, status: 'completed' as const, content: { type: 'movies' as const, title: 'Done Movie' } };
+    const onResyncPath = vi.fn(() => Promise.resolve());
+    renderDownloadsTab([download], { onResyncPath });
+    openDrawer(download);
+
+    fireEvent.click(screen.getByText('Resync ⟲'));
+
+    expect(onResyncPath).toHaveBeenCalledWith(download);
   });
 
   it('closes the drawer automatically when the selected item leaves the downloads list', () => {
@@ -147,6 +162,7 @@ describe('DownloadsTab sidepanel', () => {
             onFetchDownloads={() => {}}
             onOpenMoveDialog={() => {}}
             onOpenRenameDialog={() => {}}
+            onResyncPath={() => Promise.resolve()}
           />
         </Tabs.Root>
       </I18nextProvider>
