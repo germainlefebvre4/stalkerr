@@ -74,6 +74,11 @@ run-process: build
 	@echo "Running $(BINARY_NAME) process..."
 	./$(BIN_DIR)/$(BINARY_NAME) process
 
+## run-download: Run the download command
+run-download: build
+	@echo "Running $(BINARY_NAME) download..."
+	./$(BIN_DIR)/$(BINARY_NAME) download
+
 ## lint: Run linters
 lint:
 	@echo "Running linters..."
