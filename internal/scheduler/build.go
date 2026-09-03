@@ -72,13 +72,11 @@ func BuildStreams(ctx context.Context, deps BuildDeps) ([]*Stream, error) {
 	if err != nil {
 		return nil, err
 	}
-	streams = append(streams, tier2MovieStreams...)
 
 	tier2SeriesStreams, err := buildTier2SeriesStreams(deps)
 	if err != nil {
 		return nil, err
 	}
-	streams = append(streams, tier2SeriesStreams...)
 
 	extraStreams, err := mergeIncompleteDownloads(ctx, deps, movieByID, tvdbSeasonStreams)
 	if err != nil {
@@ -86,7 +84,51 @@ func BuildStreams(ctx context.Context, deps BuildDeps) ([]*Stream, error) {
 	}
 	streams = append(streams, extraStreams...)
 
+	// movieByID and tvdbSeasonStreams may have gained entries from
+	// mergeIncompleteDownloads synthesizing a new tier-1 stream, so this must
+	// run after step 5 to see the final tier-1 set.
+	streams = append(streams, dedupTier2MovieStreams(tier2MovieStreams, movieByID)...)
+	streams = append(streams, dedupTier2SeriesStreams(tier2SeriesStreams, tvdbSeasonStreams)...)
+
 	return streams, nil
+}
+
+// dedupTier2MovieStreams drops any tier-2 movie stream whose movie already has
+// a tier-1 stream this run - tier-1 always wins for a given work unit.
+func dedupTier2MovieStreams(tier2 []*Stream, movieByID map[uint]*Stream) []*Stream {
+	tier1Keys := make(map[string]bool, len(movieByID))
+	for id := range movieByID {
+		tier1Keys[fmt.Sprintf("movie:%d", id)] = true
+	}
+
+	var kept []*Stream
+	for _, s := range tier2 {
+		if !tier1Keys[s.SourceKey] {
+			kept = append(kept, s)
+		}
+	}
+	return kept
+}
+
+// dedupTier2SeriesStreams drops any tier-2 series-season stream whose
+// (tvdbID, season) already has a tier-1 stream this run. Tier-1 and tier-2
+// series streams use different SourceKey formats (Sonarr's internal series ID,
+// shared across a series' seasons, vs TVDB ID+season, one per season - see
+// design.md), so matching happens via the shared tvdbSeasonKey identity,
+// formatted the way tier-2 encodes it in SourceKey.
+func dedupTier2SeriesStreams(tier2 []*Stream, tvdbSeasonStreams map[tvdbSeasonKey]*Stream) []*Stream {
+	tier1Keys := make(map[string]bool, len(tvdbSeasonStreams))
+	for key := range tvdbSeasonStreams {
+		tier1Keys[fmt.Sprintf("series:tvdb:%d:season:%d", key.tvdbID, key.season)] = true
+	}
+
+	var kept []*Stream
+	for _, s := range tier2 {
+		if !tier1Keys[s.SourceKey] {
+			kept = append(kept, s)
+		}
+	}
+	return kept
 }
 
 func buildTier1MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, map[uint]*Stream, error) {
