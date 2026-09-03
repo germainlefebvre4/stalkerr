@@ -41,6 +41,33 @@ func TestLoad_WithDefaults(t *testing.T) {
 	if config.Downloads.ForceTierProbability != 0.1 {
 		t.Errorf("expected default force_tier_probability 0.1, got %v", config.Downloads.ForceTierProbability)
 	}
+	if config.Downloads.MinFileSizeMB != 1 {
+		t.Errorf("expected default min_file_size_mb 1, got %v", config.Downloads.MinFileSizeMB)
+	}
+}
+
+func TestLoad_MinFileSizeMBOverride(t *testing.T) {
+	os.Setenv("STALKEER_DATABASE_USER", "testuser")
+	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
+	os.Setenv("STALKEER_M3U_FILE_PATH", "/tmp/test.m3u")
+	os.Setenv("STALKEER_DOWNLOADS_MIN_FILE_SIZE_MB", "5")
+	defer func() {
+		os.Unsetenv("STALKEER_DATABASE_USER")
+		os.Unsetenv("STALKEER_DATABASE_DBNAME")
+		os.Unsetenv("STALKEER_M3U_FILE_PATH")
+		os.Unsetenv("STALKEER_DOWNLOADS_MIN_FILE_SIZE_MB")
+	}()
+
+	cfg = nil
+	err := Load()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	config := Get()
+	if config.Downloads.MinFileSizeMB != 5 {
+		t.Errorf("expected overridden min_file_size_mb 5, got %v", config.Downloads.MinFileSizeMB)
+	}
 }
 
 func TestValidate_InvalidLogLevel(t *testing.T) {

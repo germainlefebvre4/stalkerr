@@ -39,7 +39,7 @@ func TestNewParallel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pd := NewParallel(10*time.Second, 3, tt.concurrency)
+			pd := NewParallel(10*time.Second, 3, 0, tt.concurrency)
 			assert.NotNil(t, pd)
 			assert.Equal(t, tt.expected, pd.GetConcurrency())
 		})
@@ -82,7 +82,7 @@ func TestParallelDownloader_DownloadBatch(t *testing.T) {
 	}
 
 	// Create parallel downloader with 3 concurrent downloads
-	pd := NewParallel(10*time.Second, 3, 3)
+	pd := NewParallel(10*time.Second, 3, 0, 3)
 
 	// Perform parallel downloads
 	ctx := context.Background()
@@ -137,7 +137,7 @@ func TestParallelDownloader_DownloadBatchSync(t *testing.T) {
 	}
 
 	// Create parallel downloader
-	pd := NewParallel(10*time.Second, 3, 2)
+	pd := NewParallel(10*time.Second, 3, 0, 2)
 
 	// Perform sync batch download
 	ctx := context.Background()
@@ -185,7 +185,7 @@ func TestParallelDownloader_DownloadBatchWithProgress(t *testing.T) {
 	var progressMu sync.Mutex
 
 	// Create parallel downloader
-	pd := NewParallel(10*time.Second, 3, 3)
+	pd := NewParallel(10*time.Second, 3, 0, 3)
 
 	// Perform download with progress tracking
 	ctx := context.Background()
@@ -256,7 +256,7 @@ func TestParallelDownloader_ConcurrencyControl(t *testing.T) {
 
 	// Create parallel downloader with concurrency limit of 3
 	concurrencyLimit := 3
-	pd := NewParallel(10*time.Second, 3, concurrencyLimit)
+	pd := NewParallel(10*time.Second, 3, 0, concurrencyLimit)
 
 	// Perform parallel downloads
 	ctx := context.Background()
@@ -313,7 +313,7 @@ func TestParallelDownloader_ErrorHandling(t *testing.T) {
 	}
 
 	// Create parallel downloader with retry disabled for faster test
-	pd := NewParallel(10*time.Second, 1, 2)
+	pd := NewParallel(10*time.Second, 1, 0, 2)
 
 	// Perform parallel downloads
 	ctx := context.Background()
@@ -358,7 +358,7 @@ func TestParallelDownloader_ContextCancellation(t *testing.T) {
 	}
 
 	// Create parallel downloader
-	pd := NewParallel(10*time.Second, 1, 2)
+	pd := NewParallel(10*time.Second, 1, 0, 2)
 
 	// Create context with short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -375,7 +375,7 @@ func TestParallelDownloader_ContextCancellation(t *testing.T) {
 }
 
 func TestParallelDownloader_SetConcurrency(t *testing.T) {
-	pd := NewParallel(10*time.Second, 3, 5)
+	pd := NewParallel(10*time.Second, 3, 0, 5)
 	assert.Equal(t, 5, pd.GetConcurrency())
 
 	pd.SetConcurrency(10)

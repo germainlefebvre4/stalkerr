@@ -26,13 +26,13 @@ type ParallelDownloader struct {
 }
 
 // NewParallel creates a new parallel downloader
-func NewParallel(timeout time.Duration, retryAttempts int, concurrency int) *ParallelDownloader {
+func NewParallel(timeout time.Duration, retryAttempts int, minFileSizeMB int64, concurrency int) *ParallelDownloader {
 	if concurrency <= 0 {
 		concurrency = 3 // Default concurrency
 	}
 
 	return &ParallelDownloader{
-		downloader:  New(timeout, retryAttempts),
+		downloader:  New(timeout, retryAttempts, minFileSizeMB),
 		concurrency: concurrency,
 	}
 }

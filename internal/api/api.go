@@ -54,6 +54,7 @@ func NewServer() *Server {
 		downloader: downloader.New(
 			time.Duration(cfg.Downloads.Timeout)*time.Second,
 			cfg.Downloads.RetryAttempts,
+			cfg.Downloads.MinFileSizeMB,
 		),
 	}
 

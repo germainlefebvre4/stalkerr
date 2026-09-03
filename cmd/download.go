@@ -71,7 +71,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 
 		ctx := context.Background()
 		db := database.Get()
-		dl := downloader.New(time.Duration(cfg.Downloads.Timeout)*time.Second, cfg.Downloads.RetryAttempts)
+		dl := downloader.New(time.Duration(cfg.Downloads.Timeout)*time.Second, cfg.Downloads.RetryAttempts, cfg.Downloads.MinFileSizeMB)
 
 		var radarrClient scheduler.RadarrClient
 		if cfg.Radarr.URL != "" && cfg.Radarr.APIKey != "" {

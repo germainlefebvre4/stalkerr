@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,13 @@ import (
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/google/uuid"
 )
+
+// ErrFileTooSmall is returned when a transfer finishes without a transport
+// error but writes fewer bytes than the configured minimum file size,
+// typical of a dead/expired source link responding 200 OK with an empty or
+// near-empty body. It is treated as a retryable failure (see
+// isRetryableError) sharing the Downloader's existing retry budget.
+var ErrFileTooSmall = errors.New("downloaded file is empty or undersized")
 
 // DownloadOptions holds configuration for a download operation
 type DownloadOptions struct {
@@ -47,10 +55,13 @@ type Downloader struct {
 	retryConfig   retry.Config
 	stateManager  *StateManager
 	resumeSupport *ResumeSupport
+	minFileSize   int64 // minimum acceptable transfer size, in bytes
 }
 
-// New creates a new Downloader instance
-func New(timeout time.Duration, retryAttempts int) *Downloader {
+// New creates a new Downloader instance. minFileSizeMB is the minimum size
+// (in MB) a downloaded file must reach to be considered a successful
+// transfer; a value <= 0 disables the check.
+func New(timeout time.Duration, retryAttempts int, minFileSizeMB int64) *Downloader {
 	if timeout == 0 {
 		timeout = 600 * time.Second // 10 minutes default
 	}
@@ -75,7 +86,16 @@ func New(timeout time.Duration, retryAttempts int) *Downloader {
 		},
 		stateManager:  stateManager,
 		resumeSupport: resumeSupport,
+		minFileSize:   minFileSizeMB * 1024 * 1024,
 	}
+}
+
+// isRetryableError determines whether an error returned from a transfer
+// attempt should trigger another attempt within Download()'s retry budget.
+// It extends apperrors.IsRetryable with ErrFileTooSmall so an undersized
+// transfer is retried the same way a transport failure would be.
+func isRetryableError(err error) bool {
+	return apperrors.IsRetryable(err) || errors.Is(err, ErrFileTooSmall)
 }
 
 // GetStateManager returns the state manager instance
@@ -222,7 +242,7 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 		result = res
 		contentType = ct
 		return nil
-	}, apperrors.IsRetryable)
+	}, isRetryableError)
 
 	if err != nil {
 		// Update download info on failure
@@ -418,6 +438,10 @@ func (d *Downloader) downloadFileWithResume(ctx context.Context, url, destPath s
 	}
 
 	totalBytes := startByte + bytesRead
+
+	if d.minFileSize > 0 && totalBytes < d.minFileSize {
+		return nil, "", fmt.Errorf("%w: %d bytes written (minimum %d bytes)", ErrFileTooSmall, totalBytes, d.minFileSize)
+	}
 
 	return &DownloadResult{
 		FileSize:  totalBytes,

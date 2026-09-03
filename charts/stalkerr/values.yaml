@@ -145,6 +145,9 @@ config:
     progress_interval_seconds: 60
     lock_timeout_minutes: 5
     max_retry_attempts: 5
+    # Minimum size (MB) a downloaded file must reach to count as a successful
+    # transfer; smaller transfers (e.g. a dead source link) are retried then failed
+    min_file_size_mb: 1
 
 # Secrets configuration (sensitive values)
 secrets:

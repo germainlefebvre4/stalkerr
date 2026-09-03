@@ -76,6 +76,7 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 		dl := downloader.New(
 			time.Duration(cfg.Downloads.Timeout)*time.Second,
 			cfg.Downloads.RetryAttempts,
+			cfg.Downloads.MinFileSizeMB,
 		)
 		stateManager := dl.GetStateManager()
 

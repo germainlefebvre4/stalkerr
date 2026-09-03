@@ -125,6 +125,10 @@ type DownloadsConfig struct {
 	ProgressIntervalSeconds int    `mapstructure:"progress_interval_seconds"`
 	LockTimeoutMinutes      int    `mapstructure:"lock_timeout_minutes"`
 	MaxRetryAttempts        int    `mapstructure:"max_retry_attempts"`
+	// MinFileSizeMB is the minimum size (in MB) a downloaded file must reach to
+	// be considered a successful transfer; smaller transfers are treated as a
+	// retryable failure (e.g. a dead source link returning an empty body).
+	MinFileSizeMB int64 `mapstructure:"min_file_size_mb"`
 	// ForceTierProbability is the probability (0-1) that the unified `download`
 	// command's scheduler draws from tier 2 (already-downloaded content eligible
 	// for re-download/upgrade) instead of tier 1 (missing content) on a given draw.
@@ -298,6 +302,7 @@ func setDefaults() {
 	viper.SetDefault("downloads.lock_timeout_minutes", 5)
 	viper.SetDefault("downloads.max_retry_attempts", 5)
 	viper.SetDefault("downloads.force_tier_probability", 0.1)
+	viper.SetDefault("downloads.min_file_size_mb", 1)
 
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")

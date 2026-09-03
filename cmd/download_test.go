@@ -91,7 +91,7 @@ func TestRunDownloadWorkerPool_AllItemsComplete(t *testing.T) {
 	}
 
 	sched := scheduler.NewScheduler(streams, 0)
-	dl := downloader.New(5*time.Second, 1)
+	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
 	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, 2, false)
@@ -154,7 +154,7 @@ func TestRunDownloadWorkerPool_RespectsSharedConcurrencyLimit(t *testing.T) {
 	}
 
 	sched := scheduler.NewScheduler(streams, 0)
-	dl := downloader.New(5*time.Second, 1)
+	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
 	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, limit, false)
@@ -223,7 +223,7 @@ func TestDownloadItem_QualityFallbackLoop(t *testing.T) {
 		Candidates:   []models.ProcessedLine{failingLine, succeedingLine},
 	}
 
-	dl := downloader.New(5*time.Second, 1)
+	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
 	success := downloadItem(context.Background(), dl, cfg, item, false)
@@ -256,7 +256,7 @@ func TestDownloadItem_AllCandidatesFail(t *testing.T) {
 		Candidates:   []models.ProcessedLine{line1, line2},
 	}
 
-	dl := downloader.New(5*time.Second, 1)
+	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
 	success := downloadItem(context.Background(), dl, cfg, item, false)
@@ -285,7 +285,7 @@ func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
 		Candidates:   []models.ProcessedLine{firstLine, secondLine},
 	}
 
-	dl := downloader.New(5*time.Second, 1)
+	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
 	success := downloadItem(context.Background(), dl, cfg, item, false)

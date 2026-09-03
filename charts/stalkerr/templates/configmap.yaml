@@ -119,3 +119,4 @@ data:
       progress_interval_seconds: {{ .Values.config.downloads.progress_interval_seconds }}
       lock_timeout_minutes: {{ .Values.config.downloads.lock_timeout_minutes }}
       max_retry_attempts: {{ .Values.config.downloads.max_retry_attempts }}
+      min_file_size_mb: {{ .Values.config.downloads.min_file_size_mb }}

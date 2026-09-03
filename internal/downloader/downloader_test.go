@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -42,31 +44,38 @@ func TestNew(t *testing.T) {
 		name          string
 		timeout       time.Duration
 		retryAttempts int
+		minFileSizeMB int64
 		wantTimeout   time.Duration
 		wantRetries   int
+		wantMinSize   int64
 	}{
 		{
 			name:          "with custom values",
 			timeout:       60 * time.Second,
 			retryAttempts: 5,
+			minFileSizeMB: 2,
 			wantTimeout:   60 * time.Second,
 			wantRetries:   5,
+			wantMinSize:   2 * 1024 * 1024,
 		},
 		{
 			name:          "with zero values uses defaults",
 			timeout:       0,
 			retryAttempts: 0,
+			minFileSizeMB: 0,
 			wantTimeout:   600 * time.Second,
 			wantRetries:   3,
+			wantMinSize:   0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := New(tt.timeout, tt.retryAttempts)
+			d := New(tt.timeout, tt.retryAttempts, tt.minFileSizeMB)
 			assert.NotNil(t, d)
 			assert.Equal(t, tt.wantTimeout, d.httpClient.Timeout)
 			assert.Equal(t, tt.wantRetries, d.retryConfig.MaxAttempts)
+			assert.Equal(t, tt.wantMinSize, d.minFileSize)
 		})
 	}
 }
@@ -88,7 +97,7 @@ func TestDownload_Success(t *testing.T) {
 	destPath := filepath.Join(tempDir, "testfile.txt")
 
 	// Create downloader
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 
 	// Track progress calls
 	var progressCalls int
@@ -159,7 +168,7 @@ func TestDownload_WithDatabaseTracking(t *testing.T) {
 	destPath := filepath.Join(tempDir, "movie.mkv")
 
 	// Create downloader
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 
 	// Perform download with database tracking
 	result, err := d.Download(context.Background(), DownloadOptions{
@@ -182,7 +191,7 @@ func TestDownload_WithDatabaseTracking(t *testing.T) {
 }
 
 func TestDownload_ValidationErrors(t *testing.T) {
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 
 	tests := []struct {
 		name string
@@ -236,7 +245,7 @@ func TestDownload_HTTPErrors(t *testing.T) {
 			destPath := filepath.Join(tempDir, "file.txt")
 
 			// Create downloader
-			d := New(10*time.Second, 3)
+			d := New(10*time.Second, 3, 0)
 
 			// Perform download
 			result, err := d.Download(context.Background(), DownloadOptions{
@@ -277,7 +286,7 @@ func TestDownload_Retry(t *testing.T) {
 	destPath := filepath.Join(tempDir, "file.txt")
 
 	// Create downloader with 5 retry attempts
-	d := New(10*time.Second, 5)
+	d := New(10*time.Second, 5, 0)
 
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
@@ -313,7 +322,7 @@ func TestDownload_ContextCancellation(t *testing.T) {
 	destPath := filepath.Join(tempDir, "file.txt")
 
 	// Create downloader
-	d := New(10*time.Second, 1)
+	d := New(10*time.Second, 1, 0)
 
 	// Create context with short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -358,7 +367,7 @@ func TestDownload_DatabaseStateOnFailure(t *testing.T) {
 	destPath := filepath.Join(tempDir, "movie.mkv")
 
 	// Create downloader
-	d := New(10*time.Second, 2)
+	d := New(10*time.Second, 2, 0)
 
 	// Perform download with database tracking
 	result, err := d.Download(context.Background(), DownloadOptions{
@@ -427,7 +436,7 @@ func TestDownload_CreatesDestinationDirectory(t *testing.T) {
 	destPath := filepath.Join(tempDir, "movies", "test", "file.mkv")
 
 	// Create downloader
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
@@ -488,7 +497,7 @@ func TestDownload_URLStoredInDownloadInfo(t *testing.T) {
 	tempDir := t.TempDir()
 	destPath := filepath.Join(tempDir, "url-tracking-test.mkv")
 
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 	_, err = d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -554,7 +563,7 @@ func TestDownload_RetryCountIncrements(t *testing.T) {
 	tempDir := t.TempDir()
 	destPath := filepath.Join(tempDir, "retry-count-test.mkv")
 
-	d := New(10*time.Second, 5)
+	d := New(10*time.Second, 5, 0)
 	_, err = d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -622,7 +631,7 @@ func TestDownload_SetsTargetPathBeforeTransfer(t *testing.T) {
 	tempDir := t.TempDir()
 	destPath := filepath.Join(tempDir, "target-path-test")
 
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 	_, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -693,7 +702,7 @@ func TestDownload_StagingPathStableAcrossRetries(t *testing.T) {
 	tempDir := t.TempDir()
 	destPath := filepath.Join(tempDir, "staging-stable-test")
 
-	d := New(10*time.Second, 5)
+	d := New(10*time.Second, 5, 0)
 	_, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -744,7 +753,7 @@ func TestDownload_ClearsTargetAndStagingPathOnCompletion(t *testing.T) {
 	tempDir := t.TempDir()
 	destPath := filepath.Join(tempDir, "clear-paths-test")
 
-	d := New(10*time.Second, 3)
+	d := New(10*time.Second, 3, 0)
 	_, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -808,7 +817,7 @@ func TestDownload_FailureMidTransferLeavesTargetAndStagingPathPopulated(t *testi
 	destPath := filepath.Join(tempDir, "mid-transfer-failure-test")
 
 	// A single attempt (no retries) so the failed state is not overwritten.
-	d := New(10*time.Second, 1)
+	d := New(10*time.Second, 1, 0)
 	_, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -873,7 +882,7 @@ func TestDownload_FailureDuringMoveLeavesTargetAndStagingPathPopulated(t *testin
 	finalDestPath := destPath + ".mkv"
 	require.NoError(t, os.MkdirAll(finalDestPath, 0755))
 
-	d := New(10*time.Second, 1)
+	d := New(10*time.Second, 1, 0)
 	_, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
 		BaseDestPath:    destPath,
@@ -895,4 +904,203 @@ func TestDownload_FailureDuringMoveLeavesTargetAndStagingPathPopulated(t *testin
 	assert.Nil(t, dl.DownloadPath)
 
 	t.Cleanup(func() { gdb.Delete(&dl) })
+}
+
+func TestDownloadFileWithResume_UndersizedReturnsErrFileTooSmall(t *testing.T) {
+	content := []byte("too small")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "undersized.tmp")
+
+	d := New(10*time.Second, 1, 1) // minFileSizeMB=1 (1 MiB), far above the tiny body
+
+	result, _, err := d.downloadFile(context.Background(), server.URL, destPath, nil)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.True(t, errors.Is(err, ErrFileTooSmall), "expected error to match ErrFileTooSmall, got: %v", err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("%d bytes", len(content)))
+}
+
+func TestDownloadFileWithResume_AtOrAboveMinimumSucceeds(t *testing.T) {
+	// Exactly at the configured minimum (1 byte) should be accepted.
+	content := []byte("x")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "atminimum.tmp")
+
+	// minFileSizeMB=0 disables the check via New()'s MB conversion, so build the
+	// Downloader directly with a 1-byte threshold to exercise the boundary.
+	d := New(10*time.Second, 1, 0)
+	d.minFileSize = 1
+
+	result, _, err := d.downloadFile(context.Background(), server.URL, destPath, nil)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(len(content)), result.FileSize)
+}
+
+func TestIsRetryableError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "ErrFileTooSmall is retryable",
+			err:  fmt.Errorf("%w: 5 bytes written (minimum 1048576 bytes)", ErrFileTooSmall),
+			want: true,
+		},
+		{
+			name: "network service-unavailable error is retryable",
+			err:  apperrors.New(apperrors.CodeServiceUnavailable, "unavailable"),
+			want: true,
+		},
+		{
+			name: "validation error is not retryable",
+			err:  apperrors.ValidationError("bad input"),
+			want: false,
+		},
+		{
+			name: "plain error is not retryable",
+			err:  errors.New("boom"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isRetryableError(tt.err))
+		})
+	}
+}
+
+func TestDownload_UndersizedExhaustsRetriesAndFails(t *testing.T) {
+	db := setupTestDB(t)
+
+	lineURL := "http://example.com/dead-link.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Dead Link",
+		LineHash:    "deadlink001",
+		TvgName:     "Dead Link",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, db.Create(processedLine).Error)
+
+	// Always responds with a tiny body, simulating a dead/expired source link.
+	var attempts int
+	content := []byte("dead")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "dead-link")
+
+	d := New(10*time.Second, 3, 1) // 1 MB minimum, well above the 4-byte body
+	result, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, 3, attempts, "should have exhausted the retry budget")
+
+	var updated models.ProcessedLine
+	require.NoError(t, db.First(&updated, processedLine.ID).Error)
+	assert.Equal(t, models.StateFailed, updated.State)
+	require.NotNil(t, updated.DownloadInfoID)
+
+	var dlInfo models.DownloadInfo
+	require.NoError(t, db.First(&dlInfo, *updated.DownloadInfoID).Error)
+	assert.Equal(t, string(models.DownloadStatusFailed), dlInfo.Status)
+	require.NotNil(t, dlInfo.ErrorMessage)
+	assert.Contains(t, *dlInfo.ErrorMessage, "empty or undersized")
+	assert.Contains(t, *dlInfo.ErrorMessage, fmt.Sprintf("%d bytes", len(content)))
+	assert.Nil(t, dlInfo.DownloadPath)
+
+	// No file should have been moved to a final destination.
+	matches, _ := filepath.Glob(destPath + ".*")
+	assert.Empty(t, matches, "no file should be moved to the final destination path")
+}
+
+func TestDownload_UndersizedThenValidCompletesNormally(t *testing.T) {
+	db := setupTestDB(t)
+
+	lineURL := "http://example.com/recovers.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Recovers",
+		LineHash:    "recovers001",
+		TvgName:     "Recovers",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, db.Create(processedLine).Error)
+
+	smallBody := []byte("tiny")
+	fullBody := make([]byte, 2*1024*1024) // 2 MiB, above the 1 MB minimum
+	for i := range fullBody {
+		fullBody[i] = 'a'
+	}
+
+	var attempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		body := fullBody
+		if attempts == 1 {
+			body = smallBody
+		}
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(body)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "recovers")
+
+	d := New(10*time.Second, 3, 1) // 1 MB minimum
+	result, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 2, attempts, "should have retried once after the undersized attempt")
+	assert.Equal(t, int64(len(fullBody)), result.FileSize)
+
+	var updated models.ProcessedLine
+	require.NoError(t, db.First(&updated, processedLine.ID).Error)
+	assert.Equal(t, models.StateDownloaded, updated.State)
+	require.NotNil(t, updated.DownloadInfoID)
+
+	var dlInfo models.DownloadInfo
+	require.NoError(t, db.First(&dlInfo, *updated.DownloadInfoID).Error)
+	assert.Equal(t, string(models.DownloadStatusCompleted), dlInfo.Status)
+	require.NotNil(t, dlInfo.FileSize)
+	assert.Equal(t, int64(len(fullBody)), *dlInfo.FileSize)
 }
