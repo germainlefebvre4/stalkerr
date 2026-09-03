@@ -45,7 +45,7 @@ Eligible candidates are `ProcessedLine` records with `state IN ('processed', 'fa
 - **THEN** the 1080p entry SHALL precede the NULL-resolution entry
 
 ### Requirement: Download fallback loop over quality candidates
-The download commands (`download radarr`, `download sonarr`) SHALL attempt each candidate URL in quality-preference order. On download failure, the failed `ProcessedLine` SHALL be marked `state = "failed"` and the next candidate SHALL be attempted. The loop stops on the first successful download.
+The unified `download` command SHALL attempt each candidate URL, for both movies and TV episodes, in quality-preference order. On download failure, the failed `ProcessedLine` SHALL be marked `state = "failed"` and the next candidate SHALL be attempted. The loop stops on the first successful download.
 
 #### Scenario: First candidate fails, second succeeds
 - **WHEN** the preferred 720p URL returns a network error

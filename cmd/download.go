@@ -246,6 +246,7 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 		if candidate.LineURL == nil || *candidate.LineURL == "" {
 			continue
 		}
+		fmt.Printf("Downloading: %s\n", item.DisplayName)
 
 		if verbose {
 			fmt.Printf("[%s] attempt %d/%d: %s\n", item.DisplayName, j+1, len(item.Candidates), *candidate.LineURL)

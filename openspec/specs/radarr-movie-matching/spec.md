@@ -12,7 +12,7 @@ The `radarr.Movie` struct SHALL include a `TvdbID int` field mapped to the `"tvd
 - **THEN** `radarr.Movie.TvdbID` SHALL equal `0` and no error SHALL occur
 
 ### Requirement: download radarr uses TVDB ID as primary match key
-The `download radarr` command SHALL pass `movie.TvdbID` to `MatchMovieByTVDB` so the TVDB-primary key path is used when available, falling through to TMDB-ID and fuzzy title matching only when `TvdbID == 0`.
+The Radarr-fetch stage of the unified `download` command SHALL pass `movie.TvdbID` to `MatchMovieByTVDB` so the TVDB-primary key path is used when available, falling through to TMDB-ID and fuzzy title matching only when `TvdbID == 0`.
 
 #### Scenario: Movie matched by TVDB ID when available
 - **WHEN** a Radarr movie has `TvdbID = 12345` and a `Movie` record exists in the database with `tvdb_id = 12345`

@@ -26,33 +26,23 @@ The chart SHALL create a CronJob resource for processing M3U playlists and enric
 - **THEN** Job command is ["./stalkeer", "process", "--config", "/app/config/config.yml"]
 - **THEN** Job has access to m3u PVC and database
 
-### Requirement: Sonarr sync CronJobs
-The chart SHALL create CronJob resources for syncing with Sonarr (normal and force variants).
+### Requirement: Unified download CronJob
+The chart SHALL create a single CronJob resource that runs the unified `download` command against both Radarr and Sonarr, on a single configurable schedule, replacing the separate Radarr/Sonarr (normal and force) CronJobs.
 
-#### Scenario: Normal Sonarr sync
-- **WHEN** jobs.sonarrSync.enabled is true
-- **THEN** CronJob "sonarr-sync" is created with schedule from values
-- **THEN** Job command is ["./stalkeer", "sonarr", "--config", "/app/config/config.yml"]
+#### Scenario: Unified download job created
+- **WHEN** jobs.download.enabled is true
+- **THEN** CronJob "download" is created with schedule from values
+- **THEN** Job command is ["./stalkeer", "download", "--config", "/app/config/config.yml"]
+- **THEN** CronJob concurrencyPolicy prevents overlapping executions
 
-#### Scenario: Force Sonarr sync
-- **WHEN** jobs.sonarrSync.forceSync.enabled is true
-- **THEN** CronJob "sonarr-sync-force" is created with separate schedule
-- **THEN** Job command includes --force flag
-- **THEN** Force sync schedule defaults to "30 2 * * *"
+#### Scenario: Unified job carries both service credentials
+- **WHEN** the unified download CronJob's pod is created
+- **THEN** it SHALL have access to both the Radarr and Sonarr API key secrets
+- **THEN** it SHALL mount both the M3U and media storage volumes
 
-### Requirement: Radarr sync CronJobs
-The chart SHALL create CronJob resources for syncing with Radarr (normal and force variants).
-
-#### Scenario: Normal Radarr sync
-- **WHEN** jobs.radarrSync.enabled is true
-- **THEN** CronJob "radarr-sync" is created with schedule from values
-- **THEN** Job command is ["./stalkeer", "radarr", "--config", "/app/config/config.yml"]
-
-#### Scenario: Force Radarr sync
-- **WHEN** jobs.radarrSync.forceSync.enabled is true
-- **THEN** CronJob "radarr-sync-force" is created with separate schedule
-- **THEN** Job command includes --force flag
-- **THEN** Force sync schedule defaults to "30 5 * * *"
+#### Scenario: No separate force schedule
+- **WHEN** the unified download CronJob is configured
+- **THEN** there SHALL be no separate `forceSync`-style CronJob or schedule; force/upgrade candidates are handled within every run of the single schedule
 
 ### Requirement: Job resource configuration
 The chart SHALL allow configuration of resources (CPU, memory) for all CronJobs.
