@@ -133,8 +133,8 @@ config:
   
   # Download configuration
   downloads:
-    movies_path: /media/jellyfin/radarr/movies
-    tvshows_path: /media/jellyfin/sonarr/tv
+    movies_path: /media/radarr/movies
+    tvshows_path: /media/sonarr/tvshows
     temp_dir: /tmp/stalkerr
     max_parallel: 1
     timeout: 3600
@@ -193,8 +193,7 @@ jobs:
         memory: 256Mi
   
   # Unified download job (replaces the separate radarrSync/sonarrSync jobs and
-  # their forceSync variants: force/upgrade candidates are now drawn
-  # probabilistically within every run of this single schedule)
+  # their forceSync variants)
   download:
     enabled: true
     schedule: "0 */2 * * *"  # Every 2 hours
