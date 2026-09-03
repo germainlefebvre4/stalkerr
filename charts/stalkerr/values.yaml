@@ -192,8 +192,10 @@ jobs:
         cpu: 200m
         memory: 256Mi
   
-  # Sonarr sync job
-  sonarrSync:
+  # Unified download job (replaces the separate radarrSync/sonarrSync jobs and
+  # their forceSync variants: force/upgrade candidates are now drawn
+  # probabilistically within every run of this single schedule)
+  download:
     enabled: true
     schedule: "0 */2 * * *"  # Every 2 hours
     concurrencyPolicy: Forbid
@@ -207,32 +209,6 @@ jobs:
       requests:
         cpu: 200m
         memory: 256Mi
-    
-    # Force sync variant
-    forceSync:
-      enabled: true
-      schedule: "30 2 * * *"  # Daily at 02:30
-  
-  # Radarr sync job
-  radarrSync:
-    enabled: true
-    schedule: "0 1-23/2 * * *"  # Odd hours (1, 3, 5, ...)
-    concurrencyPolicy: Forbid
-    successfulJobsHistoryLimit: 1
-    failedJobsHistoryLimit: 1
-    restartPolicy: OnFailure
-    resources:
-      limits:
-        cpu: 1000m
-        memory: 1Gi
-      requests:
-        cpu: 200m
-        memory: 256Mi
-    
-    # Force sync variant
-    forceSync:
-      enabled: true
-      schedule: "30 5 * * *"  # Daily at 05:30
 
 # Storage configuration
 storage:

@@ -437,10 +437,7 @@ kubectl exec deployment/stalkerr-server -n media -- env | grep API_KEY
 |-----------|-------------|---------|
 | `jobs.m3uDownload.schedule` | M3U download schedule | `"30 23 * * *"` (23:30 daily) |
 | `jobs.process.schedule` | Processing schedule | `"0 0 * * *"` (midnight daily) |
-| `jobs.sonarrSync.schedule` | Sonarr sync schedule | `"0 */2 * * *"` (every 2 hours) |
-| `jobs.sonarrSync.forceSync.schedule` | Sonarr force sync | `"30 2 * * *"` (02:30 daily) |
-| `jobs.radarrSync.schedule` | Radarr sync schedule | `"0 1-23/2 * * *"` (odd hours) |
-| `jobs.radarrSync.forceSync.schedule` | Radarr force sync | `"30 5 * * *"` (05:30 daily) |
+| `jobs.download.schedule` | Unified Radarr+Sonarr download schedule | `"0 */2 * * *"` (every 2 hours) |
 
 ### Storage Configuration
 

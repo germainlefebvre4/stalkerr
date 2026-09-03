@@ -94,11 +94,8 @@ View M3U download job logs:
 View processing job logs:
   kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-process --tail=100
 
-View Sonarr sync logs:
-  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-sonarr-sync --tail=100
-
-View Radarr sync logs:
-  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-radarr-sync --tail=100
+View download job logs (unified Radarr + Sonarr download):
+  kubectl logs -n {{ $namespace }} -l app.kubernetes.io/component=cronjob-download --tail=100
 
 ================================================================================
 💾 STORAGE INFORMATION

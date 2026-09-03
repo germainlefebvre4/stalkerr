@@ -125,6 +125,10 @@ type DownloadsConfig struct {
 	ProgressIntervalSeconds int    `mapstructure:"progress_interval_seconds"`
 	LockTimeoutMinutes      int    `mapstructure:"lock_timeout_minutes"`
 	MaxRetryAttempts        int    `mapstructure:"max_retry_attempts"`
+	// ForceTierProbability is the probability (0-1) that the unified `download`
+	// command's scheduler draws from tier 2 (already-downloaded content eligible
+	// for re-download/upgrade) instead of tier 1 (missing content) on a given draw.
+	ForceTierProbability float64 `mapstructure:"force_tier_probability"`
 }
 
 var cfg *Config
@@ -293,6 +297,7 @@ func setDefaults() {
 	viper.SetDefault("downloads.progress_interval_seconds", 30)
 	viper.SetDefault("downloads.lock_timeout_minutes", 5)
 	viper.SetDefault("downloads.max_retry_attempts", 5)
+	viper.SetDefault("downloads.force_tier_probability", 0.1)
 
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")

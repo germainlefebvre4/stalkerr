@@ -112,3 +112,6 @@ downloads:
   progress_interval_seconds: 30  # Persist progress every N seconds (whichever comes first)
   lock_timeout_minutes: 5  # Consider locks older than this stale (for cleanup)
   max_retry_attempts: 5  # Maximum number of retry attempts before giving up
+
+  # Unified `download` command scheduler settings
+  force_tier_probability: 0.1  # Chance (0-1) of drawing an already-downloaded/upgrade candidate over new content on a given draw

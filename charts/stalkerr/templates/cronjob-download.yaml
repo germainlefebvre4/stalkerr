@@ -1,23 +1,23 @@
-{{- if and .Values.jobs.sonarrSync.enabled .Values.jobs.sonarrSync.forceSync.enabled }}
+{{- if .Values.jobs.download.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "stalkerr.fullname" . }}-sonarr-sync-force
+  name: {{ include "stalkerr.fullname" . }}-download
   labels:
     {{- include "stalkerr.labels" . | nindent 4 }}
-    app.kubernetes.io/component: cronjob-sonarr-sync-force
+    app.kubernetes.io/component: cronjob-download
 spec:
-  schedule: {{ .Values.jobs.sonarrSync.forceSync.schedule | quote }}
-  concurrencyPolicy: {{ .Values.jobs.sonarrSync.concurrencyPolicy }}
-  successfulJobsHistoryLimit: {{ .Values.jobs.sonarrSync.successfulJobsHistoryLimit }}
-  failedJobsHistoryLimit: {{ .Values.jobs.sonarrSync.failedJobsHistoryLimit }}
+  schedule: {{ .Values.jobs.download.schedule | quote }}
+  concurrencyPolicy: {{ .Values.jobs.download.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.jobs.download.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.jobs.download.failedJobsHistoryLimit }}
   jobTemplate:
     spec:
       template:
         metadata:
           labels:
             {{- include "stalkerr.selectorLabels" . | nindent 12 }}
-            app.kubernetes.io/component: cronjob-sonarr-sync-force
+            app.kubernetes.io/component: cronjob-download
         spec:
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
@@ -26,19 +26,18 @@ spec:
           serviceAccountName: {{ include "stalkerr.serviceAccountName" . }}
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
-          restartPolicy: {{ .Values.jobs.sonarrSync.restartPolicy }}
+          restartPolicy: {{ .Values.jobs.download.restartPolicy }}
           containers:
-            - name: sonarr-sync-force
+            - name: download
               securityContext:
                 {{- toYaml .Values.securityContext | nindent 16 }}
               image: {{ include "stalkerr.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command:
                 - ./stalkeer
-                - sonarr
-                - --force
-                # - --config
-                # - /etc/stalkerr/config.yaml
+                - download
+                - --config
+                - /app/config/config.yml
               env:
                 - name: STALKERR_DATABASE_PASSWORD
                   valueFrom:
@@ -47,17 +46,21 @@ spec:
                       key: database-password
                 - name: DATABASE_URL
                   value: {{ include "stalkerr.databaseUrl" . | quote }}
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "stalkerr.secretName" . }}
+                      key: radarr-api-key
                 - name: SONARR_API_KEY
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "stalkerr.secretName" . }}
                       key: sonarr-api-key
               resources:
-                {{- toYaml .Values.jobs.sonarrSync.resources | nindent 16 }}
+                {{- toYaml .Values.jobs.download.resources | nindent 16 }}
               volumeMounts:
                 - name: config
-                  # mountPath: /etc/stalkerr/config.yaml
-                  mountPath: /app/config.yaml
+                  mountPath: /app/config/config.yml
                   subPath: config.yaml
                   readOnly: true
                 - name: m3u-storage

@@ -38,6 +38,9 @@ func TestLoad_WithDefaults(t *testing.T) {
 	if config.API.Port != 8080 {
 		t.Errorf("expected default API port 8080, got %d", config.API.Port)
 	}
+	if config.Downloads.ForceTierProbability != 0.1 {
+		t.Errorf("expected default force_tier_probability 0.1, got %v", config.Downloads.ForceTierProbability)
+	}
 }
 
 func TestValidate_InvalidLogLevel(t *testing.T) {
