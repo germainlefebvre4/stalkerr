@@ -11,6 +11,8 @@ type DownloadEnrichedResponse struct {
 	URL              string               `json:"url"`
 	Status           string               `json:"status"`
 	DownloadPath     *string              `json:"download_path,omitempty"`
+	TargetPath       *string              `json:"target_path,omitempty"`
+	StagingPath      *string              `json:"staging_path,omitempty"`
 	FileSize         *int64               `json:"file_size,omitempty"`
 	BytesDownloaded  *int64               `json:"bytes_downloaded,omitempty"`
 	TotalBytes       *int64               `json:"total_bytes,omitempty"`

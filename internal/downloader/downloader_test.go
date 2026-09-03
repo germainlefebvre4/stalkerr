@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -575,4 +576,323 @@ func TestDownload_RetryCountIncrements(t *testing.T) {
 	assert.Equal(t, server.URL, dlInfo.URL)
 
 	t.Cleanup(func() { gdb.Delete(&dlInfo) })
+}
+
+func TestDownload_SetsTargetPathBeforeTransfer(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	lineURL := "http://example.com/target-path-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Target Path Test",
+		LineHash:    "targetpath001",
+		TvgName:     "Target Path Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, gdb.Create(processedLine).Error)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	// Capture target_path from inside the HTTP handler, i.e. before the
+	// transfer (and any response) has completed.
+	var capturedTargetPath *string
+	content := []byte("target path test content")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var pl models.ProcessedLine
+		if gdb.First(&pl, processedLine.ID).Error == nil && pl.DownloadInfoID != nil {
+			var dl models.DownloadInfo
+			if gdb.First(&dl, *pl.DownloadInfoID).Error == nil {
+				capturedTargetPath = dl.TargetPath
+			}
+		}
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "target-path-test")
+
+	d := New(10*time.Second, 3)
+	_, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.NoError(t, err)
+
+	// The server URL has no path and the response has no recognized
+	// Content-Type, so detectFileExtension falls back to its ".mkv" default.
+	require.NotNil(t, capturedTargetPath, "target_path should be set before the HTTP transfer starts")
+	assert.Equal(t, destPath+".mkv", *capturedTargetPath)
+}
+
+func TestDownload_StagingPathStableAcrossRetries(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	lineURL := "http://example.com/staging-stable-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Staging Stable Test",
+		LineHash:    "stagingstable001",
+		TvgName:     "Staging Stable Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, gdb.Create(processedLine).Error)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	content := []byte("staging stable test content")
+	attemptCount := 0
+	var mu sync.Mutex
+	var observedStagingPaths []string
+
+	// Fail the first 2 attempts, succeed on the 3rd, recording staging_path
+	// as observed at the start of each attempt (requests are sequential, so
+	// no concurrent access to observedStagingPaths).
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+
+		var pl models.ProcessedLine
+		if gdb.First(&pl, processedLine.ID).Error == nil && pl.DownloadInfoID != nil {
+			var dl models.DownloadInfo
+			if gdb.First(&dl, *pl.DownloadInfoID).Error == nil && dl.StagingPath != nil {
+				mu.Lock()
+				observedStagingPaths = append(observedStagingPaths, *dl.StagingPath)
+				mu.Unlock()
+			}
+		}
+
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "staging-stable-test")
+
+	d := New(10*time.Second, 5)
+	_, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, len(observedStagingPaths), 2, "expected staging_path to be observed across at least 2 attempts")
+	for _, p := range observedStagingPaths {
+		assert.Equal(t, observedStagingPaths[0], p, "staging_path must stay stable across retries within one Download() call")
+	}
+	assert.Contains(t, observedStagingPaths[0], "download.tmp")
+}
+
+func TestDownload_ClearsTargetAndStagingPathOnCompletion(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	lineURL := "http://example.com/clear-paths-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Clear Paths Test",
+		LineHash:    "clearpaths001",
+		TvgName:     "Clear Paths Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, gdb.Create(processedLine).Error)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	content := []byte("clear paths test content")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "clear-paths-test")
+
+	d := New(10*time.Second, 3)
+	_, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.NoError(t, err)
+
+	var pl models.ProcessedLine
+	require.NoError(t, gdb.First(&pl, processedLine.ID).Error)
+	require.NotNil(t, pl.DownloadInfoID)
+
+	var dl models.DownloadInfo
+	require.NoError(t, gdb.First(&dl, *pl.DownloadInfoID).Error)
+	assert.Equal(t, string(models.DownloadStatusCompleted), dl.Status)
+	assert.NotNil(t, dl.DownloadPath)
+	assert.Nil(t, dl.TargetPath, "target_path should be cleared once the download completes")
+	assert.Nil(t, dl.StagingPath, "staging_path should be cleared once the download completes")
+
+	t.Cleanup(func() { gdb.Delete(&dl) })
+}
+
+func TestDownload_FailureMidTransferLeavesTargetAndStagingPathPopulated(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	lineURL := "http://example.com/mid-transfer-failure-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Mid Transfer Failure Test",
+		LineHash:    "midtransferfail001",
+		TvgName:     "Mid Transfer Failure Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, gdb.Create(processedLine).Error)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	// Claim more content than is actually sent, then hijack and close the
+	// connection early to trigger an "unexpected EOF" while io.Copy reads
+	// the body (internal/downloader/downloader.go:394-396).
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("short body"))
+		if hj, ok := w.(http.Hijacker); ok {
+			if conn, _, err := hj.Hijack(); err == nil {
+				conn.Close()
+			}
+		}
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "mid-transfer-failure-test")
+
+	// A single attempt (no retries) so the failed state is not overwritten.
+	d := New(10*time.Second, 1)
+	_, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.Error(t, err)
+
+	var pl models.ProcessedLine
+	require.NoError(t, gdb.First(&pl, processedLine.ID).Error)
+	require.NotNil(t, pl.DownloadInfoID)
+
+	var dl models.DownloadInfo
+	require.NoError(t, gdb.First(&dl, *pl.DownloadInfoID).Error)
+	assert.Equal(t, string(models.DownloadStatusFailed), dl.Status)
+	require.NotNil(t, dl.TargetPath)
+	assert.Equal(t, destPath+".mkv", *dl.TargetPath)
+	require.NotNil(t, dl.StagingPath)
+	assert.Contains(t, *dl.StagingPath, "download.tmp")
+	assert.Nil(t, dl.DownloadPath)
+
+	t.Cleanup(func() { gdb.Delete(&dl) })
+}
+
+func TestDownload_FailureDuringMoveLeavesTargetAndStagingPathPopulated(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	lineURL := "http://example.com/move-failure-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Move Failure Test",
+		LineHash:    "movefailure001",
+		TvgName:     "Move Failure Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, gdb.Create(processedLine).Error)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	content := []byte("move failure test content")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "move-failure-test")
+	// Pre-create a (non-empty-capable) directory at the exact path the
+	// downloaded file must land on, so the move-to-destination step
+	// (internal/downloader/downloader.go:254-273) fails deterministically:
+	// os.Rename refuses to replace a directory with a file, and the
+	// copy fallback's os.Create refuses to open a directory for writing.
+	finalDestPath := destPath + ".mkv"
+	require.NoError(t, os.MkdirAll(finalDestPath, 0755))
+
+	d := New(10*time.Second, 1)
+	_, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.Error(t, err)
+
+	var pl models.ProcessedLine
+	require.NoError(t, gdb.First(&pl, processedLine.ID).Error)
+	require.NotNil(t, pl.DownloadInfoID)
+
+	var dl models.DownloadInfo
+	require.NoError(t, gdb.First(&dl, *pl.DownloadInfoID).Error)
+	assert.Equal(t, string(models.DownloadStatusFailed), dl.Status)
+	require.NotNil(t, dl.TargetPath)
+	assert.Equal(t, finalDestPath, *dl.TargetPath)
+	require.NotNil(t, dl.StagingPath)
+	assert.Contains(t, *dl.StagingPath, "download.tmp")
+	assert.Nil(t, dl.DownloadPath)
+
+	t.Cleanup(func() { gdb.Delete(&dl) })
 }

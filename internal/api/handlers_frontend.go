@@ -206,6 +206,8 @@ func enrichDownloadInfo(dl models.DownloadInfo) DownloadEnrichedResponse {
 		URL:             dl.URL,
 		Status:          dl.Status,
 		DownloadPath:    dl.DownloadPath,
+		TargetPath:      dl.TargetPath,
+		StagingPath:     dl.StagingPath,
 		FileSize:        dl.FileSize,
 		BytesDownloaded: dl.BytesDownloaded,
 		TotalBytes:      dl.TotalBytes,

@@ -200,6 +200,34 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 	return nil
 }
 
+// SetTargetPath persists the intended final destination path for the current download attempt
+func (sm *StateManager) SetTargetPath(ctx context.Context, downloadID uint, targetPath string) error {
+	result := sm.db.WithContext(ctx).
+		Model(&models.DownloadInfo{}).
+		Where("id = ?", downloadID).
+		Update("target_path", targetPath)
+
+	if result.Error != nil {
+		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to set download target path")
+	}
+
+	return nil
+}
+
+// SetStagingPath persists the temporary file path the current download attempt writes to
+func (sm *StateManager) SetStagingPath(ctx context.Context, downloadID uint, stagingPath string) error {
+	result := sm.db.WithContext(ctx).
+		Model(&models.DownloadInfo{}).
+		Where("id = ?", downloadID).
+		Update("staging_path", stagingPath)
+
+	if result.Error != nil {
+		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to set download staging path")
+	}
+
+	return nil
+}
+
 // UpdateProgress updates download progress (bytes downloaded)
 func (sm *StateManager) UpdateProgress(ctx context.Context, downloadID uint, bytesDownloaded, totalBytes int64) error {
 	updates := map[string]interface{}{

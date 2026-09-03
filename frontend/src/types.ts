@@ -91,6 +91,8 @@ export interface DownloadEnriched {
   url: string;
   status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying';
   download_path?: string;
+  target_path?: string;
+  staging_path?: string;
   file_size?: number;
   bytes_downloaded?: number;
   total_bytes?: number;

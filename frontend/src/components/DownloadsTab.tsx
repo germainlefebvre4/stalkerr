@@ -258,9 +258,28 @@ export function DownloadsTab({
                         )}
                       </div>
                     )}
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', wordBreak: 'break-all', fontWeight: 500, margin: 0 }}>
-                      {selectedItem.download_path || selectedItem.url}
-                    </p>
+                    {selectedItem.status === 'completed' && selectedItem.download_path ? (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', wordBreak: 'break-all', fontWeight: 500, margin: 0 }}>
+                        {selectedItem.download_path}
+                      </p>
+                    ) : selectedItem.target_path || selectedItem.staging_path ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {selectedItem.target_path && (
+                          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', wordBreak: 'break-all', fontWeight: 500, margin: 0 }}>
+                            {t('plannedPath', { path: selectedItem.target_path })}
+                          </p>
+                        )}
+                        {selectedItem.staging_path && (
+                          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', wordBreak: 'break-all', fontWeight: 500, margin: 0 }}>
+                            {t('stagingPath', { path: selectedItem.staging_path })}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', wordBreak: 'break-all', fontWeight: 500, margin: 0 }}>
+                        {selectedItem.url}
+                      </p>
+                    )}
                   </div>
                 )}
 

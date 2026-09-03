@@ -40,6 +40,8 @@
   "move": "Déplacer ⇄",
   "rename": "Renommer ✎",
   "folder": "📂 Dossier : {{name}}/",
+  "plannedPath": "📍 Emplacement prévu (non définitif) : {{path}}",
+  "stagingPath": "📦 Fichier temporaire (peut ne plus exister) : {{path}}",
   "format": "📹 Format : {{format}}",
   "unknownFormat": "Inconnu",
   "unknownResolution": "Résolution inconnue",

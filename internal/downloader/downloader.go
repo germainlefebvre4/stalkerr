@@ -129,6 +129,17 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 			return nil, err
 		}
 
+		// Persist the URL-guessed final destination as soon as it is known, before
+		// the HTTP transfer starts (purely informational; download_path remains
+		// the sole source of truth once the download completes)
+		targetPath := opts.BaseDestPath + detectFileExtension(opts.URL, "")
+		if err := d.stateManager.SetTargetPath(ctx, downloadInfoID, targetPath); err != nil {
+			log.WithFields(map[string]interface{}{
+				"download_id": downloadInfoID,
+				"error":       err,
+			}).Warn("failed to set download target path")
+		}
+
 		// Also update ProcessedLine state for backward compatibility
 		if err := d.updateProcessedLineState(opts.ProcessedLineID, models.StateDownloading); err != nil {
 			log.WithFields(map[string]interface{}{
@@ -150,6 +161,17 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 
 	// Create temporary file
 	tempPath := filepath.Join(tempDownloadDir, "download.tmp")
+
+	// Persist the staging path once per Download() call; it stays stable across
+	// retries within this call since tempPath is computed once above
+	if downloadInfoID > 0 {
+		if err := d.stateManager.SetStagingPath(ctx, downloadInfoID, tempPath); err != nil {
+			log.WithFields(map[string]interface{}{
+				"download_id": downloadInfoID,
+				"error":       err,
+			}).Warn("failed to set download staging path")
+		}
+	}
 
 	// Perform download with retry
 	var result *DownloadResult
@@ -459,6 +481,8 @@ func (d *Downloader) updateDownloadInfoCompleted(ctx context.Context, downloadIn
 	updates := map[string]interface{}{
 		"status":        string(models.DownloadStatusCompleted),
 		"download_path": filePath,
+		"target_path":   nil, // download_path is the sole source of truth once completed
+		"staging_path":  nil,
 		"file_size":     fileSize,
 		"completed_at":  now,
 		"updated_at":    now,

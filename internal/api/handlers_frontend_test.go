@@ -440,6 +440,112 @@ func TestListDownloadsEnriched(t *testing.T) {
 	}
 }
 
+func TestListDownloadsEnriched_TargetAndStagingPaths(t *testing.T) {
+	db := setupTestDB(t)
+
+	targetPath1 := "/media/movies/In.Progress.2024/movie.mkv"
+	stagingPath1 := "/tmp/stalkeer-download-abc/download.tmp"
+	dlDownloading := models.DownloadInfo{
+		URL:         "http://example.com/in-progress",
+		Status:      "downloading",
+		TargetPath:  &targetPath1,
+		StagingPath: &stagingPath1,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	db.Create(&dlDownloading)
+
+	targetPath2 := "/media/movies/Failed.2024/movie.mkv"
+	stagingPath2 := "/tmp/stalkeer-download-def/download.tmp"
+	dlFailed := models.DownloadInfo{
+		URL:         "http://example.com/failed",
+		Status:      "failed",
+		TargetPath:  &targetPath2,
+		StagingPath: &stagingPath2,
+		CreatedAt:   time.Now().Add(time.Second),
+		UpdatedAt:   time.Now().Add(time.Second),
+	}
+	db.Create(&dlFailed)
+
+	completedPath := "/media/movies/Done.2024/movie.mkv"
+	dlCompleted := models.DownloadInfo{
+		URL:          "http://example.com/completed",
+		Status:       "completed",
+		DownloadPath: &completedPath,
+		CreatedAt:    time.Now().Add(time.Second * 2),
+		UpdatedAt:    time.Now().Add(time.Second * 2),
+	}
+	db.Create(&dlCompleted)
+
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/downloads", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+
+	// Decode into raw maps to also verify the fields are entirely absent
+	// (not just null) for the completed download, matching how
+	// download_path is already omitted via `omitempty`.
+	var rawResp struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &rawResp); err != nil {
+		t.Fatalf("failed to unmarshal raw response: %v", err)
+	}
+
+	var resp struct {
+		Data []DownloadEnrichedResponse `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	rawByID := make(map[uint]map[string]interface{})
+	for i, item := range resp.Data {
+		rawByID[item.ID] = rawResp.Data[i]
+	}
+
+	downloadingItem, ok := rawByID[dlDownloading.ID]
+	if !ok {
+		t.Fatalf("downloading item not found in response")
+	}
+	if downloadingItem["target_path"] != targetPath1 {
+		t.Errorf("Expected target_path %q, got %v", targetPath1, downloadingItem["target_path"])
+	}
+	if downloadingItem["staging_path"] != stagingPath1 {
+		t.Errorf("Expected staging_path %q, got %v", stagingPath1, downloadingItem["staging_path"])
+	}
+
+	failedItem, ok := rawByID[dlFailed.ID]
+	if !ok {
+		t.Fatalf("failed item not found in response")
+	}
+	if failedItem["target_path"] != targetPath2 {
+		t.Errorf("Expected target_path %q, got %v", targetPath2, failedItem["target_path"])
+	}
+	if failedItem["staging_path"] != stagingPath2 {
+		t.Errorf("Expected staging_path %q, got %v", stagingPath2, failedItem["staging_path"])
+	}
+
+	completedItem, ok := rawByID[dlCompleted.ID]
+	if !ok {
+		t.Fatalf("completed item not found in response")
+	}
+	if _, exists := completedItem["target_path"]; exists {
+		t.Errorf("Expected target_path to be omitted for completed download, got %v", completedItem["target_path"])
+	}
+	if _, exists := completedItem["staging_path"]; exists {
+		t.Errorf("Expected staging_path to be omitted for completed download, got %v", completedItem["staging_path"])
+	}
+	if completedItem["download_path"] != completedPath {
+		t.Errorf("Expected download_path %q, got %v", completedPath, completedItem["download_path"])
+	}
+}
+
 func TestEnrichDownloadInfo_RenameFolderName_Movie(t *testing.T) {
 	path := "/media/movies/Interstellar (2014)/Interstellar (2014).mkv"
 	dl := models.DownloadInfo{

@@ -26,6 +26,8 @@ type DownloadInfo struct {
 	URL             string     `gorm:"type:text;index:idx_download_info_url" json:"url"`                       // Source URL of the download
 	Status          string     `gorm:"type:varchar(50);not null;index:idx_download_info_status" json:"status"` // "pending", "downloading", "paused", "completed", "failed", "retrying"
 	DownloadPath    *string    `gorm:"type:text" json:"download_path,omitempty"`
+	TargetPath      *string    `gorm:"type:text" json:"target_path,omitempty"`  // Planned final destination for the current/last attempt (cleared on completion)
+	StagingPath     *string    `gorm:"type:text" json:"staging_path,omitempty"` // Temp file location for the current/last attempt (cleared on completion)
 	FileSize        *int64     `json:"file_size,omitempty"`
 	BytesDownloaded *int64     `gorm:"default:0" json:"bytes_downloaded,omitempty"`                  // Track partial download progress
 	TotalBytes      *int64     `json:"total_bytes,omitempty"`                                        // Expected total file size
