@@ -717,6 +717,95 @@ func TestSetContentTypeLanguage(t *testing.T) {
 	}
 }
 
+func TestDetectFrenchVariant(t *testing.T) {
+	tests := []struct {
+		name       string
+		tvgName    string
+		groupTitle string
+		want       *string
+	}{
+		{
+			name:    "VFQ alone",
+			tvgName: "Movie (2024) 720P VFQ",
+			want:    strPtr("VFQ"),
+		},
+		{
+			name:    "MULTI and VFQ together",
+			tvgName: "Movie (2024) Multi.Vfq.720P",
+			want:    strPtr("VFQ"),
+		},
+		{
+			name:    "VF and VFQ together",
+			tvgName: "Movie (2024) VF VFQ",
+			want:    strPtr("VFQ"),
+		},
+		{
+			name:    "no VFQ marker",
+			tvgName: "Movie (2024) FHD VF",
+			want:    nil,
+		},
+		{
+			name:       "VFQ marker only in group title",
+			tvgName:    "Show S01E01",
+			groupTitle: "Séries VFQ",
+			want:       strPtr("VFQ"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := detectFrenchVariant(tt.tvgName, tt.groupTitle)
+			if tt.want == nil && got != nil {
+				t.Errorf("got %q, want nil", *got)
+			} else if tt.want != nil && got == nil {
+				t.Errorf("got nil, want %q", *tt.want)
+			} else if tt.want != nil && got != nil && *got != *tt.want {
+				t.Errorf("got %q, want %q", *got, *tt.want)
+			}
+		})
+	}
+}
+
+func TestSetContentTypeFrenchVariant(t *testing.T) {
+	p := &Processor{
+		classifier: classifier.New(),
+	}
+
+	cl := classifier.Classification{ContentType: classifier.ContentTypeMovie}
+	opts := &ProcessOptions{SkipTMDB: true, TMDBLanguage: "en-US"}
+	stats := &Statistics{}
+
+	multiVfqLine := &models.ProcessedLine{TvgName: "Movie (2024) Multi.Vfq.720P"}
+	if err := p.setContentType(multiVfqLine, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+	if multiVfqLine.Language == nil || *multiVfqLine.Language != "MULTI" {
+		t.Errorf("expected Language = 'MULTI', got %v", multiVfqLine.Language)
+	}
+	if multiVfqLine.FrenchVariant == nil || *multiVfqLine.FrenchVariant != "VFQ" {
+		t.Errorf("expected FrenchVariant = 'VFQ', got %v", multiVfqLine.FrenchVariant)
+	}
+
+	vfVfqLine := &models.ProcessedLine{TvgName: "Movie (2024) VF VFQ"}
+	if err := p.setContentType(vfVfqLine, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+	if vfVfqLine.Language == nil || *vfVfqLine.Language != "VF" {
+		t.Errorf("expected Language = 'VF', got %v", vfVfqLine.Language)
+	}
+	if vfVfqLine.FrenchVariant == nil || *vfVfqLine.FrenchVariant != "VFQ" {
+		t.Errorf("expected FrenchVariant = 'VFQ', got %v", vfVfqLine.FrenchVariant)
+	}
+
+	noVfqLine := &models.ProcessedLine{TvgName: "Movie (2024) FHD VF"}
+	if err := p.setContentType(noVfqLine, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+	if noVfqLine.FrenchVariant != nil {
+		t.Errorf("expected FrenchVariant to be nil, got %q", *noVfqLine.FrenchVariant)
+	}
+}
+
 func strPtr(s string) *string { return &s }
 
 func TestComputeLineHash(t *testing.T) {

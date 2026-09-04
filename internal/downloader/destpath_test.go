@@ -102,8 +102,8 @@ func TestBuildRadarrDestPath_EmptyPathFallback(t *testing.T) {
 func strPtr(s string) *string { return &s }
 
 func TestBuildRadarrDestPathWithResolution_DifferentResolutionsDiffer(t *testing.T) {
-	hd, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("1080p"), "occurrence-1")
-	sd, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("480p"), "occurrence-2")
+	hd, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("1080p"), nil, nil, "occurrence-1")
+	sd, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("480p"), nil, nil, "occurrence-2")
 
 	if hd == sd {
 		t.Fatalf("expected different paths for different resolutions, both got %q", hd)
@@ -116,8 +116,8 @@ func TestBuildRadarrDestPathWithResolution_DifferentResolutionsDiffer(t *testing
 }
 
 func TestBuildRadarrDestPathWithResolution_NilResolutionUsesFallbackMarker(t *testing.T) {
-	sibling, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("1080p"), "occurrence-1")
-	unknown, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, nil, "occurrence-2")
+	sibling, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("1080p"), nil, nil, "occurrence-1")
+	unknown, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, nil, nil, nil, "occurrence-2")
 
 	if sibling == unknown {
 		t.Fatalf("expected nil-resolution path to differ from a sibling's resolved path, both got %q", sibling)
@@ -127,9 +127,16 @@ func TestBuildRadarrDestPathWithResolution_NilResolutionUsesFallbackMarker(t *te
 	}
 }
 
+func TestBuildRadarrDestPathWithResolution_LanguageAndVariantTags(t *testing.T) {
+	got, _ := BuildRadarrDestPathWithResolution("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021, strPtr("1080p"), strPtr("MULTI"), strPtr("VFQ"), "occurrence-1")
+	if !strings.HasSuffix(got, "[1080p][MULTI][VFQ]") {
+		t.Errorf("expected path to end with resolution/language/variant tags, got %q", got)
+	}
+}
+
 func TestBuildSonarrDestPathWithResolution_DifferentResolutionsDiffer(t *testing.T) {
-	hd, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("1080p"), "occurrence-1")
-	sd, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("480p"), "occurrence-2")
+	hd, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("1080p"), nil, nil, "occurrence-1")
+	sd, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("480p"), nil, nil, "occurrence-2")
 
 	if hd == sd {
 		t.Fatalf("expected different paths for different resolutions, both got %q", hd)
@@ -137,8 +144,8 @@ func TestBuildSonarrDestPathWithResolution_DifferentResolutionsDiffer(t *testing
 }
 
 func TestBuildSonarrDestPathWithResolution_NilResolutionUsesFallbackMarker(t *testing.T) {
-	sibling, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("1080p"), "occurrence-1")
-	unknown, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, nil, "occurrence-2")
+	sibling, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("1080p"), nil, nil, "occurrence-1")
+	unknown, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, nil, nil, nil, "occurrence-2")
 
 	if sibling == unknown {
 		t.Fatalf("expected nil-resolution path to differ from a sibling's resolved path, both got %q", sibling)
@@ -146,4 +153,59 @@ func TestBuildSonarrDestPathWithResolution_NilResolutionUsesFallbackMarker(t *te
 	if !strings.Contains(unknown, "occurrence-2") {
 		t.Errorf("expected fallback marker in path, got %q", unknown)
 	}
+}
+
+func TestBuildSonarrDestPathWithResolution_LanguageAndVariantTags(t *testing.T) {
+	got, _ := BuildSonarrDestPathWithResolution("/downloads/sonarr/Breaking Bad", "./data/sonarr", "Breaking Bad", 2008, 1, 1, strPtr("1080p"), strPtr("MULTI"), strPtr("VFQ"), "occurrence-1")
+	if !strings.HasSuffix(got, "[1080p][MULTI][VFQ]") {
+		t.Errorf("expected path to end with resolution/language/variant tags, got %q", got)
+	}
+}
+
+func TestQualityTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		resolution    *string
+		language      *string
+		frenchVariant *string
+		want          string
+	}{
+		{name: "resolution only", resolution: strPtr("1080p"), want: "[1080p]"},
+		{name: "language only", language: strPtr("MULTI"), want: "[MULTI]"},
+		{name: "resolution and language", resolution: strPtr("1080p"), language: strPtr("MULTI"), want: "[1080p][MULTI]"},
+		{name: "resolution, language, and VFQ", resolution: strPtr("720p"), language: strPtr("VF"), frenchVariant: strPtr("VFQ"), want: "[720p][VF][VFQ]"},
+		{name: "VFQ only, no language", frenchVariant: strPtr("VFQ"), want: "[VFQ]"},
+		{name: "all nil produces no tags", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := QualityTags(tt.resolution, tt.language, tt.frenchVariant)
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestQualityTagsAppendedToAutomaticPipelineBaseDestDir(t *testing.T) {
+	// Mirrors how cmd/download.go's downloadItem appends QualityTags directly to
+	// an item's already-known, untagged BaseDestDir once the attempted
+	// candidate's quality info is known.
+	baseDestDir, _ := BuildRadarrDestPath("/downloads/radarr/Dune (2021)", "./data/radarr", "Dune", 2021)
+
+	t.Run("all quality info known", func(t *testing.T) {
+		got := baseDestDir + QualityTags(strPtr("1080p"), strPtr("MULTI"), strPtr("VFQ"))
+		want := baseDestDir + "[1080p][MULTI][VFQ]"
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("all nil leaves base path unchanged", func(t *testing.T) {
+		got := baseDestDir + QualityTags(nil, nil, nil)
+		if got != baseDestDir {
+			t.Errorf("expected untagged path %q, got %q", baseDestDir, got)
+		}
+	})
 }

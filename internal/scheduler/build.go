@@ -175,9 +175,9 @@ func buildTier1MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, map
 			Tier:      Tier1,
 			SourceKey: fmt.Sprintf("movie:%d", dbMovie.ID),
 			Items: []Item{{
-				DisplayName:  fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
-				BaseDestPath: baseDestPath,
-				Candidates:   candidates,
+				DisplayName: fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
+				BaseDestDir: baseDestPath,
+				Candidates:  candidates,
 			}},
 		}
 		streams = append(streams, stream)
@@ -244,10 +244,10 @@ func buildTier1SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, ma
 			seasonOrder = append(seasonOrder, key)
 		}
 		sb.items = append(sb.items, Item{
-			DisplayName:  fmt.Sprintf("%s S%02dE%02d", series.Title, ep.SeasonNumber, ep.EpisodeNumber),
-			BaseDestPath: baseDestPath,
-			Candidates:   candidates,
-			Episode:      ep.EpisodeNumber,
+			DisplayName: fmt.Sprintf("%s S%02dE%02d", series.Title, ep.SeasonNumber, ep.EpisodeNumber),
+			BaseDestDir: baseDestPath,
+			Candidates:  candidates,
+			Episode:     ep.EpisodeNumber,
 		})
 	}
 
@@ -325,9 +325,9 @@ func buildTier2MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, err
 			Tier:      Tier2,
 			SourceKey: fmt.Sprintf("movie:%d", movie.ID),
 			Items: []Item{{
-				DisplayName:  fmt.Sprintf("%s (%d)", movie.TMDBTitle, movie.TMDBYear),
-				BaseDestPath: baseDestPath,
-				Candidates:   candidates,
+				DisplayName: fmt.Sprintf("%s (%d)", movie.TMDBTitle, movie.TMDBYear),
+				BaseDestDir: baseDestPath,
+				Candidates:  candidates,
 			}},
 		})
 	}
@@ -406,10 +406,10 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 			seasonOrder = append(seasonOrder, key)
 		}
 		sb.items = append(sb.items, Item{
-			DisplayName:  fmt.Sprintf("%s (%d) - S%02dE%02d", ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode),
-			BaseDestPath: baseDestPath,
-			Candidates:   candidates,
-			Episode:      *ep.Episode,
+			DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode),
+			BaseDestDir: baseDestPath,
+			Candidates:  candidates,
+			Episode:     *ep.Episode,
 		})
 	}
 
@@ -510,9 +510,9 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 					Tier:      Tier1,
 					SourceKey: fmt.Sprintf("movie:%d", line.Movie.ID),
 					Items: []Item{{
-						DisplayName:  fmt.Sprintf("%s (%d)", line.Movie.TMDBTitle, line.Movie.TMDBYear),
-						BaseDestPath: baseDestPath,
-						Candidates:   candidates,
+						DisplayName: fmt.Sprintf("%s (%d)", line.Movie.TMDBTitle, line.Movie.TMDBYear),
+						BaseDestDir: baseDestPath,
+						Candidates:  candidates,
 					}},
 				}
 				movieByID[line.Movie.ID] = stream
@@ -543,10 +543,10 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 					SourceKey: fmt.Sprintf("series:tvdb:%d", *show.TVDBID),
 					Season:    *show.Season,
 					Items: []Item{{
-						DisplayName:  fmt.Sprintf("%s (%d) - S%02dE%02d", show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode),
-						BaseDestPath: baseDestPath,
-						Candidates:   candidates,
-						Episode:      *show.Episode,
+						DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode),
+						BaseDestDir: baseDestPath,
+						Candidates:  candidates,
+						Episode:     *show.Episode,
 					}},
 				}
 				seriesByTVDBSeason[key] = stream
@@ -570,10 +570,10 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				}
 				baseDestPath, _ := downloader.BuildSonarrDestPath("", deps.Config.Downloads.TVShowsPath, show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode)
 				item := Item{
-					DisplayName:  fmt.Sprintf("%s (%d) - S%02dE%02d", show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode),
-					BaseDestPath: baseDestPath,
-					Candidates:   candidates,
-					Episode:      *show.Episode,
+					DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode),
+					BaseDestDir: baseDestPath,
+					Candidates:  candidates,
+					Episode:     *show.Episode,
 				}
 				attachResume(&item, line, download)
 				stream.Items = append(stream.Items, item)

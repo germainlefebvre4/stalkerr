@@ -97,3 +97,37 @@ func TestBuildBaseDestPath_FallsBackToRecomputingWhenNoPathRecorded(t *testing.T
 		t.Errorf("expected fallback recomputed path %q, got %q", want, got)
 	}
 }
+
+// 6.1 A resumed download with no persisted DownloadPath recomputes via
+// buildMovieBasePath, which intentionally has no resolution/language/VFQ
+// parameters and so can never gain quality tags, even when the ProcessedLine
+// carries a known resolution/language/French variant.
+func TestBuildBaseDestPath_FallbackRecomputeStaysUntaggedDespiteKnownQualityInfo(t *testing.T) {
+	rh := &ResumeHelper{}
+	cfg := &config.Config{}
+	cfg.Downloads.MoviesPath = "./data/movies"
+
+	movieID := uint(1)
+	resolution := "1080p"
+	language := "MULTI"
+	frenchVariant := "VFQ"
+	line := &models.ProcessedLine{
+		ContentType:   models.ContentTypeMovies,
+		MovieID:       &movieID,
+		Movie:         &models.Movie{TMDBTitle: "Dune", TMDBYear: 2021},
+		Resolution:    &resolution,
+		Language:      &language,
+		FrenchVariant: &frenchVariant,
+	}
+	download := &models.DownloadInfo{}
+
+	got, _, err := rh.buildBaseDestPath(cfg, line, download)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := buildMovieBasePath(cfg.Downloads.MoviesPath, line.Movie.TMDBTitle, line.Movie.TMDBYear)
+	if got != want {
+		t.Errorf("expected untagged fallback recomputed path %q, got %q", want, got)
+	}
+}

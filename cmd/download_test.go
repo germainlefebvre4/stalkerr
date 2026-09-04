@@ -77,9 +77,9 @@ func TestRunDownloadWorkerPool_AllItemsComplete(t *testing.T) {
 			Tier:      scheduler.Tier1,
 			SourceKey: "movie:1",
 			Items: []scheduler.Item{{
-				DisplayName:  "Test Movie",
-				BaseDestPath: filepath.Join(tempDir, "Test Movie"),
-				Candidates:   []models.ProcessedLine{movieLine},
+				DisplayName: "Test Movie",
+				BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+				Candidates:  []models.ProcessedLine{movieLine},
 			}},
 		},
 		{
@@ -88,8 +88,8 @@ func TestRunDownloadWorkerPool_AllItemsComplete(t *testing.T) {
 			SeriesID:  1,
 			Season:    1,
 			Items: []scheduler.Item{
-				{DisplayName: "Show S01E01", BaseDestPath: filepath.Join(tempDir, "Show S01E01"), Candidates: []models.ProcessedLine{ep1Line}, Episode: 1},
-				{DisplayName: "Show S01E02", BaseDestPath: filepath.Join(tempDir, "Show S01E02"), Candidates: []models.ProcessedLine{ep2Line}, Episode: 2},
+				{DisplayName: "Show S01E01", BaseDestDir: filepath.Join(tempDir, "Show S01E01"), Candidates: []models.ProcessedLine{ep1Line}, Episode: 1},
+				{DisplayName: "Show S01E02", BaseDestDir: filepath.Join(tempDir, "Show S01E02"), Candidates: []models.ProcessedLine{ep2Line}, Episode: 2},
 			},
 		},
 	}
@@ -143,7 +143,7 @@ func TestRunDownloadWorkerPool_RespectsSharedConcurrencyLimit(t *testing.T) {
 		streams = append(streams, &scheduler.Stream{
 			Tier:      scheduler.Tier1,
 			SourceKey: fmt.Sprintf("movie:%d", i),
-			Items:     []scheduler.Item{{DisplayName: fmt.Sprintf("Movie %d", i), BaseDestPath: filepath.Join(tempDir, fmt.Sprintf("movie%d", i)), Candidates: []models.ProcessedLine{line}}},
+			Items:     []scheduler.Item{{DisplayName: fmt.Sprintf("Movie %d", i), BaseDestDir: filepath.Join(tempDir, fmt.Sprintf("movie%d", i)), Candidates: []models.ProcessedLine{line}}},
 		})
 	}
 	for i := 0; i < 3; i++ {
@@ -153,7 +153,7 @@ func TestRunDownloadWorkerPool_RespectsSharedConcurrencyLimit(t *testing.T) {
 			SourceKey: fmt.Sprintf("series:%d", i+100),
 			SeriesID:  i + 100,
 			Season:    1,
-			Items:     []scheduler.Item{{DisplayName: fmt.Sprintf("Series %d", i), BaseDestPath: filepath.Join(tempDir, fmt.Sprintf("series%d", i)), Candidates: []models.ProcessedLine{line}, Episode: 1}},
+			Items:     []scheduler.Item{{DisplayName: fmt.Sprintf("Series %d", i), BaseDestDir: filepath.Join(tempDir, fmt.Sprintf("series%d", i)), Candidates: []models.ProcessedLine{line}, Episode: 1}},
 		})
 	}
 
@@ -175,9 +175,9 @@ func TestPrintDryRunPlan_DoesNotDownload(t *testing.T) {
 		Tier:      scheduler.Tier1,
 		SourceKey: "movie:1",
 		Items: []scheduler.Item{{
-			DisplayName:  "Test Movie",
-			BaseDestPath: filepath.Join(tempDir, "Test Movie"),
-			Candidates:   []models.ProcessedLine{{LineURL: strPtrDL("http://example.com/x.mp4")}},
+			DisplayName: "Test Movie",
+			BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+			Candidates:  []models.ProcessedLine{{LineURL: strPtrDL("http://example.com/x.mp4")}},
 		}},
 	}}
 
@@ -222,9 +222,9 @@ func TestDownloadItem_QualityFallbackLoop(t *testing.T) {
 	succeedingLine := createTestProcessedLine(t, db, server.URL+"/1080p.mp4")
 
 	item := &scheduler.Item{
-		DisplayName:  "Test Movie",
-		BaseDestPath: filepath.Join(tempDir, "Test Movie"),
-		Candidates:   []models.ProcessedLine{failingLine, succeedingLine},
+		DisplayName: "Test Movie",
+		BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+		Candidates:  []models.ProcessedLine{failingLine, succeedingLine},
 	}
 
 	dl := downloader.New(5*time.Second, 1, 0)
@@ -255,9 +255,9 @@ func TestDownloadItem_AllCandidatesFail(t *testing.T) {
 	line2 := createTestProcessedLine(t, db, server.URL+"/b.mp4")
 
 	item := &scheduler.Item{
-		DisplayName:  "Test Movie",
-		BaseDestPath: filepath.Join(tempDir, "Test Movie"),
-		Candidates:   []models.ProcessedLine{line1, line2},
+		DisplayName: "Test Movie",
+		BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+		Candidates:  []models.ProcessedLine{line1, line2},
 	}
 
 	dl := downloader.New(5*time.Second, 1, 0)
@@ -284,9 +284,9 @@ func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
 	secondLine := createTestProcessedLine(t, db, server.URL+"/1080p.mp4")
 
 	item := &scheduler.Item{
-		DisplayName:  "Test Movie",
-		BaseDestPath: filepath.Join(tempDir, "Test Movie"),
-		Candidates:   []models.ProcessedLine{firstLine, secondLine},
+		DisplayName: "Test Movie",
+		BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+		Candidates:  []models.ProcessedLine{firstLine, secondLine},
 	}
 
 	dl := downloader.New(5*time.Second, 1, 0)
@@ -296,6 +296,78 @@ func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
 
 	require.True(t, success)
 	require.EqualValues(t, 1, hits, "no further candidates should be attempted once one succeeds")
+}
+
+// 4.5 A completed automatic-pipeline download's on-disk filename includes the
+// resolution/language/VFQ tags of the candidate that actually succeeded.
+func TestDownloadItem_TaggedFilenameFromSucceedingCandidate(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Write([]byte("fake-content"))
+	}))
+	defer server.Close()
+
+	line := createTestProcessedLine(t, db, server.URL+"/1080p.mp4")
+	line.Resolution = strPtrDL("1080p")
+	line.Language = strPtrDL("MULTI")
+	line.FrenchVariant = strPtrDL("VFQ")
+
+	item := &scheduler.Item{
+		DisplayName: "Test Movie",
+		BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+		Candidates:  []models.ProcessedLine{line},
+	}
+
+	dl := downloader.New(5*time.Second, 1, 0)
+	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
+
+	success := downloadItem(context.Background(), dl, cfg, item, false)
+
+	require.True(t, success)
+	require.FileExists(t, filepath.Join(tempDir, "Test Movie[1080p][MULTI][VFQ].mp4"))
+}
+
+// 4.5 When an earlier candidate fails and a later one succeeds, the on-disk
+// filename carries the succeeding candidate's tags, not the failed one's.
+func TestDownloadItem_TaggedFilenameFromSucceedingCandidateAfterFailure(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/720p.mp4" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Write([]byte("fake-content"))
+	}))
+	defer server.Close()
+
+	failingLine := createTestProcessedLine(t, db, server.URL+"/720p.mp4")
+	failingLine.Resolution = strPtrDL("720p")
+	failingLine.Language = strPtrDL("VF")
+
+	succeedingLine := createTestProcessedLine(t, db, server.URL+"/1080p.mp4")
+	succeedingLine.Resolution = strPtrDL("1080p")
+	succeedingLine.Language = strPtrDL("MULTI")
+
+	item := &scheduler.Item{
+		DisplayName: "Test Movie",
+		BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+		Candidates:  []models.ProcessedLine{failingLine, succeedingLine},
+	}
+
+	dl := downloader.New(5*time.Second, 1, 0)
+	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
+
+	success := downloadItem(context.Background(), dl, cfg, item, false)
+
+	require.True(t, success)
+	require.FileExists(t, filepath.Join(tempDir, "Test Movie[1080p][MULTI].mp4"))
+	require.NoFileExists(t, filepath.Join(tempDir, "Test Movie[720p][VF].mp4"))
 }
 
 func strPtrDL(s string) *string { return &s }

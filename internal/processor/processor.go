@@ -274,6 +274,9 @@ func (p *Processor) setContentType(line *models.ProcessedLine, classification cl
 	// Persist language detected from the M3U entry's title or group
 	line.Language = detectLanguage(line.TvgName, line.GroupTitle)
 
+	// Persist the Québec French variant, independent of the language marker
+	line.FrenchVariant = detectFrenchVariant(line.TvgName, line.GroupTitle)
+
 	// Determine language for TMDB
 	language := opts.TMDBLanguage
 	if language == "" {
@@ -535,6 +538,11 @@ var qualitySuffixRe = regexp.MustCompile(`(?i)\s+(?:SD|FHD|UHD|HD|4K|MULTI|VOSTF
 // source of truth for the token list instead of a second, drifting regex.
 var languageTokenRe = regexp.MustCompile(`(?i)\b(VF|MULTI|VOSTFR)\b`)
 
+// frenchVariantTokenRe matches the Québec French variant marker (VFQ),
+// detected independently of languageTokenRe since a title can carry both
+// (e.g. "Multi.Vfq.720P").
+var frenchVariantTokenRe = regexp.MustCompile(`(?i)\bVFQ\b`)
+
 // detectLanguage extracts the language marker (VF, MULTI, or VOSTFR), if any,
 // from an M3U entry's title or group title. Returns nil when no marker is found.
 func detectLanguage(tvgName, groupTitle string) *string {
@@ -545,6 +553,22 @@ func detectLanguage(tvgName, groupTitle string) *string {
 	if m := languageTokenRe.FindStringSubmatch(groupTitle); m != nil {
 		lang := strings.ToUpper(m[1])
 		return &lang
+	}
+	return nil
+}
+
+// detectFrenchVariant extracts the Québec French variant marker (VFQ), if
+// any, from an M3U entry's title or group title. Independent of
+// detectLanguage's VF/MULTI/VOSTFR matching, so both can be set at once.
+// Returns nil when no marker is found.
+func detectFrenchVariant(tvgName, groupTitle string) *string {
+	if frenchVariantTokenRe.MatchString(tvgName) {
+		variant := "VFQ"
+		return &variant
+	}
+	if frenchVariantTokenRe.MatchString(groupTitle) {
+		variant := "VFQ"
+		return &variant
 	}
 	return nil
 }

@@ -37,6 +37,7 @@ type ProcessedLine struct {
 	ContentType     ContentType     `gorm:"type:varchar(20);not null;index:idx_processed_lines_content" json:"content_type"`
 	Resolution      *string         `gorm:"type:varchar(10)" json:"resolution,omitempty"`
 	Language        *string         `gorm:"type:varchar(10)" json:"language,omitempty"`
+	FrenchVariant   *string         `gorm:"type:varchar(10)" json:"french_variant,omitempty"`
 	ChannelID       *uint           `gorm:"index" json:"channel_id,omitempty"`
 	MovieID         *uint           `gorm:"index" json:"movie_id,omitempty"`
 	TVShowID        *uint           `gorm:"index" json:"tvshow_id,omitempty"`

@@ -7,7 +7,9 @@ Enhanced frontend Downloads tab that displays enriched download information with
 ## Requirements
 
 ### Requirement: Download List Summary Row
-The Downloads tab SHALL fetch enriched downloads from `GET /api/v1/downloads` on initial tab activation and when the user clicks the manual refresh control, and SHALL NOT poll or auto-refresh the list in the background. The tab SHALL show a loading state during a fetch, same as before. Instead of a detailed card, each download SHALL render as a compact summary row: on viewports at or above the mobile breakpoint, a table row; below it, a list card matching the Playlist tab's `mobile-list-card` pattern. Each summary row SHALL display, at minimum: the content type icon (🎬/📺/🔗) and title (falling back to the file name or URL when no `content.title` is available) with the year in parentheses when known, the status badge (same statuses/labels as before), and a compact progress indicator (percentage and/or size) for downloads whose status is `downloading` or `retrying`. The summary row SHALL NOT render file paths, technical specification chips, validation badges, genres, or error messages inline — that detail is available in the sidepanel (capability `downloads-details-sidepanel`). Each summary row SHALL be clickable/tappable to open that sidepanel for the corresponding download.
+The Downloads tab SHALL fetch enriched downloads from `GET /api/v1/downloads` on initial tab activation and when the user clicks the manual refresh control, and SHALL NOT poll or auto-refresh the list in the background. The tab SHALL show a loading state during a fetch, same as before. Instead of a detailed card, each download SHALL render as a compact summary row: on viewports at or above the mobile breakpoint, a table row; below it, a list card matching the Playlist tab's `mobile-list-card` pattern. Each summary row SHALL display, at minimum: the content type icon (🎬/📺/🔗) and title (falling back to the file name or URL when no `content.title` is available) with the year in parentheses when known, the status badge, and a compact progress indicator (percentage and/or size) for downloads whose status is `downloading` or `retrying`. The summary row SHALL NOT render file paths, technical specification chips, validation badges, genres, or error messages inline — that detail is available in the sidepanel (capability `downloads-details-sidepanel`). Each summary row SHALL be clickable/tappable to open that sidepanel for the corresponding download.
+
+The status badge SHALL show its emoji alone, with no accompanying word, for the `completed`, `pending`, `downloading`, and `failed` (no retries) statuses; each of these four statuses SHALL use a distinct emoji so that none of them can be confused for another without relying on text. A `failed` download that has been retried SHALL show its emoji followed by the retry count in parentheses (e.g. `❌ (3×)`), without the word "Échec"/"Failed". The `retrying` status badge is unchanged (emoji plus its word label). Regardless of status, the status badge SHALL render on a single line and SHALL NOT wrap its content onto multiple lines at any viewport width, even when the download's title is long enough to compress the space available to the badge.
 
 The status, type, and problem filter dropdowns SHALL keep updating query parameters, re-fetching downloads with the new filters, and resetting to page 1 on change, unchanged from before.
 
@@ -34,6 +36,18 @@ The status, type, and problem filter dropdowns SHALL keep updating query paramet
 #### Scenario: No background auto-refresh
 - **WHEN** the Downloads tab is active and the user takes no action
 - **THEN** the frontend SHALL NOT issue any additional fetch to `/api/v1/downloads` after the initial load, until the user clicks refresh, changes a filter, changes the page, or changes the items-per-page value
+
+#### Scenario: Completed, pending, downloading, and no-retry failed badges show emoji only
+- **WHEN** a download's status is `completed`, `pending`, `downloading`, or `failed` with a retry count of zero
+- **THEN** its status badge SHALL display only that status's emoji, with no text label, and that emoji SHALL be different from the emoji used for each of the other three statuses
+
+#### Scenario: Failed badge with retries shows the retry count instead of the status word
+- **WHEN** a download's status is `failed` and its retry count is greater than zero (e.g. 3)
+- **THEN** its status badge SHALL display the failed emoji followed by the retry count in parentheses (e.g. `❌ (3×)`), and SHALL NOT display the word "Échec"/"Failed"
+
+#### Scenario: Status badge never wraps even with a long title
+- **WHEN** a download's title is long enough to compress the horizontal space left for the status badge, on any viewport width
+- **THEN** the status badge SHALL remain on a single line, with its emoji (and text, when present) never breaking onto a second line
 
 ### Requirement: Pagination Controls
 The Downloads tab SHALL paginate the download list using the `limit`, `offset`, `total`, and `total_pages` fields returned by `GET /api/v1/downloads`, and SHALL render page navigation controls plus an items-per-page selector below the list.

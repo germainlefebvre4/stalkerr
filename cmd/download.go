@@ -323,9 +323,11 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 			fmt.Printf("[%s] attempt %d/%d: %s\n", item.DisplayName, j+1, len(item.Candidates), *candidate.LineURL)
 		}
 
+		destPath := item.BaseDestDir + downloader.QualityTags(candidate.Resolution, candidate.Language, candidate.FrenchVariant)
+
 		result, err := dl.Download(ctx, downloader.DownloadOptions{
 			URL:             *candidate.LineURL,
-			BaseDestPath:    item.BaseDestPath,
+			BaseDestPath:    destPath,
 			TempDir:         cfg.Downloads.TempDir,
 			ProcessedLineID: candidate.ID,
 		})

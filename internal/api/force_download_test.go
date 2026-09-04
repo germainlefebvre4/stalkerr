@@ -387,6 +387,87 @@ func TestForceDownloadItem_MovieSuccess_AcceptedBeforeTransferCompletes(t *testi
 	waitForDownloadStatus(t, db, dl.ID, string(models.DownloadStatusCompleted), 5*time.Second)
 }
 
+// 5.2 A forced download whose occurrence has a known language and VFQ variant
+// carries all three tags (resolution, language, variant) in its download path.
+func TestForceDownloadItem_MovieSuccess_LanguageAndVariantTagged(t *testing.T) {
+	db := setupTestDB(t)
+
+	moviePath := t.TempDir()
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 43, "path": moviePath},
+		})
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	source := newBlockingDownloadSource(t, []byte("movie bytes"))
+	defer source.Close()
+
+	movie := models.Movie{TMDBID: 43, TMDBTitle: "Dune", TMDBYear: 2021}
+	db.Create(&movie)
+
+	resolution := "1080p"
+	language := "MULTI"
+	frenchVariant := "VFQ"
+	line := models.ProcessedLine{
+		LineContent:   "dune content",
+		LineHash:      "hash-movie-lang-variant",
+		LineURL:       &source.server.URL,
+		TvgName:       "Dune",
+		ContentType:   models.ContentTypeMovies,
+		MovieID:       &movie.ID,
+		Resolution:    &resolution,
+		Language:      &language,
+		FrenchVariant: &frenchVariant,
+		State:         models.StateProcessed,
+		ProcessedAt:   time.Now(),
+	}
+	db.Create(&line)
+
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+		done <- w
+	}()
+
+	var w *httptest.ResponseRecorder
+	select {
+	case w = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected the HTTP response to return before the blocked transfer completes")
+	}
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected status 202, got %d: %s", w.Code, w.Body.String())
+	}
+
+	select {
+	case <-source.hitCount:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected background transfer to have reached the download source")
+	}
+
+	var dl models.DownloadInfo
+	if err := db.First(&dl).Error; err != nil {
+		t.Fatalf("expected a DownloadInfo row to exist: %v", err)
+	}
+	if dl.DownloadPath == nil {
+		t.Fatal("expected DownloadPath to be persisted before transfer completion")
+	}
+	if !containsSubstring(*dl.DownloadPath, "[1080p][MULTI][VFQ]") {
+		t.Errorf("expected resolution/language/variant-tagged path, got %q", *dl.DownloadPath)
+	}
+
+	close(source.release)
+	waitForDownloadStatus(t, db, dl.ID, string(models.DownloadStatusCompleted), 5*time.Second)
+}
+
 func TestForceDownloadItem_ConcurrentRequest_SecondRejectedWithoutDuplicateTransfer(t *testing.T) {
 	db := setupTestDB(t)
 

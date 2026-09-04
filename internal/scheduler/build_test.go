@@ -143,7 +143,7 @@ func TestBuildTier1Streams_MockedAPI(t *testing.T) {
 	require.NotNil(t, movieStream)
 	require.Equal(t, Tier1, movieStream.Tier)
 	require.Len(t, movieStream.Items, 1)
-	require.Contains(t, movieStream.Items[0].BaseDestPath, "Test Movie (2020)")
+	require.Contains(t, movieStream.Items[0].BaseDestDir, "Test Movie (2020)")
 
 	require.NotNil(t, seriesStream)
 	require.Equal(t, Tier1, seriesStream.Tier)
@@ -419,7 +419,7 @@ func TestBuildTier2MovieStreams_BetterResolutionSameLanguageTriggersUpgrade(t *t
 	require.Equal(t, "720p", *streams[0].Items[0].Candidates[0].Resolution)
 }
 
-// 4.4 A tier-2 movie stream resolves to the same BaseDestPath as its tier-1
+// 4.4 A tier-2 movie stream resolves to the same BaseDestDir as its tier-1
 // counterpart would, when both use the same live Radarr Path.
 func TestBuildTier2MovieStreams_UsesLiveRadarrPath(t *testing.T) {
 	db := setupTestDB(t)
@@ -448,7 +448,7 @@ func TestBuildTier2MovieStreams_UsesLiveRadarrPath(t *testing.T) {
 	require.Len(t, streams, 1)
 
 	expectedPath, _ := downloader.BuildRadarrDestPath(livePath, deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
-	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir)
 }
 
 // 4.4 A Radarr lookup error for one tier-2 movie candidate skips it without
@@ -507,10 +507,10 @@ func TestBuildTier2MovieStreams_NotFoundFallsBackToConfigPath(t *testing.T) {
 	require.Len(t, streams, 1)
 
 	expectedPath, _ := downloader.BuildRadarrDestPath("", deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
-	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir)
 }
 
-// 4.4 A tier-2 series stream resolves to the same BaseDestPath as its tier-1
+// 4.4 A tier-2 series stream resolves to the same BaseDestDir as its tier-1
 // counterpart would, when both use the same live Sonarr Path.
 func TestBuildTier2SeriesStreams_UsesLiveSonarrPath(t *testing.T) {
 	db := setupTestDB(t)
@@ -540,7 +540,7 @@ func TestBuildTier2SeriesStreams_UsesLiveSonarrPath(t *testing.T) {
 	require.Len(t, streams, 1)
 
 	expectedPath, _ := downloader.BuildSonarrDestPath(livePath, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
-	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir)
 }
 
 // 4.4 A Sonarr lookup error for one tier-2 series candidate skips it without
@@ -601,7 +601,7 @@ func TestBuildTier2SeriesStreams_NotFoundFallsBackToConfigPath(t *testing.T) {
 	require.Len(t, streams, 1)
 
 	expectedPath, _ := downloader.BuildSonarrDestPath("", deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
-	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestPath)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir)
 }
 
 // 2.3 A resumed item is attempted before a fresh item in the same stream.

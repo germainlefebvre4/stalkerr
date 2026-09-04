@@ -55,24 +55,47 @@ func resolutionSuffix(resolution *string, fallbackMarker string) string {
 	return fmt.Sprintf(" [%s]", fallbackMarker)
 }
 
+// QualityTags builds the shared `[resolution][language][VFQ]` filename tag
+// sequence for a downloaded candidate, omitting any bracket whose input is
+// nil or empty. Used by the forced-download destination path builders below,
+// and directly by the automatic pipeline (cmd/download.go), which appends it
+// to an item's already-known BaseDestDir once the attempted candidate's
+// quality info is known — so tagging behaves identically for both trigger
+// sources.
+func QualityTags(resolution, language, frenchVariant *string) string {
+	var tags string
+	if resolution != nil && *resolution != "" {
+		tags += fmt.Sprintf("[%s]", *resolution)
+	}
+	if language != nil && *language != "" {
+		tags += fmt.Sprintf("[%s]", *language)
+	}
+	if frenchVariant != nil && *frenchVariant != "" {
+		tags += fmt.Sprintf("[%s]", *frenchVariant)
+	}
+	return tags
+}
+
 // BuildRadarrDestPathWithResolution builds the destination base path for a forced
 // download of a movie occurrence, extending BuildRadarrDestPath with a resolution
-// suffix (or fallbackMarker when resolution is unknown) so the resulting file can
-// never silently collide with a sibling occurrence's file in the same folder. This
-// variant is used only by the force-download path; the automatic pipeline keeps
-// calling BuildRadarrDestPath directly.
-func BuildRadarrDestPathWithResolution(moviePath, fallbackBase, movieTitle string, movieYear int, resolution *string, fallbackMarker string) (string, bool) {
+// suffix (or fallbackMarker when resolution is unknown), followed by the shared
+// language/VFQ quality tags, so the resulting file can never silently collide
+// with a sibling occurrence's file in the same folder. This variant is used only
+// by the force-download path; the automatic pipeline keeps calling
+// BuildRadarrDestPath directly.
+func BuildRadarrDestPathWithResolution(moviePath, fallbackBase, movieTitle string, movieYear int, resolution, language, frenchVariant *string, fallbackMarker string) (string, bool) {
 	base, usedFallback := BuildRadarrDestPath(moviePath, fallbackBase, movieTitle, movieYear)
-	return base + resolutionSuffix(resolution, fallbackMarker), usedFallback
+	return base + resolutionSuffix(resolution, fallbackMarker) + QualityTags(nil, language, frenchVariant), usedFallback
 }
 
 // BuildSonarrDestPathWithResolution builds the destination base path for a forced
 // download of a TV episode occurrence, extending BuildSonarrDestPath with a
-// resolution suffix (or fallbackMarker when resolution is unknown) so the resulting
-// file can never silently collide with a sibling occurrence's file in the same
-// folder. This variant is used only by the force-download path; the automatic
-// pipeline keeps calling BuildSonarrDestPath directly.
-func BuildSonarrDestPathWithResolution(seriesPath, fallbackBase, seriesTitle string, seriesYear, seasonNum, episodeNum int, resolution *string, fallbackMarker string) (string, bool) {
+// resolution suffix (or fallbackMarker when resolution is unknown), followed by
+// the shared language/VFQ quality tags, so the resulting file can never silently
+// collide with a sibling occurrence's file in the same folder. This variant is
+// used only by the force-download path; the automatic pipeline keeps calling
+// BuildSonarrDestPath directly.
+func BuildSonarrDestPathWithResolution(seriesPath, fallbackBase, seriesTitle string, seriesYear, seasonNum, episodeNum int, resolution, language, frenchVariant *string, fallbackMarker string) (string, bool) {
 	base, usedFallback := BuildSonarrDestPath(seriesPath, fallbackBase, seriesTitle, seriesYear, seasonNum, episodeNum)
-	return base + resolutionSuffix(resolution, fallbackMarker), usedFallback
+	return base + resolutionSuffix(resolution, fallbackMarker) + QualityTags(nil, language, frenchVariant), usedFallback
 }

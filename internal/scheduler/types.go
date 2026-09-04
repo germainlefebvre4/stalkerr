@@ -18,9 +18,12 @@ const (
 type Item struct {
 	// DisplayName is a human-readable label used for logging/dry-run output.
 	DisplayName string
-	// BaseDestPath is the destination path (without extension) the download should
-	// be written to.
-	BaseDestPath string
+	// BaseDestDir is the untagged movie/season folder root the download should be
+	// written under (without extension). The final per-attempt destination path is
+	// computed lazily in cmd/download.go's downloadItem, once the candidate actually
+	// being attempted is known, by appending that candidate's resolution/language/
+	// French-variant quality tags to this root.
+	BaseDestDir string
 	// Candidates are the quality-ordered ProcessedLine rows eligible for download,
 	// as returned by matcher.FindMovieDownloadCandidates/FindTVShowDownloadCandidates.
 	Candidates []models.ProcessedLine

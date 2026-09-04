@@ -186,7 +186,7 @@ func (s *Server) resolveForceDownloadMoviePath(ctx context.Context, cfg *config.
 
 	basePath, _ := downloader.BuildRadarrDestPathWithResolution(
 		movie.Path, cfg.Downloads.MoviesPath, item.Movie.TMDBTitle, item.Movie.TMDBYear,
-		item.Resolution, fallbackMarker,
+		item.Resolution, item.Language, item.FrenchVariant, fallbackMarker,
 	)
 	return basePath, nil
 }
@@ -232,7 +232,7 @@ func (s *Server) resolveForceDownloadEpisodePath(ctx context.Context, cfg *confi
 
 	basePath, _ := downloader.BuildSonarrDestPathWithResolution(
 		series.Path, cfg.Downloads.TVShowsPath, item.TVShow.TMDBTitle, item.TVShow.TMDBYear,
-		*item.TVShow.Season, *item.TVShow.Episode, item.Resolution, fallbackMarker,
+		*item.TVShow.Season, *item.TVShow.Episode, item.Resolution, item.Language, item.FrenchVariant, fallbackMarker,
 	)
 	return basePath, nil
 }

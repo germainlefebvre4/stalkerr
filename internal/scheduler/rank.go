@@ -3,11 +3,13 @@ package scheduler
 import "github.com/glefebvre/stalkeer/internal/models"
 
 // candidateRank returns a lower-is-better ordinal for a ProcessedLine's
-// (language, resolution) pair, mirroring matcher.resolutionOrderSQL's
-// language-then-resolution CASE ordering so tier-2 gating and the SQL
-// candidate ordering never disagree.
+// (language, resolution, French variant) tuple, mirroring
+// matcher.resolutionOrderSQL's language-then-resolution-then-variant CASE
+// ordering so tier-2 gating and the SQL candidate ordering never disagree.
+// The French-variant component only breaks ties when language and
+// resolution are already equal.
 func candidateRank(line *models.ProcessedLine) int {
-	return languageRank(line.Language)*10 + resolutionRank(line.Resolution)
+	return languageRank(line.Language)*100 + resolutionRank(line.Resolution)*10 + frenchVariantRank(line.FrenchVariant)
 }
 
 // languageRank maps a language string to sort priority: VF (1) is preferred
@@ -46,4 +48,14 @@ func resolutionRank(resolution *string) int {
 	default:
 		return 5
 	}
+}
+
+// frenchVariantRank maps the French-variant marker to sort priority: a
+// candidate without the Québec French variant (1) is preferred over one
+// with it (2).
+func frenchVariantRank(frenchVariant *string) int {
+	if frenchVariant != nil && *frenchVariant == "VFQ" {
+		return 2
+	}
+	return 1
 }

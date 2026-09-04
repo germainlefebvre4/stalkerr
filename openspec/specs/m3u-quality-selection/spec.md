@@ -40,12 +40,29 @@ The processor SHALL store the detected language of each M3U entry in the `langua
 - **WHEN** an M3U entry's title or group contains no recognized language marker
 - **THEN** the resulting `ProcessedLine` SHALL have `language = NULL`
 
+### Requirement: Québec French variant is persisted independently of language
+The processor SHALL detect when an M3U entry's title or group indicates that its French audio track is specifically Québec French (marker `VFQ`), and SHALL persist this as a signal independent of, and combinable with, the `language` field (`VF`/`MULTI`/`VOSTFR`/`NULL`). This detection SHALL NOT replace or suppress detection of the entry's `VF`/`MULTI`/`VOSTFR` marker when one is also present.
+
+#### Scenario: VFQ detected alongside a MULTI marker
+- **WHEN** an M3U entry's title contains both a `MULTI` marker and a `VFQ` marker (for example `Multi.Vfq.720P`)
+- **THEN** the resulting `ProcessedLine` SHALL have `language = "MULTI"` and SHALL also record the Québec French variant
+
+#### Scenario: VFQ detected with no other language marker
+- **WHEN** an M3U entry's title contains a `VFQ` marker but no `VF`/`MULTI`/`VOSTFR` marker
+- **THEN** the resulting `ProcessedLine` SHALL record the Québec French variant, independent of the value of `language`
+
+#### Scenario: No VFQ marker present
+- **WHEN** an M3U entry's title or group contains no `VFQ` marker
+- **THEN** the resulting `ProcessedLine` SHALL NOT record the Québec French variant
+
 ### Requirement: Quality-ordered candidate list for download
-When selecting a URL to download a given movie or TV episode, the system SHALL return all eligible `ProcessedLine` records for that content ordered first by language preference, then by resolution preference within the same language tier, then by recency within the same language-and-resolution tier.
+When selecting a URL to download a given movie or TV episode, the system SHALL return all eligible `ProcessedLine` records for that content ordered first by language preference, then by resolution preference within the same language tier, then by the Québec French variant tie-break within the same language-and-resolution tier, then by recency within the same language, resolution, and variant tier.
 
 Language preference order (ascending priority): `"VF"` (1) → `"MULTI"` (2) → `NULL` (3) → `"VOSTFR"` (4). A candidate with no detected language marker is assumed to be French, consistent with this being a French-language IPTV catalog, and ranks above `VOSTFR` but below an explicitly-tagged `VF`/`MULTI` candidate.
 
 Resolution preference order (ascending priority, applied within a language tier): `720p` (1) → `1080p` (2) → `4K` (3) → `480p` (4) → `NULL` (5).
+
+Québec French variant tie-break (applied within the same language-and-resolution tier): a candidate without the Québec French variant SHALL be preferred over an otherwise-equally-ranked candidate with the Québec French variant.
 
 Eligible candidates are `ProcessedLine` records with `state IN ('processed', 'failed')`.
 
@@ -72,6 +89,10 @@ Eligible candidates are `ProcessedLine` records with `state IN ('processed', 'fa
 #### Scenario: Most recent entry preferred within same quality tier
 - **WHEN** a movie has two `VF` `720p` `ProcessedLine` entries added at different times
 - **THEN** the one with the later `created_at` SHALL be returned first
+
+#### Scenario: France French preferred over Québec French at the same language and resolution
+- **WHEN** a movie has a `VF` `720p` candidate without the Québec French variant and a `VF` `720p` candidate with the Québec French variant
+- **THEN** the candidate without the Québec French variant SHALL be returned first
 
 ### Requirement: Download fallback loop over quality candidates
 The unified `download` command SHALL attempt each candidate URL, for both movies and TV episodes, in quality-preference order. On download failure, the failed `ProcessedLine` SHALL be marked `state = "failed"` and the next candidate SHALL be attempted. The loop stops on the first successful download.

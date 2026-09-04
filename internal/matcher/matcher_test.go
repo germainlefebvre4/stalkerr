@@ -951,6 +951,111 @@ func TestFindMovieDownloadCandidatesResolutionBreaksTieWithinLanguage(t *testing
 	}
 }
 
+func TestFindMovieDownloadCandidatesFrenchVariantBreaksTieWithinLanguageAndResolution(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 607, TMDBTitle: "John Wick 2", TMDBYear: 2017}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	langVF := "VF"
+	vfq := "VFQ"
+
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "John Wick 2 720p VF VFQ", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-vf-vfq", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res720p, Language: &langVF, FrenchVariant: &vfq,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "John Wick 2 720p VF", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-vf-no-vfq", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res720p, Language: &langVF,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+
+	// Same language and resolution: the non-VFQ candidate sorts first.
+	if candidates[0].FrenchVariant != nil {
+		t.Errorf("expected first candidate to have no French variant, got %v", *candidates[0].FrenchVariant)
+	}
+	if candidates[1].FrenchVariant == nil || *candidates[1].FrenchVariant != "VFQ" {
+		t.Errorf("expected second candidate French variant 'VFQ', got %v", candidates[1].FrenchVariant)
+	}
+}
+
+func TestFindMovieDownloadCandidatesFrenchVariantNoEffectWhenResolutionDiffers(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 608, TMDBTitle: "John Wick 3", TMDBYear: 2019}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	res4K := "4K"
+	langVF := "VF"
+	vfq := "VFQ"
+
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		// Higher resolution but VFQ - should still lose to lower resolution non-VFQ,
+		// since resolution outranks the French-variant tie-break.
+		{
+			MovieID: &movie.ID, TvgName: "John Wick 3 4K VF", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-4k-no-vfq", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res4K, Language: &langVF,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "John Wick 3 720p VF VFQ", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-720p-vfq", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res720p, Language: &langVF, FrenchVariant: &vfq,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+
+	// Resolution still wins over the French-variant tie-break.
+	if candidates[0].Resolution == nil || *candidates[0].Resolution != "720p" {
+		t.Errorf("expected first candidate resolution '720p', got %v", candidates[0].Resolution)
+	}
+	if candidates[1].Resolution == nil || *candidates[1].Resolution != "4K" {
+		t.Errorf("expected second candidate resolution '4K', got %v", candidates[1].Resolution)
+	}
+}
+
 func TestFindMovieDownloadCandidatesExcludesDownloaded(t *testing.T) {
 	db := setupTestDB(t)
 

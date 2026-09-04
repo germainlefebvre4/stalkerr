@@ -147,10 +147,14 @@ func (m *Matcher) FindBestMovieMatch(line *models.ProcessedLine, movies []radarr
 // resolution strings to sort priority. Language is primary: VF (1) is
 // preferred first, then MULTI (2), unspecified/NULL (3), then VOSTFR (4).
 // Resolution breaks ties within the same language tier: 720p (1) is preferred
-// first, then 1080p, 4K, 480p, and unknown/nil last (5). Recency breaks ties
-// within the same language-and-resolution tier.
+// first, then 1080p, 4K, 480p, and unknown/nil last (5). The French-variant
+// tie-break breaks ties within the same language-and-resolution tier: a
+// candidate without the Québec French variant (1) is preferred over one with
+// it (2). Recency breaks ties within the same language, resolution, and
+// variant tier.
 const resolutionOrderSQL = "CASE language WHEN 'VF' THEN 1 WHEN 'MULTI' THEN 2 WHEN 'VOSTFR' THEN 4 ELSE 3 END ASC, " +
-	"CASE resolution WHEN '720p' THEN 1 WHEN '1080p' THEN 2 WHEN '4K' THEN 3 WHEN '480p' THEN 4 ELSE 5 END ASC, created_at DESC"
+	"CASE resolution WHEN '720p' THEN 1 WHEN '1080p' THEN 2 WHEN '4K' THEN 3 WHEN '480p' THEN 4 ELSE 5 END ASC, " +
+	"CASE french_variant WHEN 'VFQ' THEN 2 ELSE 1 END ASC, created_at DESC"
 
 // FindMovieDownloadCandidates returns all eligible ProcessedLines for a movie ordered by
 // quality preference (720p → 1080p → 4K → 480p → nil) then by recency within the same tier.
