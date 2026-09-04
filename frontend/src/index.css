@@ -331,6 +331,8 @@ input, select {
   text-transform: capitalize;
   border-style: solid;
   border-width: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge-success {

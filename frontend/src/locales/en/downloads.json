@@ -30,11 +30,11 @@
     }
   },
   "status": {
-    "completed": "✅ Completed",
-    "downloading": "⏳ In progress",
-    "failedWithRetry": "❌ Failed ({{count}}×)",
-    "failed": "❌ Failed",
-    "pending": "⏳ Pending",
+    "completed": "✅",
+    "downloading": "📥",
+    "failedWithRetry": "❌ ({{count}}×)",
+    "failed": "❌",
+    "pending": "⏳",
     "retrying": "🔄 Retrying"
   },
   "move": "Move ⇄",
