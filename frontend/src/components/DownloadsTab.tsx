@@ -26,6 +26,7 @@ interface DownloadsTabProps {
   onOpenMoveDialog: (item: DownloadEnriched) => void;
   onOpenRenameDialog: (item: DownloadEnriched) => void;
   onResyncPath: (item: DownloadEnriched) => Promise<void>;
+  onCancelDownload: (item: DownloadEnriched) => Promise<void>;
 }
 
 function filepathBase(path: string) {
@@ -50,17 +51,25 @@ export function DownloadsTab({
   onFetchDownloads,
   onOpenMoveDialog,
   onOpenRenameDialog,
-  onResyncPath
+  onResyncPath,
+  onCancelDownload
 }: DownloadsTabProps) {
   const { t, i18n } = useTranslation('downloads');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selectedItem = downloads.find(d => d.id === selectedId) ?? null;
   const [isResyncing, setIsResyncing] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const handleResyncClick = () => {
     if (!selectedItem) return;
     setIsResyncing(true);
     onResyncPath(selectedItem).finally(() => setIsResyncing(false));
+  };
+
+  const handleCancelClick = () => {
+    if (!selectedItem) return;
+    setIsCancelling(true);
+    onCancelDownload(selectedItem).finally(() => setIsCancelling(false));
   };
 
   useEffect(() => {
@@ -75,6 +84,7 @@ export function DownloadsTab({
     downloaded: number;
     progress: number;
     isCompleted: boolean;
+    isCancelEligible: boolean;
     isProgressStatus: boolean;
     title: string;
     year: string;
@@ -92,6 +102,7 @@ export function DownloadsTab({
     const downloaded = selectedItem.bytes_downloaded || 0;
     const progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
     const isCompleted = selectedItem.status === 'completed';
+    const isCancelEligible = selectedItem.status === 'pending' || selectedItem.status === 'failed' || selectedItem.status === 'retrying';
     const isProgressStatus = selectedItem.status === 'downloading' || selectedItem.status === 'retrying';
 
     const title = selectedItem.content?.title || (selectedItem.download_path ? filepathBase(selectedItem.download_path) : selectedItem.url);
@@ -115,6 +126,9 @@ export function DownloadsTab({
     } else if (selectedItem.status === 'retrying') {
       statusLabel = t('status.retrying');
       statusBadgeClass = 'badge-pending';
+    } else if (selectedItem.status === 'cancelled') {
+      statusLabel = t('status.cancelled');
+      statusBadgeClass = 'badge-neutral';
     }
 
     const hasYearIssue = selectedItem.file_info && !selectedItem.file_info.has_year_in_path;
@@ -128,6 +142,7 @@ export function DownloadsTab({
       downloaded,
       progress,
       isCompleted,
+      isCancelEligible,
       isProgressStatus,
       title,
       year,
@@ -162,6 +177,7 @@ export function DownloadsTab({
           <option value="completed">{t('statusFilter.completed')}</option>
           <option value="downloading">{t('statusFilter.downloading')}</option>
           <option value="failed">{t('statusFilter.failed')}</option>
+          <option value="cancelled">{t('statusFilter.cancelled')}</option>
         </select>
 
         <select
@@ -379,24 +395,38 @@ export function DownloadsTab({
                 )}
 
                 {/* Section: Actions */}
-                {drawerData.isCompleted && (
+                {(drawerData.isCompleted || drawerData.isCancelEligible) && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <h3 className="drawer-section-title">{t('drawer.actionsSection')}</h3>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button onClick={() => onOpenMoveDialog(selectedItem)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                        {t('move')}
-                      </button>
-                      <button onClick={() => onOpenRenameDialog(selectedItem)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                        {t('rename')}
-                      </button>
-                      <button
-                        onClick={handleResyncClick}
-                        disabled={isResyncing}
-                        className="btn-secondary"
-                        style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-                      >
-                        {isResyncing ? t('resync.inProgress') : t('resync.action')}
-                      </button>
+                      {drawerData.isCompleted && (
+                        <>
+                          <button onClick={() => onOpenMoveDialog(selectedItem)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                            {t('move')}
+                          </button>
+                          <button onClick={() => onOpenRenameDialog(selectedItem)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                            {t('rename')}
+                          </button>
+                          <button
+                            onClick={handleResyncClick}
+                            disabled={isResyncing}
+                            className="btn-secondary"
+                            style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                          >
+                            {isResyncing ? t('resync.inProgress') : t('resync.action')}
+                          </button>
+                        </>
+                      )}
+                      {drawerData.isCancelEligible && (
+                        <button
+                          onClick={handleCancelClick}
+                          disabled={isCancelling}
+                          className="btn-secondary"
+                          style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                        >
+                          {isCancelling ? t('cancel.inProgress') : t('cancel.action')}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

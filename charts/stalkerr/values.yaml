@@ -138,12 +138,19 @@ config:
     temp_dir: /tmp/stalkerr
     max_parallel: 1
     timeout: 3600
+    # Number of in-call HTTP sub-retry attempts within a single external download attempt
     retry_attempts: 3
     # Resume support configuration
     resume_enabled: true
     progress_interval_mb: 500
     progress_interval_seconds: 60
     lock_timeout_minutes: 5
+    # Retry budget for a single download occurrence: counts one increment per full
+    # external attempt (a whole Download() call concluding without success),
+    # across both the missing-content matcher and the incomplete-download resume
+    # path, regardless of internal HTTP sub-retries (retry_attempts above).
+    # Reaching this permanently excludes the occurrence from future attempts
+    # (same terminal state a manual cancel reaches) until a full media reset.
     max_retry_attempts: 5
     # Minimum size (MB) a downloaded file must reach to count as a successful
     # transfer; smaller transfers (e.g. a dead source link) are retried then failed

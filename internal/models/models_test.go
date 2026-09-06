@@ -57,6 +57,7 @@ func TestProcessingState_Constants(t *testing.T) {
 		{StateDownloading, "downloading"},
 		{StateDownloaded, "downloaded"},
 		{StateFailed, "failed"},
+		{StateCancelled, "cancelled"},
 	}
 
 	for _, tc := range tests {
@@ -145,6 +146,13 @@ func TestTVShow_Creation(t *testing.T) {
 	}
 	if *tvshow.Episode != 5 {
 		t.Errorf("expected Episode 5, got %d", *tvshow.Episode)
+	}
+}
+
+func TestDownloadInfo_IsEligibleForResume_Cancelled(t *testing.T) {
+	d := DownloadInfo{Status: string(DownloadStatusCancelled)}
+	if d.IsEligibleForResume(0, time.Hour) {
+		t.Error("expected IsEligibleForResume to return false for status cancelled")
 	}
 }
 

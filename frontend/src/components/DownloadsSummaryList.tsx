@@ -31,6 +31,9 @@ function getStatusInfo(item: DownloadEnriched, t: TFunction) {
   if (item.status === 'retrying') {
     return { label: t('status.retrying'), badgeClass: 'badge-pending' };
   }
+  if (item.status === 'cancelled') {
+    return { label: t('status.cancelled'), badgeClass: 'badge-neutral' };
+  }
   return { label: t('status.pending'), badgeClass: 'badge-pending' };
 }
 

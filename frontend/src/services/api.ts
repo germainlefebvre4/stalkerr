@@ -10,6 +10,7 @@ import {
   TMDBSearchResult,
   RenameDownloadResponse,
   ResyncPathResponse,
+  CancelDownloadResponse,
   RadarrMovieListItem,
   SonarrSeriesListItem,
   RadarrMovieMatchesResponse,
@@ -246,6 +247,12 @@ export const api = {
 
   async resyncDownloadPath(id: number): Promise<ResyncPathResponse> {
     const res = await fetch(`/api/v1/downloads/${id}/resync-path`, { method: 'POST' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async cancelDownload(id: number): Promise<CancelDownloadResponse> {
+    const res = await fetch(`/api/v1/downloads/${id}/cancel`, { method: 'POST' });
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

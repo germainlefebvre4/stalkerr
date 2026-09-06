@@ -8,6 +8,7 @@ import (
 
 	"github.com/glefebvre/stalkeer/internal/database"
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
@@ -161,6 +162,7 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 
 	// Set timestamps based on state
 	now := time.Now()
+	cancelled := false
 	switch newStatus {
 	case models.DownloadStatusDownloading:
 		updates["started_at"] = now
@@ -178,9 +180,23 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 		if errorMsg != nil {
 			updates["error_message"] = *errorMsg
 		}
-	case models.DownloadStatusRetrying:
-		updates["retry_count"] = gorm.Expr("retry_count + 1")
+
+		// A full external attempt (Download() call) has concluded without
+		// success: count it against the retry budget exactly once, regardless
+		// of how many internal HTTP sub-attempts occurred.
+		var current models.DownloadInfo
+		if err := sm.db.WithContext(ctx).Select("retry_count").First(&current, downloadID).Error; err != nil {
+			return apperrors.Wrap(err, apperrors.CodeInternal, "failed to read download retry count")
+		}
+		newRetryCount := current.RetryCount + 1
+		updates["retry_count"] = newRetryCount
 		updates["last_retry_at"] = now
+
+		maxRetries := config.Get().Downloads.MaxRetryAttempts
+		if maxRetries > 0 && newRetryCount >= maxRetries {
+			cancelled = true
+			updates["status"] = string(models.DownloadStatusCancelled)
+		}
 	}
 
 	result := sm.db.WithContext(ctx).
@@ -192,9 +208,18 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to update download state")
 	}
 
+	if cancelled {
+		if err := sm.db.WithContext(ctx).
+			Model(&models.ProcessedLine{}).
+			Where("download_info_id = ?", downloadID).
+			Update("state", string(models.StateCancelled)).Error; err != nil {
+			return apperrors.Wrap(err, apperrors.CodeInternal, "failed to mark processed lines cancelled")
+		}
+	}
+
 	log.WithFields(map[string]interface{}{
 		"download_id": downloadID,
-		"new_status":  string(newStatus),
+		"new_status":  updates["status"],
 	}).Debug("updated download state")
 
 	return nil

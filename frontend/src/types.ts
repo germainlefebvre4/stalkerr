@@ -76,7 +76,7 @@ export interface ProcessingLog {
 export interface DownloadInfo {
   id: number;
   url: string;
-  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying';
+  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying' | 'cancelled';
   download_path?: string;
   file_size?: number;
   bytes_downloaded?: number;
@@ -89,7 +89,7 @@ export interface DownloadInfo {
 export interface DownloadEnriched {
   id: number;
   url: string;
-  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying';
+  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying' | 'cancelled';
   download_path?: string;
   target_path?: string;
   staging_path?: string;
@@ -137,6 +137,11 @@ export interface ResyncPathResponse {
   status: ResyncPathOutcome;
   old_path?: string;
   new_path?: string;
+}
+
+export interface CancelDownloadResponse {
+  status: string;
+  download_id: number;
 }
 
 export interface ConfigPaths {

@@ -22,6 +22,7 @@ const (
 	StateOrganizing  ProcessingState = "organizing"
 	StateDownloaded  ProcessingState = "downloaded"
 	StateFailed      ProcessingState = "failed"
+	StateCancelled   ProcessingState = "cancelled"
 )
 
 // ProcessedLine represents an M3U playlist line with polymorphic relationships

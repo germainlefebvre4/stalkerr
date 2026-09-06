@@ -1089,6 +1089,68 @@ func TestFindMovieDownloadCandidatesExcludesDownloaded(t *testing.T) {
 	}
 }
 
+// 3.1: FindMovieDownloadCandidates relies on its existing state IN
+// ('processed', 'failed') allow-list to exclude a cancelled/retry-exhausted
+// occurrence; this guards that invariant.
+func TestFindMovieDownloadCandidatesExcludesCancelled(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 155, TMDBTitle: "The Dark Knight", TMDBYear: 2008}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	lineURL := "http://example.com/stream.mkv"
+	line := models.ProcessedLine{
+		MovieID: &movie.ID, TvgName: "The Dark Knight 720p", LineURL: &lineURL,
+		LineContent: "#EXTINF", LineHash: "hash-dk-720p-cancelled", GroupTitle: "Movies",
+		ContentType: models.ContentTypeMovies, State: models.StateCancelled,
+		Resolution: &res720p,
+	}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+
+	if len(candidates) != 0 {
+		t.Errorf("expected 0 candidates (cancelled excluded), got %d", len(candidates))
+	}
+}
+
+// 3.1: same invariant as above, for the TV-show candidate query.
+func TestFindTVShowDownloadCandidatesExcludesCancelled(t *testing.T) {
+	db := setupTestDB(t)
+
+	season, episode := 1, 1
+	tvshow := models.TVShow{TMDBID: 1396, TMDBTitle: "Breaking Bad", Season: &season, Episode: &episode}
+	if err := db.Create(&tvshow).Error; err != nil {
+		t.Fatalf("failed to create tvshow: %v", err)
+	}
+
+	lineURL := "http://example.com/stream.mkv"
+	line := models.ProcessedLine{
+		TVShowID: &tvshow.ID, TvgName: "Breaking Bad S01E01", LineURL: &lineURL,
+		LineContent: "#EXTINF", LineHash: "hash-bb-s01e01-cancelled", GroupTitle: "Series",
+		ContentType: models.ContentTypeTVShows, State: models.StateCancelled,
+	}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	candidates, err := FindTVShowDownloadCandidates(db, tvshow.ID)
+	if err != nil {
+		t.Fatalf("FindTVShowDownloadCandidates returned error: %v", err)
+	}
+	if len(candidates) != 0 {
+		t.Fatalf("expected FindTVShowDownloadCandidates to exclude cancelled occurrence, got %d", len(candidates))
+	}
+}
+
 func TestMatchMoviesBatch(t *testing.T) {
 	db := setupTestDB(t)
 

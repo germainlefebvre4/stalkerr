@@ -94,7 +94,7 @@ export default function App() {
     downloads, downloadsLoading, statusFilter, setStatusFilter,
     typeFilter, setTypeFilter, problemFilter, setProblemFilter,
     downloadsPage, setDownloadsPage, downloadsLimit, setDownloadsLimit, downloadsTotal,
-    configPaths, fetchDownloads, updateDownloadPath
+    configPaths, fetchDownloads, updateDownloadPath, updateDownloadStatus
   } = useDownloads(activeTab === 'downloads');
 
   const {
@@ -222,6 +222,16 @@ export default function App() {
       .catch(err => showToast(translateApiError(err), 'error'));
   };
 
+  const handleCancelDownload = (item: DownloadEnriched): Promise<void> => {
+    if (!confirm(t('downloads:cancel.confirm'))) return Promise.resolve();
+    return api.cancelDownload(item.id)
+      .then(() => {
+        updateDownloadStatus(item.id, 'cancelled');
+        showToast(t('downloads:cancel.successMessage'));
+      })
+      .catch(err => showToast(translateApiError(err), 'error'));
+  };
+
   const tabs = [
     { value: 'playlist', icon: '🎬', label: t('tabs.playlist') },
     { value: 'filters', icon: '🔍', label: t('tabs.filters') },
@@ -293,6 +303,7 @@ export default function App() {
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}
           onOpenRenameDialog={openRenameDialog}
           onResyncPath={handleResyncPath}
+          onCancelDownload={handleCancelDownload}
         />
 
         <ErrorsTab

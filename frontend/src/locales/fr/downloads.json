@@ -6,7 +6,8 @@
     "all": "Statut : Tous",
     "completed": "Complétés",
     "downloading": "En cours",
-    "failed": "Échoués"
+    "failed": "Échoués",
+    "cancelled": "Annulés"
   },
   "typeFilter": {
     "all": "Type : Tous",
@@ -35,7 +36,8 @@
     "failedWithRetry": "❌ ({{count}}×)",
     "failed": "❌",
     "pending": "⏳",
-    "retrying": "🔄 Réessai"
+    "retrying": "🔄 Réessai",
+    "cancelled": "Annulé"
   },
   "move": "Déplacer ⇄",
   "rename": "Renommer ✎",
@@ -45,6 +47,12 @@
     "correctedMessage": "Chemin resynchronisé avec Radarr/Sonarr.",
     "alreadyUpToDateMessage": "Le chemin est déjà à jour avec Radarr/Sonarr.",
     "notManagedMessage": "Cet élément n'est pas géré par Radarr/Sonarr."
+  },
+  "cancel": {
+    "action": "Annuler",
+    "inProgress": "Annulation…",
+    "successMessage": "Téléchargement annulé.",
+    "confirm": "Êtes-vous sûr de vouloir annuler ce téléchargement ? Il ne sera plus jamais retenté automatiquement."
   },
   "folder": "📂 Dossier : {{name}}/",
   "plannedPath": "📍 Emplacement prévu (non définitif) : {{path}}",

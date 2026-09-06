@@ -14,6 +14,7 @@ import (
 	"time"
 
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -262,6 +263,98 @@ func TestDownload_HTTPErrors(t *testing.T) {
 			assert.True(t, os.IsNotExist(err))
 		})
 	}
+}
+
+// 2.1: a Download() call that fails on the first HTTP attempt (a 404, which
+// isRetryableError treats as non-retryable, so retry.Do makes no internal
+// sub-attempt) still increments retry_count by exactly 1.
+func TestDownload_FailedNonRetryableIncrementsRetryCountOnce(t *testing.T) {
+	db := setupTestDB(t)
+	config.SetConfig(&config.Config{})
+
+	processedLine := &models.ProcessedLine{
+		LineContent: "#EXTINF:-1,Test Movie",
+		LineHash:    "testhash-retry-nonretryable",
+		TvgName:     "Test Movie",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, db.Create(processedLine).Error)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "file.txt")
+	d := New(10*time.Second, 3, 0)
+
+	_, err := d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.Error(t, err)
+
+	var updatedLine models.ProcessedLine
+	require.NoError(t, db.First(&updatedLine, processedLine.ID).Error)
+	require.NotNil(t, updatedLine.DownloadInfoID)
+
+	var download models.DownloadInfo
+	require.NoError(t, db.First(&download, *updatedLine.DownloadInfoID).Error)
+	assert.Equal(t, 1, download.RetryCount)
+}
+
+// 2.3: the tier-1 direct path (cmd/download.go's downloadItem) and the resume
+// path (ResumeHelper.ResumeDownloads -> ParallelWithDownloader) both invoke
+// Downloader.Download() with equivalently-shaped DownloadOptions and go
+// through the same UpdateState call; retry_count accounting is therefore
+// identical regardless of which path triggered the attempt, verified here
+// via two successive attempts against the same occurrence.
+func TestDownload_RetryCountIncrementsIdenticallyAcrossAttemptOrigins(t *testing.T) {
+	db := setupTestDB(t)
+	config.SetConfig(&config.Config{})
+
+	processedLine := &models.ProcessedLine{
+		LineContent: "#EXTINF:-1,Test Movie",
+		LineHash:    "testhash-retry-origins",
+		TvgName:     "Test Movie",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, db.Create(processedLine).Error)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "file.txt")
+	d := New(10*time.Second, 3, 0)
+
+	attempt := func() {
+		_, err := d.Download(context.Background(), DownloadOptions{
+			URL:             server.URL,
+			BaseDestPath:    destPath,
+			ProcessedLineID: processedLine.ID,
+		})
+		require.Error(t, err)
+	}
+
+	attempt() // shape of the tier-1 direct path's call
+	attempt() // shape of the resume path's call
+
+	var updatedLine models.ProcessedLine
+	require.NoError(t, db.First(&updatedLine, processedLine.ID).Error)
+	require.NotNil(t, updatedLine.DownloadInfoID)
+
+	var download models.DownloadInfo
+	require.NoError(t, db.First(&download, *updatedLine.DownloadInfoID).Error)
+	assert.Equal(t, 2, download.RetryCount)
 }
 
 func TestDownload_Retry(t *testing.T) {
@@ -521,8 +614,15 @@ func TestDownload_URLStoredInDownloadInfo(t *testing.T) {
 	t.Cleanup(func() { gdb.Delete(&dlInfo) })
 }
 
+// retry_count now counts once per full external attempt (a whole Download()
+// call concluding without success), not once per internal HTTP sub-retry
+// (see download-url-monitoring spec: "Un succès n'incrémente pas
+// retry_count" and "Plusieurs sous-tentatives internes ne comptent qu'une
+// seule fois"). A Download() call that succeeds after internal sub-retries
+// therefore leaves retry_count unchanged.
 func TestDownload_RetryCountIncrements(t *testing.T) {
 	setupTestDB(t)
+	config.SetConfig(&config.Config{})
 	gdb := database.Get()
 	if gdb == nil {
 		t.Skip("skipping: database not available")
@@ -577,11 +677,12 @@ func TestDownload_RetryCountIncrements(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, updated.DownloadInfoID)
 
-	// retry_count should reflect 2 retries (attempts 1 and 2 failed, attempt 3 succeeded)
+	// The call ultimately succeeded, so retry_count stays at 0 despite the
+	// 2 internal sub-retries retry.Do performed along the way.
 	var dlInfo models.DownloadInfo
 	err = gdb.First(&dlInfo, *updated.DownloadInfoID).Error
 	require.NoError(t, err)
-	assert.Equal(t, 2, dlInfo.RetryCount, "retry_count should be 2 after 2 failed attempts")
+	assert.Equal(t, 0, dlInfo.RetryCount, "retry_count should stay 0 after a call that ultimately succeeds")
 	assert.Equal(t, server.URL, dlInfo.URL)
 
 	t.Cleanup(func() { gdb.Delete(&dlInfo) })

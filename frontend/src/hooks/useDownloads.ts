@@ -106,6 +106,10 @@ export function useDownloads(isActive: boolean) {
     }));
   }, []);
 
+  const updateDownloadStatus = useCallback((id: number, newStatus: DownloadEnriched['status']) => {
+    setDownloads(prev => prev.map(item => (item.id === id ? { ...item, status: newStatus } : item)));
+  }, []);
+
   return {
     downloads,
     downloadsLoading,
@@ -123,5 +127,6 @@ export function useDownloads(isActive: boolean) {
     configPaths,
     fetchDownloads,
     updateDownloadPath,
+    updateDownloadStatus,
   };
 }

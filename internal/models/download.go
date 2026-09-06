@@ -18,6 +18,8 @@ const (
 	DownloadStatusFailed DownloadStatus = "failed"
 	// DownloadStatusRetrying indicates download is being retried after failure
 	DownloadStatusRetrying DownloadStatus = "retrying"
+	// DownloadStatusCancelled indicates download was manually cancelled or exhausted its retry budget
+	DownloadStatusCancelled DownloadStatus = "cancelled"
 )
 
 // DownloadInfo represents download tracking information
@@ -51,7 +53,9 @@ func (DownloadInfo) TableName() string {
 	return "download_info"
 }
 
-// IsEligibleForResume returns true if the download can be resumed
+// IsEligibleForResume returns true if the download can be resumed.
+// A "cancelled" status (manual cancel or exhausted retry budget) is excluded:
+// it already falls outside the eligible states listed below.
 func (d *DownloadInfo) IsEligibleForResume(maxRetries int, lockTimeout time.Duration) bool {
 	// Can't resume if completed
 	if d.Status == string(DownloadStatusCompleted) {

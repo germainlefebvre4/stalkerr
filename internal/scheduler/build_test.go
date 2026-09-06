@@ -816,6 +816,68 @@ func TestMergeIncompleteDownloads_MovieAbsentFromMonitoredMap_StillResumed(t *te
 	require.NotNil(t, streams[0].Items[0].ResumeInfo)
 }
 
+// 3.3: a cancelled incomplete download is not resumed even though its movie
+// is still monitored - GetIncompleteDownloads' status allow-list (which
+// omits "cancelled") already excludes it before mergeIncompleteDownloads
+// gets a chance to synthesize a stream from it.
+func TestMergeIncompleteDownloads_SkipsCancelledMovie(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Cancelled Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "s-cancelled", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateCancelled, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-cancelled.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusCancelled)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{} // movie not reported missing by Radarr
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	deps := testDeps(db, fr, fs)
+	deps.MonitoredMovieTMDBIDs = map[int]bool{5: true} // still monitored
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Empty(t, streams, "cancelled movie's incomplete download should not be resumed even though it is still monitored")
+}
+
+// 3.3: same invariant as above, but for a download that has exhausted its
+// retry budget rather than one manually cancelled - GetIncompleteDownloads'
+// retry_count < maxRetries filter excludes it the same way.
+func TestMergeIncompleteDownloads_SkipsRetryExhaustedMovie(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Retry Exhausted Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "s-exhausted", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateFailed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-exhausted.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	// testDeps sets MaxRetryAttempts: 5, so a retry_count of 5 has exhausted the budget.
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusFailed), RetryCount: 5}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{}
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	deps := testDeps(db, fr, fs)
+	deps.MonitoredMovieTMDBIDs = map[int]bool{5: true} // still monitored
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Empty(t, streams, "retry-exhausted movie's incomplete download should not be resumed even though it is still monitored")
+}
+
 // A stuck TV-episode download whose series is confirmed unmonitored in
 // Sonarr SHALL NOT be resumed. The series is absent from Sonarr's missing
 // list entirely, so mergeIncompleteDownloads would otherwise synthesize a

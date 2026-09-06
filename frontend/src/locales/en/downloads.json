@@ -6,7 +6,8 @@
     "all": "Status: All",
     "completed": "Completed",
     "downloading": "In progress",
-    "failed": "Failed"
+    "failed": "Failed",
+    "cancelled": "Cancelled"
   },
   "typeFilter": {
     "all": "Type: All",
@@ -35,7 +36,8 @@
     "failedWithRetry": "❌ ({{count}}×)",
     "failed": "❌",
     "pending": "⏳",
-    "retrying": "🔄 Retrying"
+    "retrying": "🔄 Retrying",
+    "cancelled": "Cancelled"
   },
   "move": "Move ⇄",
   "rename": "Rename ✎",
@@ -45,6 +47,12 @@
     "correctedMessage": "Path resynced with Radarr/Sonarr.",
     "alreadyUpToDateMessage": "Path already up to date with Radarr/Sonarr.",
     "notManagedMessage": "This item is not managed by Radarr/Sonarr."
+  },
+  "cancel": {
+    "action": "Cancel",
+    "inProgress": "Cancelling…",
+    "successMessage": "Download cancelled.",
+    "confirm": "Are you sure you want to cancel this download? It will never be retried automatically again."
   },
   "folder": "📂 Folder: {{name}}/",
   "plannedPath": "📍 Planned location (not final): {{path}}",

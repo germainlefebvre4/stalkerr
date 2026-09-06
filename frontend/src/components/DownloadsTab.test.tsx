@@ -15,6 +15,7 @@ interface PaginationOverrides {
   downloadsLimit?: number;
   setDownloadsLimit?: (limit: number) => void;
   onResyncPath?: (item: DownloadEnriched) => Promise<void>;
+  onCancelDownload?: (item: DownloadEnriched) => Promise<void>;
 }
 
 function renderDownloadsTab(downloads: DownloadEnriched[], overrides: PaginationOverrides = {}) {
@@ -39,6 +40,7 @@ function renderDownloadsTab(downloads: DownloadEnriched[], overrides: Pagination
           onOpenMoveDialog={() => {}}
           onOpenRenameDialog={() => {}}
           onResyncPath={overrides.onResyncPath ?? (() => Promise.resolve())}
+          onCancelDownload={overrides.onCancelDownload ?? (() => Promise.resolve())}
         />
       </Tabs.Root>
     </I18nextProvider>
@@ -135,6 +137,39 @@ describe('DownloadsTab sidepanel', () => {
     expect(onResyncPath).toHaveBeenCalledWith(download);
   });
 
+  it.each(['pending', 'failed', 'retrying'] as const)(
+    'shows the Cancel action in the drawer for a %s download',
+    (status) => {
+      const download = { ...baseDownload, status, content: { type: 'movies' as const, title: 'Cancellable Movie' } };
+      renderDownloadsTab([download]);
+      openDrawer(download);
+
+      expect(screen.getByText('Cancel')).toBeInTheDocument();
+    }
+  );
+
+  it.each(['completed', 'downloading', 'cancelled'] as const)(
+    'does not show the Cancel action in the drawer for a %s download',
+    (status) => {
+      const download = { ...baseDownload, status, content: { type: 'movies' as const, title: 'Not Cancellable Movie' } };
+      renderDownloadsTab([download]);
+      openDrawer(download);
+
+      expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
+    }
+  );
+
+  it('calls onCancelDownload with the selected download when Cancel is clicked', () => {
+    const download = { ...baseDownload, status: 'failed' as const, content: { type: 'movies' as const, title: 'Failed Movie' } };
+    const onCancelDownload = vi.fn(() => Promise.resolve());
+    renderDownloadsTab([download], { onCancelDownload });
+    openDrawer(download);
+
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(onCancelDownload).toHaveBeenCalledWith(download);
+  });
+
   it('closes the drawer automatically when the selected item leaves the downloads list', () => {
     const download = { ...baseDownload, content: { type: 'movies' as const, title: 'Vanishing Movie' } };
     const { rerender } = renderDownloadsTab([download]);
@@ -163,6 +198,7 @@ describe('DownloadsTab sidepanel', () => {
             onOpenMoveDialog={() => {}}
             onOpenRenameDialog={() => {}}
             onResyncPath={() => Promise.resolve()}
+            onCancelDownload={() => Promise.resolve()}
           />
         </Tabs.Root>
       </I18nextProvider>

@@ -104,14 +104,20 @@ downloads:
   temp_dir: ""  # Empty = use OS temp directory, or specify custom path
   max_parallel: 3  # Number of concurrent downloads
   timeout: 600  # Download timeout in seconds (10 minutes)
-  retry_attempts: 3  # Number of retry attempts on failure
-  
+  retry_attempts: 3  # Number of in-call HTTP sub-retry attempts within a single external download attempt
+
   # Resume downloads settings
   resume_enabled: true  # Enable resumable downloads
   progress_interval_mb: 10  # Persist progress every N megabytes
   progress_interval_seconds: 30  # Persist progress every N seconds (whichever comes first)
   lock_timeout_minutes: 5  # Consider locks older than this stale (for cleanup)
-  max_retry_attempts: 5  # Maximum number of retry attempts before giving up
+  # Retry budget for a single download occurrence: counts one increment per full
+  # external attempt (a whole Download() call concluding without success),
+  # across both the missing-content matcher and the incomplete-download resume
+  # path, regardless of internal HTTP sub-retries (retry_attempts above).
+  # Reaching this permanently excludes the occurrence from future attempts
+  # (same terminal state a manual cancel reaches) until a full media reset.
+  max_retry_attempts: 5
 
   # Unified `download` command scheduler settings
   force_tier_probability: 0.1  # Chance (0-1) of drawing an already-downloaded/upgrade candidate over new content on a given draw
