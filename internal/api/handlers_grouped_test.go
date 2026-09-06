@@ -272,6 +272,113 @@ func TestListItemGroups_EndToEndFiltersAndExclusions(t *testing.T) {
 	}
 }
 
+func TestListItemGroups_ReportsLatestProcessingLogID(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 111, TMDBTitle: "The Matrix", TMDBYear: 1999}
+	db.Create(&movie)
+
+	olderRun := models.ProcessingLog{Status: "completed"}
+	db.Create(&olderRun)
+	newerRun := models.ProcessingLog{Status: "completed"}
+	db.Create(&newerRun)
+
+	base := time.Now()
+	lines := []models.ProcessedLine{
+		{LineContent: "l1", LineHash: "h1", TvgName: "Matrix 1", GroupTitle: "g", ContentType: "movies", State: "processed", MovieID: &movie.ID, ProcessingLogID: &olderRun.ID, CreatedAt: base, UpdatedAt: base},
+		{LineContent: "l2", LineHash: "h2", TvgName: "Matrix 2", GroupTitle: "g", ContentType: "movies", State: "processed", MovieID: &movie.ID, ProcessingLogID: &newerRun.ID, CreatedAt: base.Add(time.Hour), UpdatedAt: base},
+	}
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+	}
+
+	server := NewServer()
+	resp := listItemGroupsRequest(t, server, "")
+
+	if resp.Total != 1 || len(resp.Data) != 1 {
+		t.Fatalf("expected a single movie group, got total=%d data=%+v", resp.Total, resp.Data)
+	}
+	group := resp.Data[0]
+	if group.LatestProcessingLogID == nil || *group.LatestProcessingLogID != newerRun.ID {
+		t.Fatalf("expected latest_processing_log_id=%d (matching latest_activity's run), got %+v", newerRun.ID, group.LatestProcessingLogID)
+	}
+}
+
+func TestListItemGroups_NullProcessingLogIDReportsNoValue(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 111, TMDBTitle: "The Matrix", TMDBYear: 1999}
+	db.Create(&movie)
+
+	base := time.Now()
+	line := models.ProcessedLine{
+		LineContent: "l1", LineHash: "h1", TvgName: "Matrix 1", GroupTitle: "g",
+		ContentType: "movies", State: "processed", MovieID: &movie.ID,
+		ProcessingLogID: nil, CreatedAt: base, UpdatedAt: base,
+	}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("seed error: %v", err)
+	}
+
+	server := NewServer()
+	resp := listItemGroupsRequest(t, server, "")
+
+	if resp.Total != 1 || len(resp.Data) != 1 {
+		t.Fatalf("expected a single movie group, got total=%d data=%+v", resp.Total, resp.Data)
+	}
+	group := resp.Data[0]
+	if group.LatestProcessingLogID != nil {
+		t.Fatalf("expected latest_processing_log_id to be absent for a group whose only item predates run attribution, got %v", *group.LatestProcessingLogID)
+	}
+}
+
+func TestExpandGroup_ScopesToLatestProcessingRun(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 111, TMDBTitle: "The Matrix", TMDBYear: 1999}
+	db.Create(&movie)
+
+	olderRun := models.ProcessingLog{Action: "process_m3u", Status: "success", StartedAt: time.Now()}
+	db.Create(&olderRun)
+	newerRun := models.ProcessingLog{Action: "process_m3u", Status: "success", StartedAt: time.Now()}
+	db.Create(&newerRun)
+
+	base := time.Now()
+	lines := []models.ProcessedLine{
+		{LineContent: "old-1", LineHash: "hold1", TvgName: "Matrix (old run)", GroupTitle: "g", ContentType: "movies", State: "processed", MovieID: &movie.ID, ProcessingLogID: &olderRun.ID, CreatedAt: base, UpdatedAt: base},
+		{LineContent: "new-1", LineHash: "hnew1", TvgName: "Matrix (new run)", GroupTitle: "g", ContentType: "movies", State: "processed", MovieID: &movie.ID, ProcessingLogID: &newerRun.ID, CreatedAt: base.Add(time.Hour), UpdatedAt: base},
+	}
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+	}
+
+	server := NewServer()
+
+	// Step 1: list groups, as the "Films & Séries" table does.
+	groupsResp := listItemGroupsRequest(t, server, "")
+	if groupsResp.Total != 1 || len(groupsResp.Data) != 1 {
+		t.Fatalf("expected a single movie group, got total=%d data=%+v", groupsResp.Total, groupsResp.Data)
+	}
+	group := groupsResp.Data[0]
+	if group.LatestProcessingLogID == nil || *group.LatestProcessingLogID != newerRun.ID {
+		t.Fatalf("expected group's latest_processing_log_id=%d, got %+v", newerRun.ID, group.LatestProcessingLogID)
+	}
+
+	// Step 2: expand it, as the frontend does, scoped by movie_id + the group's
+	// reported latest_processing_log_id.
+	itemsResp := listItemsSorted(t, server, fmt.Sprintf("?movie_id=%d&processing_log_id=%d", *group.MovieID, *group.LatestProcessingLogID))
+	if itemsResp.Total != 1 {
+		t.Fatalf("expected only the newer run's item, got total=%d: %+v", itemsResp.Total, itemsResp.Data)
+	}
+	if itemsResp.Data[0].LineHash != "hnew1" {
+		t.Errorf("expected the newer run's item (hnew1), got %+v", itemsResp.Data[0])
+	}
+}
+
 func TestListItemGroups_ChannelsNeverAppear(t *testing.T) {
 	db := setupTestDB(t)
 

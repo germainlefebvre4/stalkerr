@@ -124,7 +124,7 @@ export const api = {
   },
 
   async getGroupItems(
-    group: Pick<MediaGroupItem, 'type' | 'movie_id' | 'tmdb_id'>,
+    group: Pick<MediaGroupItem, 'type' | 'movie_id' | 'tmdb_id' | 'latest_processing_log_id'>,
     page: number,
     limit: number = 10
   ): Promise<PaginatedResponse<PlaylistItem>> {
@@ -142,6 +142,9 @@ export const api = {
       case 'unmatched_tvshows':
         url += '&content_type=tvshows&tmdb_enriched=no';
         break;
+    }
+    if (group.latest_processing_log_id != null) {
+      url += `&processing_log_id=${group.latest_processing_log_id}`;
     }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);

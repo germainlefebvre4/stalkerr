@@ -61,6 +61,7 @@ export interface MediaGroupItem {
   season_start?: number;
   season_end?: number;
   latest_activity: string;
+  latest_processing_log_id?: number;
 }
 
 export interface ProcessingLog {

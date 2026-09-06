@@ -59,26 +59,28 @@ func (ft flexTime) Value() (driver.Value, error) {
 // itemGroupRow mirrors the column shape produced by the UNION ALL of the four
 // grouped-listing aggregates (movies, tvshows, unmatched movies, unmatched tvshows).
 type itemGroupRow struct {
-	Type           string   `gorm:"column:type"`
-	MovieID        *uint    `gorm:"column:movie_id"`
-	TMDBID         *int     `gorm:"column:tmdb_id"`
-	Title          *string  `gorm:"column:title"`
-	Year           *int     `gorm:"column:year"`
-	SeasonStart    *int     `gorm:"column:season_start"`
-	SeasonEnd      *int     `gorm:"column:season_end"`
-	LatestActivity flexTime `gorm:"column:latest_activity"`
+	Type                  string   `gorm:"column:type"`
+	MovieID               *uint    `gorm:"column:movie_id"`
+	TMDBID                *int     `gorm:"column:tmdb_id"`
+	Title                 *string  `gorm:"column:title"`
+	Year                  *int     `gorm:"column:year"`
+	SeasonStart           *int     `gorm:"column:season_start"`
+	SeasonEnd             *int     `gorm:"column:season_end"`
+	LatestActivity        flexTime `gorm:"column:latest_activity"`
+	LatestProcessingLogID *uint    `gorm:"column:latest_processing_log_id"`
 }
 
 func (r itemGroupRow) toResponse() ItemGroupResponse {
 	return ItemGroupResponse{
-		Type:           r.Type,
-		MovieID:        r.MovieID,
-		TMDBID:         r.TMDBID,
-		Title:          r.Title,
-		Year:           r.Year,
-		SeasonStart:    r.SeasonStart,
-		SeasonEnd:      r.SeasonEnd,
-		LatestActivity: r.LatestActivity.Format("2006-01-02T15:04:05Z07:00"),
+		Type:                  r.Type,
+		MovieID:               r.MovieID,
+		TMDBID:                r.TMDBID,
+		Title:                 r.Title,
+		Year:                  r.Year,
+		SeasonStart:           r.SeasonStart,
+		SeasonEnd:             r.SeasonEnd,
+		LatestActivity:        r.LatestActivity.Format("2006-01-02T15:04:05Z07:00"),
+		LatestProcessingLogID: r.LatestProcessingLogID,
 	}
 }
 
@@ -105,7 +107,8 @@ func (s *Server) listItemGroups(c *gin.Context) {
 			m.tmdb_year AS year,
 			CAST(NULL AS INTEGER) AS season_start,
 			CAST(NULL AS INTEGER) AS season_end,
-			MAX(pl.created_at) AS latest_activity
+			MAX(pl.created_at) AS latest_activity,
+			MAX(pl.processing_log_id) AS latest_processing_log_id
 		FROM processed_lines pl
 		JOIN movies m ON m.id = pl.movie_id
 		WHERE pl.content_type = 'movies' AND pl.movie_id IS NOT NULL %s
@@ -121,7 +124,8 @@ func (s *Server) listItemGroups(c *gin.Context) {
 			MAX(t.tmdb_year) AS year,
 			MIN(t.season) AS season_start,
 			MAX(t.season) AS season_end,
-			MAX(pl.created_at) AS latest_activity
+			MAX(pl.created_at) AS latest_activity,
+			MAX(pl.processing_log_id) AS latest_processing_log_id
 		FROM processed_lines pl
 		JOIN tvshows t ON t.id = pl.tv_show_id
 		WHERE pl.content_type = 'tvshows' AND pl.tv_show_id IS NOT NULL %s
@@ -137,7 +141,8 @@ func (s *Server) listItemGroups(c *gin.Context) {
 			CAST(NULL AS INTEGER) AS year,
 			CAST(NULL AS INTEGER) AS season_start,
 			CAST(NULL AS INTEGER) AS season_end,
-			MAX(pl.created_at) AS latest_activity
+			MAX(pl.created_at) AS latest_activity,
+			MAX(pl.processing_log_id) AS latest_processing_log_id
 		FROM processed_lines pl
 		WHERE pl.content_type = 'movies' AND pl.movie_id IS NULL %s
 		HAVING COUNT(*) > 0
@@ -152,7 +157,8 @@ func (s *Server) listItemGroups(c *gin.Context) {
 			CAST(NULL AS INTEGER) AS year,
 			CAST(NULL AS INTEGER) AS season_start,
 			CAST(NULL AS INTEGER) AS season_end,
-			MAX(pl.created_at) AS latest_activity
+			MAX(pl.created_at) AS latest_activity,
+			MAX(pl.processing_log_id) AS latest_processing_log_id
 		FROM processed_lines pl
 		WHERE pl.content_type = 'tvshows' AND pl.tv_show_id IS NULL %s
 		HAVING COUNT(*) > 0
