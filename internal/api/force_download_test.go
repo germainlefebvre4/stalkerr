@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/models"
-	"gorm.io/gorm"
 )
 
 func newForceDownloadTestConfig(t *testing.T, radarrURL, sonarrURL string) {
@@ -308,7 +308,7 @@ func TestForceDownloadItem_MovieSuccess_AcceptedBeforeTransferCompletes(t *testi
 	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]map[string]interface{}{
-			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath},
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath, "monitored": true},
 		})
 	}))
 	defer radarrServer.Close()
@@ -316,6 +316,8 @@ func TestForceDownloadItem_MovieSuccess_AcceptedBeforeTransferCompletes(t *testi
 	newForceDownloadTestConfig(t, radarrServer.URL, "")
 	server := NewServer()
 
+	// The transfer must never be attempted in the request path, so use a source
+	// that would block forever if it were ever hit.
 	source := newBlockingDownloadSource(t, []byte("movie bytes"))
 	defer source.Close()
 
@@ -336,20 +338,9 @@ func TestForceDownloadItem_MovieSuccess_AcceptedBeforeTransferCompletes(t *testi
 	}
 	db.Create(&line)
 
-	done := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
-		w := httptest.NewRecorder()
-		server.router.ServeHTTP(w, req)
-		done <- w
-	}()
-
-	var w *httptest.ResponseRecorder
-	select {
-	case w = <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("expected the HTTP response to return before the blocked transfer completes")
-	}
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("expected status 202, got %d: %s", w.Code, w.Body.String())
@@ -363,28 +354,34 @@ func TestForceDownloadItem_MovieSuccess_AcceptedBeforeTransferCompletes(t *testi
 		t.Errorf("expected status 'queued', got %q", resp.Status)
 	}
 
-	// The background transfer must still be blocked on the source at this point.
+	// The transfer must not have been attempted: no hit should reach the download
+	// source within a short timeout.
 	select {
 	case <-source.hitCount:
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected background transfer to have reached the download source")
+		t.Fatal("expected the file transfer not to start in the request path")
+	case <-time.After(200 * time.Millisecond):
 	}
 
-	// Verify the resolution-suffixed path was persisted before the transfer started.
+	// Verify the resolution-suffixed path was persisted, and the record is pending.
 	var dl models.DownloadInfo
 	if err := db.First(&dl).Error; err != nil {
 		t.Fatalf("expected a DownloadInfo row to exist: %v", err)
 	}
+	if dl.Status != string(models.DownloadStatusPending) {
+		t.Errorf("expected DownloadInfo status %q, got %q", models.DownloadStatusPending, dl.Status)
+	}
 	if dl.DownloadPath == nil {
-		t.Fatal("expected DownloadPath to be persisted before transfer completion")
+		t.Fatal("expected DownloadPath to be persisted")
 	}
 	if !containsSubstring(*dl.DownloadPath, "[1080p]") {
 		t.Errorf("expected resolution-suffixed path, got %q", *dl.DownloadPath)
 	}
 
-	// Release the transfer so the goroutine can finish before the test exits.
-	close(source.release)
-	waitForDownloadStatus(t, db, dl.ID, string(models.DownloadStatusCompleted), 5*time.Second)
+	var lineAfter models.ProcessedLine
+	db.First(&lineAfter, line.ID)
+	if lineAfter.State != models.StateProcessed {
+		t.Errorf("expected ProcessedLine state unchanged (processed), got %q", lineAfter.State)
+	}
 }
 
 // 5.2 A forced download whose occurrence has a known language and VFQ variant
@@ -396,7 +393,7 @@ func TestForceDownloadItem_MovieSuccess_LanguageAndVariantTagged(t *testing.T) {
 	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]map[string]interface{}{
-			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 43, "path": moviePath},
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 43, "path": moviePath, "monitored": true},
 		})
 	}))
 	defer radarrServer.Close()
@@ -428,20 +425,9 @@ func TestForceDownloadItem_MovieSuccess_LanguageAndVariantTagged(t *testing.T) {
 	}
 	db.Create(&line)
 
-	done := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
-		w := httptest.NewRecorder()
-		server.router.ServeHTTP(w, req)
-		done <- w
-	}()
-
-	var w *httptest.ResponseRecorder
-	select {
-	case w = <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("expected the HTTP response to return before the blocked transfer completes")
-	}
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusAccepted {
 		t.Fatalf("expected status 202, got %d: %s", w.Code, w.Body.String())
@@ -449,8 +435,8 @@ func TestForceDownloadItem_MovieSuccess_LanguageAndVariantTagged(t *testing.T) {
 
 	select {
 	case <-source.hitCount:
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected background transfer to have reached the download source")
+		t.Fatal("expected the file transfer not to start in the request path")
+	case <-time.After(200 * time.Millisecond):
 	}
 
 	var dl models.DownloadInfo
@@ -458,24 +444,28 @@ func TestForceDownloadItem_MovieSuccess_LanguageAndVariantTagged(t *testing.T) {
 		t.Fatalf("expected a DownloadInfo row to exist: %v", err)
 	}
 	if dl.DownloadPath == nil {
-		t.Fatal("expected DownloadPath to be persisted before transfer completion")
+		t.Fatal("expected DownloadPath to be persisted")
 	}
 	if !containsSubstring(*dl.DownloadPath, "[1080p][MULTI][VFQ]") {
 		t.Errorf("expected resolution/language/variant-tagged path, got %q", *dl.DownloadPath)
 	}
-
-	close(source.release)
-	waitForDownloadStatus(t, db, dl.ID, string(models.DownloadStatusCompleted), 5*time.Second)
 }
 
-func TestForceDownloadItem_ConcurrentRequest_SecondRejectedWithoutDuplicateTransfer(t *testing.T) {
+// TestForceDownloadItem_RepeatedRequest_ReusesDownloadInfo replaces the former
+// TestForceDownloadItem_ConcurrentRequest_SecondRejectedWithoutDuplicateTransfer:
+// now that the transfer is deferred to the next download cron run instead of
+// starting synchronously, a still-processed occurrence never reaches
+// StateDownloading between two back-to-back requests, so both are accepted and
+// persistForceDownloadPath's existing item.DownloadInfoID != nil branch reuses
+// the same record instead of creating a second one.
+func TestForceDownloadItem_RepeatedRequest_ReusesDownloadInfo(t *testing.T) {
 	db := setupTestDB(t)
 
 	moviePath := t.TempDir()
 	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]map[string]interface{}{
-			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath},
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath, "monitored": true},
 		})
 	}))
 	defer radarrServer.Close()
@@ -483,22 +473,18 @@ func TestForceDownloadItem_ConcurrentRequest_SecondRejectedWithoutDuplicateTrans
 	newForceDownloadTestConfig(t, radarrServer.URL, "")
 	server := NewServer()
 
-	source := newBlockingDownloadSource(t, []byte("movie bytes"))
-	defer source.Close()
-
-	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
-	db.Create(&movie)
-
 	line := models.ProcessedLine{
 		LineContent: "dune content",
-		LineHash:    "hash-movie-concurrent",
-		LineURL:     &source.server.URL,
+		LineHash:    "hash-movie-repeated",
+		LineURL:     strPtr2("http://example.com/stream"),
 		TvgName:     "Dune",
 		ContentType: models.ContentTypeMovies,
-		MovieID:     &movie.ID,
 		State:       models.StateProcessed,
 		ProcessedAt: time.Now(),
 	}
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	db.Create(&movie)
+	line.MovieID = &movie.ID
 	db.Create(&line)
 
 	req1, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
@@ -508,42 +494,17 @@ func TestForceDownloadItem_ConcurrentRequest_SecondRejectedWithoutDuplicateTrans
 		t.Fatalf("expected first request to be accepted (202), got %d: %s", w1.Code, w1.Body.String())
 	}
 
-	// Wait until the background goroutine has reached the download source, proving
-	// it holds the per-DownloadInfo lock and has flipped the occurrence to "downloading".
-	select {
-	case <-source.hitCount:
-	case <-time.After(2 * time.Second):
-		t.Fatal("expected background transfer to have started")
-	}
-	waitForProcessedLineState(t, db, line.ID, string(models.StateDownloading), 2*time.Second)
-
 	req2, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
 	w2 := httptest.NewRecorder()
 	server.router.ServeHTTP(w2, req2)
-
-	if w2.Code != http.StatusConflict {
-		t.Fatalf("expected second concurrent request to be refused (409), got %d: %s", w2.Code, w2.Body.String())
+	if w2.Code != http.StatusAccepted {
+		t.Fatalf("expected second request to also be accepted (202), got %d: %s", w2.Code, w2.Body.String())
 	}
-
-	close(source.release)
-
-	var dl models.DownloadInfo
-	if err := db.First(&dl).Error; err != nil {
-		t.Fatalf("expected a DownloadInfo row: %v", err)
-	}
-	waitForDownloadStatus(t, db, dl.ID, string(models.DownloadStatusCompleted), 5*time.Second)
 
 	var downloadInfoCount int64
 	db.Model(&models.DownloadInfo{}).Count(&downloadInfoCount)
 	if downloadInfoCount != 1 {
-		t.Errorf("expected exactly one DownloadInfo row (no duplicate transfer), got %d", downloadInfoCount)
-	}
-
-	// Only one request should have ever reached the download source.
-	select {
-	case n := <-source.hitCount:
-		t.Errorf("expected exactly one hit on the download source, got a second hit (count=%d)", n)
-	default:
+		t.Errorf("expected exactly one DownloadInfo row (second request reused the first), got %d", downloadInfoCount)
 	}
 }
 
@@ -554,17 +515,13 @@ func TestForceDownloadItem_SiblingOccurrenceUnaffected(t *testing.T) {
 	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode([]map[string]interface{}{
-			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath},
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath, "monitored": true},
 		})
 	}))
 	defer radarrServer.Close()
 
 	newForceDownloadTestConfig(t, radarrServer.URL, "")
 	server := NewServer()
-
-	source := newBlockingDownloadSource(t, []byte("movie bytes"))
-	defer source.Close()
-	close(source.release) // let this transfer complete immediately
 
 	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
 	db.Create(&movie)
@@ -593,7 +550,7 @@ func TestForceDownloadItem_SiblingOccurrenceUnaffected(t *testing.T) {
 	target := models.ProcessedLine{
 		LineContent: "dune hd content",
 		LineHash:    "hash-target-forced",
-		LineURL:     &source.server.URL,
+		LineURL:     strPtr2("http://example.com/target-stream"),
 		TvgName:     "Dune",
 		ContentType: models.ContentTypeMovies,
 		MovieID:     &movie.ID,
@@ -610,13 +567,20 @@ func TestForceDownloadItem_SiblingOccurrenceUnaffected(t *testing.T) {
 		t.Fatalf("expected status 202, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var targetDL models.DownloadInfo
-	waitForProcessedLineState(t, db, target.ID, string(models.StateDownloaded), 5*time.Second)
-	db.First(&target, target.ID)
-	if target.DownloadInfoID == nil {
+	var targetAfter models.ProcessedLine
+	db.First(&targetAfter, target.ID)
+	if targetAfter.DownloadInfoID == nil {
 		t.Fatal("expected target to have a DownloadInfo linked")
 	}
-	db.First(&targetDL, *target.DownloadInfoID)
+	if *targetAfter.DownloadInfoID == siblingDownload.ID {
+		t.Error("expected the forced download to use a distinct DownloadInfo row from the sibling")
+	}
+
+	var targetDL models.DownloadInfo
+	db.First(&targetDL, *targetAfter.DownloadInfoID)
+	if targetDL.Status != string(models.DownloadStatusPending) {
+		t.Errorf("expected target DownloadInfo status %q, got %q", models.DownloadStatusPending, targetDL.Status)
+	}
 
 	var siblingAfter models.DownloadInfo
 	db.First(&siblingAfter, siblingDownload.ID)
@@ -632,9 +596,121 @@ func TestForceDownloadItem_SiblingOccurrenceUnaffected(t *testing.T) {
 	if siblingLine.State != models.StateDownloaded {
 		t.Errorf("expected sibling ProcessedLine state unchanged (downloaded), got %q", siblingLine.State)
 	}
+}
 
-	if targetDL.ID == siblingDownload.ID {
-		t.Error("expected the forced download to use a distinct DownloadInfo row from the sibling")
+func TestForceDownloadItem_MovieNotMonitored(t *testing.T) {
+	db := setupTestDB(t)
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": t.TempDir(), "monitored": false},
+		})
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	db.Create(&movie)
+
+	line := models.ProcessedLine{
+		LineContent: "dune content",
+		LineHash:    "hash-movie-not-monitored",
+		LineURL:     strPtr2("http://example.com/stream"),
+		TvgName:     "Dune",
+		ContentType: models.ContentTypeMovies,
+		MovieID:     &movie.ID,
+		State:       models.StateProcessed,
+		ProcessedAt: time.Now(),
+	}
+	db.Create(&line)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var body ErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+	if body.Error != "not_monitored" {
+		t.Errorf("expected error code not_monitored, got %q", body.Error)
+	}
+
+	var count int64
+	db.Model(&models.DownloadInfo{}).Count(&count)
+	if count != 0 {
+		t.Errorf("expected no DownloadInfo rows created, got %d", count)
+	}
+}
+
+func TestForceDownloadItem_EpisodeSeriesNotMonitored(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 555
+	season, episode := 1, 2
+
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v3/series":
+			json.NewEncoder(w).Encode([]sonarr.Series{
+				{ID: 1, Title: "Breaking Bad", TvdbID: tvdbID, Monitored: false, Path: t.TempDir()},
+			})
+		case "/api/v3/episode":
+			json.NewEncoder(w).Encode([]sonarr.Episode{
+				{ID: 10, SeriesID: 1, SeasonNumber: season, EpisodeNumber: episode},
+			})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	tvshow := models.TVShow{TMDBID: 7, TVDBID: &tvdbID, TMDBTitle: "Breaking Bad", TMDBYear: 2008, Season: &season, Episode: &episode}
+	db.Create(&tvshow)
+
+	line := models.ProcessedLine{
+		LineContent: "bb content",
+		LineHash:    "hash-series-not-monitored",
+		LineURL:     strPtr2("http://example.com/stream"),
+		TvgName:     "Breaking Bad",
+		ContentType: models.ContentTypeTVShows,
+		TVShowID:    &tvshow.ID,
+		State:       models.StateProcessed,
+		ProcessedAt: time.Now(),
+	}
+	db.Create(&line)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var body ErrorResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+	if body.Error != "not_monitored" {
+		t.Errorf("expected error code not_monitored, got %q", body.Error)
+	}
+
+	var count int64
+	db.Model(&models.DownloadInfo{}).Count(&count)
+	if count != 0 {
+		t.Errorf("expected no DownloadInfo rows created, got %d", count)
 	}
 }
 
@@ -642,34 +718,4 @@ func strPtr2(s string) *string { return &s }
 
 func containsSubstring(s, substr string) bool {
 	return strings.Contains(s, substr)
-}
-
-// waitForDownloadStatus polls until the DownloadInfo row with the given id reaches
-// status, or fails the test after timeout.
-func waitForDownloadStatus(t *testing.T, db *gorm.DB, id uint, status string, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		var dl models.DownloadInfo
-		if err := db.First(&dl, id).Error; err == nil && dl.Status == status {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for DownloadInfo %d to reach status %q", id, status)
-}
-
-// waitForProcessedLineState polls until the ProcessedLine row with the given id
-// reaches state, or fails the test after timeout.
-func waitForProcessedLineState(t *testing.T, db *gorm.DB, id uint, state string, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		var line models.ProcessedLine
-		if err := db.First(&line, id).Error; err == nil && string(line.State) == state {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for ProcessedLine %d to reach state %q", id, state)
 }

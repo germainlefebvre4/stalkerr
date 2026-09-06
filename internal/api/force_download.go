@@ -13,7 +13,6 @@ import (
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
-	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"gorm.io/gorm"
@@ -126,21 +125,6 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 		return
 	}
 
-	go func(processedLineID uint, url, baseDestPath, tempDir string) {
-		bgCtx := context.Background()
-		if _, err := s.downloader.Download(bgCtx, downloader.DownloadOptions{
-			URL:             url,
-			BaseDestPath:    baseDestPath,
-			TempDir:         tempDir,
-			ProcessedLineID: processedLineID,
-		}); err != nil {
-			logger.AppLogger().WithFields(map[string]interface{}{
-				"processed_line_id": processedLineID,
-				"error":             err,
-			}).Warn("force download failed: " + err.Error())
-		}
-	}(item.ID, *item.LineURL, basePath, cfg.Downloads.TempDir)
-
 	c.JSON(http.StatusAccepted, ForceDownloadResponse{
 		Status:          "queued",
 		ProcessedLineID: item.ID,
@@ -181,6 +165,12 @@ func (s *Server) resolveForceDownloadMoviePath(ctx context.Context, cfg *config.
 		return "", &forceDownloadErrorResponse{http.StatusNotFound, ErrorResponse{
 			Error:   "media_not_found",
 			Message: "movie not found in Radarr",
+		}}
+	}
+	if !movie.Monitored {
+		return "", &forceDownloadErrorResponse{http.StatusUnprocessableEntity, ErrorResponse{
+			Error:   "not_monitored",
+			Message: "movie is not monitored in Radarr",
 		}}
 	}
 
@@ -227,6 +217,12 @@ func (s *Server) resolveForceDownloadEpisodePath(ctx context.Context, cfg *confi
 		return "", &forceDownloadErrorResponse{http.StatusNotFound, ErrorResponse{
 			Error:   "media_not_found",
 			Message: "episode not found in Sonarr",
+		}}
+	}
+	if !series.Monitored {
+		return "", &forceDownloadErrorResponse{http.StatusUnprocessableEntity, ErrorResponse{
+			Error:   "not_monitored",
+			Message: "series is not monitored in Sonarr",
 		}}
 	}
 
