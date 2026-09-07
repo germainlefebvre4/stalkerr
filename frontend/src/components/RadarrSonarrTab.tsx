@@ -247,22 +247,22 @@ export function RadarrSonarrTab({
 
         {/* Sous-onglet Résumé */}
         <Tabs.Content value="resume" className="tab-panel">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
-            <div className="table-flush" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary-slate)', marginBottom: '1rem' }}>{t('resume.radarrHeading')}</h3>
+          <section className="home-grid">
+            <div className="home-card">
+              <h3 className="home-card-title">{t('resume.radarrHeading')}</h3>
               {statsError ? (
                 <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
                   <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
                   <button onClick={fetchStats} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
                 </div>
               ) : stats?.radarr_error ? (
-                <div style={{ color: 'var(--status-failed-text)' }}>
+                <div className="home-error">
                   {tCommon(`errors.${stats.radarr_error}`, { defaultValue: tCommon('errors.generic') })}
                 </div>
               ) : statsLoading && stats === null ? (
-                <div style={{ color: 'var(--text-secondary)' }}>{t('resume.loading')}</div>
+                <div className="home-card-loading">{t('resume.loading')}</div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="home-fields">
                   <div><strong>{stats?.radarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
                   <div><strong>{stats?.radarr_matched ?? '-'}</strong> {t('resume.matched')}</div>
                   <div><strong>{stats && stats.radarr_monitored !== null && stats.radarr_matched !== null ? stats.radarr_monitored - stats.radarr_matched : '-'}</strong> {t('resume.unmatched')}</div>
@@ -270,24 +270,24 @@ export function RadarrSonarrTab({
               )}
             </div>
 
-            <div className="table-flush" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--primary-slate)', marginBottom: '1rem' }}>{t('resume.sonarrHeading')}</h3>
+            <div className="home-card">
+              <h3 className="home-card-title">{t('resume.sonarrHeading')}</h3>
               {statsError ? (
                 <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
                   <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
                   <button onClick={fetchStats} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
                 </div>
               ) : stats?.sonarr_error ? (
-                <div style={{ color: 'var(--status-failed-text)' }}>
+                <div className="home-error">
                   {tCommon(`errors.${stats.sonarr_error}`, { defaultValue: tCommon('errors.generic') })}
                 </div>
               ) : statsLoading && stats === null ? (
-                <div style={{ color: 'var(--text-secondary)' }}>{t('resume.loading')}</div>
+                <div className="home-card-loading">{t('resume.loading')}</div>
               ) : (
-                <div><strong>{stats?.sonarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
+                <div className="home-fields"><strong>{stats?.sonarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
               )}
             </div>
-          </div>
+          </section>
         </Tabs.Content>
 
         {/* Sous-onglet Radarr (Films) */}
