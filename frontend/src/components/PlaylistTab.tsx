@@ -97,29 +97,16 @@ export function PlaylistTab({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '1.5rem' }}>
         {/* Block Supérieur : Boutons de Type de Contenu + Bascule Items / Films & Séries */}
         <div style={{ display: 'flex', gap: isMobile ? '0.35rem' : '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: isMobile ? '0.35rem' : '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              onClick={() => { setPlaylistFilter('all'); setPlaylistPage(1); }}
-              className={playlistFilter === 'all' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: isMobile ? '0.35rem 0.6rem' : '0.45rem 1rem' }}
-            >
-              {t('contentFilter.all')}
-            </button>
-            <button
-              onClick={() => { setPlaylistFilter('movies'); setPlaylistPage(1); }}
-              className={playlistFilter === 'movies' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: isMobile ? '0.35rem 0.6rem' : '0.45rem 1rem' }}
-            >
-              {t('contentFilter.movies')}
-            </button>
-            <button
-              onClick={() => { setPlaylistFilter('tvshows'); setPlaylistPage(1); }}
-              className={playlistFilter === 'tvshows' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: isMobile ? '0.35rem 0.6rem' : '0.45rem 1rem' }}
-            >
-              {t('contentFilter.tvshows')}
-            </button>
-          </div>
+          <Tabs.Root
+            value={playlistFilter}
+            onValueChange={(value) => { setPlaylistFilter(value as 'all' | 'movies' | 'tvshows'); setPlaylistPage(1); }}
+          >
+            <Tabs.List className="segmented-tabs-list playlist-content-tabs">
+              <Tabs.Trigger value="all" className="segmented-tabs-trigger">{t('contentFilter.all')}</Tabs.Trigger>
+              <Tabs.Trigger value="movies" className="segmented-tabs-trigger">{t('contentFilter.movies')}</Tabs.Trigger>
+              <Tabs.Trigger value="tvshows" className="segmented-tabs-trigger">{t('contentFilter.tvshows')}</Tabs.Trigger>
+            </Tabs.List>
+          </Tabs.Root>
 
           <label
             className="view-toggle-switch"

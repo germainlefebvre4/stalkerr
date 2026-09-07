@@ -903,6 +903,16 @@ input, select {
     flex-shrink: 0;
   }
 
+  .segmented-tabs-list.playlist-content-tabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .playlist-content-tabs .segmented-tabs-trigger {
+    flex-shrink: 0;
+  }
+
   .mobile-tab-bar {
     display: flex;
     position: fixed;

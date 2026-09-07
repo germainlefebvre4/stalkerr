@@ -7,7 +7,7 @@ TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after
 The frontend SHALL render a comprehensive M3U playlist item table allowing:
 - Searching by media name (`tvg_name`).
 - Filtering/searching by group title (`group_title`).
-- Filtering by content type (`all`, `movies`, `tvshows`).
+- Filtering by content type (`all`, `movies`, `tvshows`) via a segmented tab control, using the same tab mechanism (roving tabindex, arrow-key navigation, `data-state="active"` styling) as the Radarr/Sonarr suite's sub-tabs.
 - Filtering by processing state (`all`, `processed`, `pending`, `downloading`, `organizing`, `downloaded`, `failed`).
 - Filtering by TMDB enrichment state (`all`, `yes`, `no`).
 - Paginated navigation.
@@ -54,6 +54,14 @@ The frontend SHALL reflect the current page, page size, all active filters (medi
 #### Scenario: List the most recently downloaded items
 - **WHEN** the user filters by pipeline state "downloaded" and clicks the "Téléchargé le" column header twice (to sort descending)
 - **THEN** the frontend SHALL request items with `state=downloaded` sorted by `downloaded_at` descending, so the most recently downloaded items appear first.
+
+#### Scenario: Navigate the content-type filter with arrow keys
+- **WHEN** the "Movies" content-type tab is focused and the user presses the right arrow key
+- **THEN** the frontend SHALL move focus to the "TV Shows" content-type tab, following the same roving-tabindex keyboard navigation as the Radarr/Sonarr sub-tabs
+
+#### Scenario: Active content-type tab is visually indicated
+- **WHEN** the "TV Shows" content-type tab is selected
+- **THEN** the frontend SHALL mark it as the active tab via the same `data-state="active"` styling mechanism used by the Radarr/Sonarr sub-tabs, and the previously selected tab SHALL no longer show the active styling
 
 ### Requirement: Mobile Collapsible Advanced Filters
 On mobile viewports, the frontend SHALL render the Playlist advanced filter grid (media name search, group search, TMDB enrichment, pipeline state) inside a disclosure section that is collapsed by default, so the table/card list below it is visible without additional scrolling. The content-type filter (`all`, `movies`, `tvshows`) SHALL remain outside this disclosure and always visible on mobile. The disclosure's header SHALL display a count of advanced filters currently set to a non-default value (i.e. not `all` and not empty). The disclosure's collapsed/expanded state SHALL NOT be persisted across page loads or reflected in the URL or `localStorage`; it SHALL always start collapsed when the Playlist tab is mounted on a mobile viewport, regardless of whether an advanced filter is already active from a restored URL. On non-mobile viewports, the advanced filter grid SHALL continue to render inline and always visible, with no disclosure control.
