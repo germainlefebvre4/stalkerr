@@ -330,6 +330,7 @@ export function PlaylistTab({
           groupsLimit={groupsLimit}
           onOpenOverride={onOpenOverride}
           onResetPipeline={onResetPipeline}
+          onRowClick={setSelectedItem}
         />
       )}
 

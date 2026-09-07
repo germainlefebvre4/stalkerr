@@ -16,6 +16,7 @@ interface PlaylistGroupedViewProps {
   groupsLimit: number;
   onOpenOverride: (item: PlaylistItem) => void;
   onResetPipeline: (id: number, contentType: string) => void;
+  onRowClick?: (item: PlaylistItem) => void;
 }
 
 const EXPANDED_LIMIT = 10;
@@ -42,6 +43,7 @@ export function PlaylistGroupedView({
   groupsLimit,
   onOpenOverride,
   onResetPipeline,
+  onRowClick,
 }: PlaylistGroupedViewProps) {
   const { t, i18n } = useTranslation('playlist');
   const isMobile = useIsMobile();
@@ -100,6 +102,7 @@ export function PlaylistGroupedView({
         showDateGroups={false}
         onOpenOverride={onOpenOverride}
         onResetPipeline={onResetPipeline}
+        onRowClick={onRowClick}
       />
       <Pagination
         total={expandedTotal}

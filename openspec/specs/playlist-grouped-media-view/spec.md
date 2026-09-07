@@ -95,7 +95,7 @@ Items with no TMDB association (`content_type=movies` with no linked movie, or `
 - **THEN** the response SHALL contain no entries derived from `channels` or `uncategorized` items.
 
 ### Requirement: Expanding a Group Lists Its Underlying Items
-Clicking a group row (movie, TV show, or unmatched pseudo-group) in the "Films & Séries" view SHALL expand an inline section listing only the underlying items attributed to that group's most recent processing run (the run reported by the group's run-attribution field, capability `processing-run-items`), rendered with the same columns, state badges, and per-item actions (association/correction, pipeline reset) as the "Items" view's table, independently paginated from the group's own pagination. When the group's run-attribution field has no value (its most recent contributing item predates run attribution being recorded), the expanded section SHALL instead list all of that group's underlying items, unscoped by run.
+Clicking a group row (movie, TV show, or unmatched pseudo-group) in the "Films & Séries" view SHALL expand an inline section listing only the underlying items attributed to that group's most recent processing run (the run reported by the group's run-attribution field, capability `processing-run-items`), rendered with the same columns, state badges, and per-item actions (association/correction, pipeline reset) as the "Items" view's table, independently paginated from the group's own pagination. When the group's run-attribution field has no value (its most recent contributing item predates run attribution being recorded), the expanded section SHALL instead list all of that group's underlying items, unscoped by run. Clicking one of those underlying item rows (anywhere other than its action buttons) SHALL open the same details sidepanel used by the "Items" view for that item, without collapsing the expanded group.
 
 #### Scenario: Expanding a TV show with many episodes
 - **WHEN** the user clicks a TV-show group row whose 100 episodes span 5 seasons
@@ -116,6 +116,14 @@ Clicking a group row (movie, TV show, or unmatched pseudo-group) in the "Films &
 #### Scenario: A group predating run attribution lists all its items
 - **WHEN** a group's most recent contributing item predates run attribution being recorded, so the group has no run-attribution value
 - **THEN** the expanded item list SHALL show all of that group's underlying items, matching the behavior before run-scoping was introduced, rather than an empty list.
+
+#### Scenario: Clicking an underlying item opens its details sidepanel
+- **WHEN** the user clicks an item row inside an expanded group's item list
+- **THEN** the system SHALL open the details sidepanel for that item, showing the same TMDB metadata, pipeline state badges, and ingestion provenance as when opened from the "Items" view, and the expanded group SHALL remain expanded.
+
+#### Scenario: Row-level action buttons do not open the sidepanel
+- **WHEN** the user clicks the "Associate"/"Correct" or "Reset" action button on an item row inside an expanded group's item list
+- **THEN** the system SHALL perform that action without opening the details sidepanel.
 
 ### Requirement: Item Listing Supports Filtering by Movie or Show Identity
 `GET /api/v1/items` SHALL accept two additional optional query parameters: `movie_id` (integer), restricting results to items linked to that movie, and `tmdb_id` (integer), restricting results to `tvshows`-content-type items whose linked TV show's TMDB id matches the given value regardless of season or episode.
