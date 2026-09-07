@@ -1,3 +1,9 @@
+## Purpose
+
+Radarr pagination lets the Radarr client fetch large sets of missing movies across multiple pages of the `wanted/missing` endpoint efficiently, with an optional limit to cap how many records are retrieved and progress logging for visibility into long-running fetches.
+
+## Requirements
+
 ### Requirement: Fetch limit via FetchOptions
 The Radarr client SHALL accept a `FetchOptions` struct as second parameter to `GetMissingMovies`, with a `Limit int` field where 0 means unlimited.
 

@@ -1,7 +1,7 @@
 # helm-chart-structure Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines the foundational structure of the Stalkeer Helm chart — its metadata, default values, values schema validation, reusable template helpers, and documentation — that the chart's other resource templates build on.
 ## Requirements
 ### Requirement: Chart metadata structure
 The chart SHALL provide a valid Chart.yaml file with API version v2, chart name, description, version, appVersion, and dependencies.

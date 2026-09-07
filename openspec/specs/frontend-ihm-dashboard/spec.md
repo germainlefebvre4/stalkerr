@@ -1,7 +1,7 @@
 # frontend-ihm-dashboard Specification
 
 ## Purpose
-TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
+Defines the main frontend dashboard UI — the playlist table with filtering, sorting, and pagination, the real-time monitoring views for downloads and logs, media reorganization and pipeline reset actions, and consistent date/status-badge rendering across the interface.
 ## Requirements
 ### Requirement: Playlist View with Filtering
 The frontend SHALL render a comprehensive M3U playlist item table allowing:

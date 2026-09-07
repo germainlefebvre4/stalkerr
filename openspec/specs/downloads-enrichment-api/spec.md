@@ -1,75 +1,75 @@
 # Downloads Enrichment API
 
-## Description
+## Purpose
 
 Enhanced backend API endpoint that returns download information enriched with TMDB metadata and parsed file information. Replaces the simple `listDownloads` handler with a comprehensive view suitable for quality validation and troubleshooting.
 
 ## Requirements
 
-### Functional Requirements
+### Requirement: Enriched Downloads Listing
+`GET /api/v1/downloads` SHALL return paginated download records enriched with content metadata (from the associated Movie or TVShow via the download's first ProcessedLine) and parsed file metadata (via the fileparser package), replacing the plain download listing.
 
-**GIVEN** a request to `GET /api/v1/downloads`  
-**WHEN** the endpoint is called  
-**THEN** the system SHALL:
-- Query download_info table with GORM Preload for ProcessedLines.Movie and ProcessedLines.TVShow
-- For each download, extract content metadata from the first ProcessedLine
-- Parse file metadata using the fileparser package
-- Return paginated results with enriched DownloadEnrichedResponse objects
+#### Scenario: Enriched listing includes content and file metadata
+- **WHEN** a client requests `GET /api/v1/downloads`
+- **THEN** each returned download SHALL include a `content` object built from its first ProcessedLine's associated Movie or TVShow (ordered by `created_at` ascending) when one exists, and a `file_info` object parsed from its `download_path` when non-null
 
-**GIVEN** a request with `?status=completed` query parameter  
-**WHEN** the endpoint is called  
-**THEN** the system SHALL filter results WHERE status = 'completed'
+### Requirement: Status and Type Filtering
+`GET /api/v1/downloads` SHALL support `status` and `type` query parameters that restrict the result set to downloads matching the given status or content type respectively.
 
-**GIVEN** a request with `?type=movies` query parameter  
-**WHEN** the endpoint is called  
-**THEN** the system SHALL filter results WHERE content_type = 'movies' (via JOIN)
+#### Scenario: Filtering by status
+- **WHEN** a client requests `GET /api/v1/downloads?status=completed`
+- **THEN** the response SHALL include only downloads whose status is `completed`
 
-**GIVEN** a request with `?problem=missing_year` query parameter  
-**WHEN** the endpoint is called  
-**THEN** the system SHALL:
-- Fetch the full status/type-matched result set (no query-level `LIMIT`/`OFFSET`)
-- Apply the problem filter in Go to the parsed file metadata of that full set to include only downloads where file_info.has_year_in_path is false
-- Compute `total`/`total_pages` from the filtered result count and slice the requested `limit`/`offset` page from the filtered set (see Requirement: Problem Filter Pagination Accuracy)
+#### Scenario: Filtering by content type
+- **WHEN** a client requests `GET /api/v1/downloads?type=movies`
+- **THEN** the response SHALL include only downloads whose content type is `movies`
 
-**GIVEN** a DownloadInfo with multiple ProcessedLines  
-**WHEN** building the enriched response  
-**THEN** the system SHALL use the first ProcessedLine (ordered by created_at ASC)
+### Requirement: Detected-Problem Filter Values
+The `problem` query parameter on `GET /api/v1/downloads` SHALL support the values `missing_year` (`file_info.has_year_in_path` is false), `year_mismatch` (`file_info.year_mismatch` is true), `unknown_format` (`file_info.is_valid_format` is false), and `low_quality` (detected resolution is `480p` or `360p`), each restricting the result set to downloads matching that condition.
 
-**GIVEN** a ProcessedLine with a Movie association  
-**WHEN** building content metadata  
-**THEN** the system SHALL extract:
-- type: "movies"
-- title: movie.tmdb_title
-- year: movie.tmdb_year
-- genres: movie.tmdb_genres
-- duration: movie.duration
-- resolution: processed_line.resolution
+#### Scenario: Filtering by missing_year
+- **WHEN** a client requests `GET /api/v1/downloads?problem=missing_year`
+- **THEN** the response SHALL include only downloads where `file_info.has_year_in_path` is false
 
-**GIVEN** a ProcessedLine with a TVShow association  
-**WHEN** building content metadata  
-**THEN** the system SHALL:
-- Format title as "{tmdb_title} S{season:02d}E{episode:02d}" if season/episode present
-- Extract type: "tvshows"
-- Extract year: tvshow.tmdb_year
-- Extract genres: tvshow.tmdb_genres
-- Extract season and episode numbers
+#### Scenario: Filtering by low_quality
+- **WHEN** a client requests `GET /api/v1/downloads?problem=low_quality`
+- **THEN** the response SHALL include only downloads whose detected resolution is `480p` or `360p`
 
-**GIVEN** a DownloadInfo with no ProcessedLines (orphan)  
-**WHEN** building the enriched response  
-**THEN** content SHALL be nil
+### Requirement: Content Metadata Field Mapping
+When building `content` from a Movie association, the system SHALL set `type` to `movies` and populate title, year, genres, duration, and resolution from the movie and processed line. When building `content` from a TVShow association, the system SHALL set `type` to `tvshows`, format the title as `{title} S{season:02d}E{episode:02d}` when season/episode are present, and populate year, genres, season, and episode.
 
-**GIVEN** a DownloadInfo with null download_path  
-**WHEN** building the enriched response  
-**THEN** file_info SHALL be nil
+#### Scenario: Movie content metadata
+- **WHEN** a download's first ProcessedLine has a Movie association
+- **THEN** `content.type` SHALL be `movies` and SHALL include title, year, genres, duration, and resolution from that movie/processed line
 
-### Problem Filters
+#### Scenario: TV show content metadata includes formatted episode title
+- **WHEN** a download's first ProcessedLine has a TVShow association with season 5 and episode 14
+- **THEN** `content.type` SHALL be `tvshows` and `content.title` SHALL be formatted as `{tmdb_title} S05E14`
 
-The system SHALL support these problem filter values:
+### Requirement: Missing Association Handling
+When a download has no ProcessedLines, `content` SHALL be nil. When a download has a null `download_path`, `file_info` SHALL be nil.
 
-- `missing_year`: Include only downloads where `!file_info.has_year_in_path`
-- `year_mismatch`: Include only downloads where `file_info.year_mismatch`
-- `unknown_format`: Include only downloads where `!file_info.is_valid_format`
-- `low_quality`: Include only downloads where `detected_resolution in ("480p", "360p")`
+#### Scenario: Orphan download has no content
+- **WHEN** a download has no ProcessedLines
+- **THEN** `content` SHALL be nil in the response
+
+#### Scenario: Download with no path has no file_info
+- **WHEN** a download's `download_path` is null
+- **THEN** `file_info` SHALL be nil in the response
+
+### Requirement: Database Error Response
+When a database error occurs while serving `GET /api/v1/downloads`, the system SHALL respond with HTTP 500 and a JSON body identifying the error (`error`/`message` fields).
+
+#### Scenario: Database failure returns 500 with error body
+- **WHEN** the database query for `GET /api/v1/downloads` fails
+- **THEN** the response SHALL have status 500 and a JSON body of the form `{"error": "database_error", "message": "..."}`
+
+### Requirement: Response Time Budget
+`GET /api/v1/downloads` SHALL respond in under 500ms for a page of 20 fully-enriched results under normal load.
+
+#### Scenario: Standard page responds within budget
+- **WHEN** a client requests a page of 20 results with full enrichment under normal load
+- **THEN** the response SHALL be returned in under 500ms
 
 ### Requirement: Multi-Value Problem Filter
 The `problem` query parameter on `GET /api/v1/downloads` SHALL accept a comma-separated list of two or more of the existing problem values (`missing_year`, `year_mismatch`, `unknown_format`, `low_quality`), in addition to continuing to accept a single value as before. When multiple values are given, the system SHALL include a download in the filtered result if it matches at least one of the listed values (logical OR across the listed problems).
@@ -130,13 +130,6 @@ The `GET /api/v1/downloads` enrichment endpoint SHALL include, for every downloa
 #### Scenario: Pending download omits target and staging paths
 - **WHEN** a download's `status` is `pending` (not yet attempted, `DownloadInfo.TargetPath` and `DownloadInfo.StagingPath` still null)
 - **THEN** the enriched response SHALL omit `target_path` and `staging_path`
-
-### Non-Functional Requirements
-
-- Response time SHALL be < 500ms for 20 results with full enrichment
-- The handler SHALL use GORM patterns consistent with existing codebase
-- The handler SHALL handle database errors gracefully (500 status with error message)
-- Pagination SHALL use limit/offset pattern consistent with other endpoints
 
 ## API Contract
 
@@ -208,6 +201,10 @@ GET /api/v1/downloads?limit=20&offset=0&status=completed&type=movies&problem=mis
 ```
 
 ## Implementation Details
+
+**Implementation Notes**:
+- The handler SHALL use GORM patterns consistent with the existing codebase.
+- Pagination SHALL use the limit/offset pattern consistent with other endpoints.
 
 **File Location**: `internal/api/handlers_frontend.go`
 

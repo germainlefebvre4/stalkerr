@@ -1,7 +1,7 @@
 # configuration-management Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines how the Helm chart delivers application configuration to pods — via a ConfigMap for non-sensitive settings and a Secret for credentials/API keys — including database URL composition and safe defaults.
 ## Requirements
 ### Requirement: ConfigMap for non-sensitive configuration
 The chart SHALL create a ConfigMap containing all non-sensitive application configuration.

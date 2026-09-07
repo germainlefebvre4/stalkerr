@@ -1,3 +1,9 @@
+## Purpose
+
+The TMDB rate limiter protects against exceeding TMDB's API request quota by throttling outbound requests, caching successful responses to avoid redundant calls, and honoring the API's `Retry-After` guidance when rate limits are exceeded.
+
+## Requirements
+
 ### Requirement: Configurable request rate
 The TMDB client SHALL accept a `RequestsPerSecond float64` configuration value that controls the minimum interval between outbound HTTP requests. When set to `0`, rate limiting SHALL be disabled. The default value SHALL be `4.0` requests per second.
 

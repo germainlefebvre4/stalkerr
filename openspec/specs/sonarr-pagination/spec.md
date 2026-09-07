@@ -1,3 +1,9 @@
+## Purpose
+
+Sonarr pagination lets the Sonarr client fetch large sets of missing episodes across multiple pages of the `wanted/missing` endpoint efficiently, with an optional limit to cap how many records are retrieved and progress logging for visibility into long-running fetches.
+
+## Requirements
+
 ### Requirement: Fetch limit via FetchOptions
 The Sonarr client SHALL accept a `FetchOptions` struct as second parameter to `GetMissingEpisodes`, with a `Limit int` field where 0 means unlimited.
 

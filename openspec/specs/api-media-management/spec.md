@@ -1,7 +1,7 @@
 # api-media-management Specification
 
 ## Purpose
-TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
+Provides REST endpoints for managing downloaded media on disk — moving or renaming movie/TV show folders, retrieving configured library root paths, and resyncing a download's stored path with Radarr/Sonarr — while keeping the database's `download_path` fields in sync with the filesystem.
 ## Requirements
 ### Requirement: Move Media Parent Folder
 The system SHALL expose REST endpoints `POST /api/v1/movies/:id/move` and `POST /api/v1/tvshows/:id/move` to safely move the complete directory of a movie or TV show to a new parent directory and update the database records. If the move fails, the response SHALL include a distinct machine-readable error code of `"move_failed"` (rather than a generic error code) so that clients can render a specific, translatable error message.

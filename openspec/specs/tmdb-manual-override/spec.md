@@ -1,7 +1,7 @@
 # tmdb-manual-override Specification
 
 ## Purpose
-TBD - created by archiving change tmdb-manual-override-ui. Update Purpose after archive.
+Provides a way to manually correct or set a playlist item's TMDB association — via a database schema for overrides and permanent mappings, a secure TMDB search proxy, an override API endpoint, and an interactive frontend modal supporting both single-item and bulk association.
 ## Requirements
 ### Requirement: Database schema updates for overrides and manual mapping
 The system MUST support database persistence for manual overrides and permanent user mappings.

@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Radarr movie matching links Radarr's tracked movies to this system's database records using the most reliable identifier available, preferring TVDB ID and falling back to TMDB ID or fuzzy title/year matching so movies are correctly associated even when some identifiers are missing.
+
+## Requirements
 
 ### Requirement: Radarr Movie struct captures TVDB ID from API
 The `radarr.Movie` struct SHALL include a `TvdbID int` field mapped to the `"tvdbId"` JSON key from Radarr's REST API response, so the TVDB ID is available for database matching.

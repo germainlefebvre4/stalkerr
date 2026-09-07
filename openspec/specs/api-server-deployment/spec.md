@@ -1,7 +1,7 @@
 # api-server-deployment Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines the Helm chart resources needed to deploy the Stalkeer API server on Kubernetes — the Deployment, its health checks, resource limits, environment configuration, exposed ports, and the Service that fronts it.
 ## Requirements
 ### Requirement: Server deployment resource
 The chart SHALL create a Kubernetes Deployment for the Stalkeer API server with configurable replica count.

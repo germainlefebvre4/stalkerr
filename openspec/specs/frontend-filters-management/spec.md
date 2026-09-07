@@ -1,7 +1,7 @@
 # frontend-filters-management Specification
 
 ## Purpose
-TBD - Created by syncing spec changes for frontend-ui-refactoring-bright.
+Provides the frontend UI for managing runtime filter overrides — viewing active overrides alongside the origin `config.yml` patterns, creating new overrides, and deleting them — for each filterable attribute (Group Title, TVG Name).
 
 ## Requirements
 

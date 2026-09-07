@@ -1,7 +1,7 @@
 # api-processing-logs Specification
 
 ## Purpose
-TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
+Exposes a REST endpoint for retrieving paginated background processing run logs, including per-run statistics, so operators can monitor and filter past processing runs.
 ## Requirements
 ### Requirement: List Processing Logs
 The system SHALL expose a REST endpoint `GET /api/v1/processing-logs` to retrieve paginated background processing log entries from the database. Each returned entry SHALL include the per-run statistics defined by capability `processing-run-statistics` (movies count, TV shows count, new-items count, TMDB matched count, TMDB unmatched count, and the distinct `group_title` list), represented as absent/null for entries that predate that capability rather than as zero or an empty list.

@@ -1,7 +1,7 @@
 # api-downloads-monitoring Specification
 
 ## Purpose
-TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
+Exposes a REST API for monitoring download tracking entries, letting clients retrieve paginated lists of downloads and filter them by status.
 ## Requirements
 ### Requirement: List Downloads
 The system SHALL expose a REST endpoint `GET /api/v1/downloads` to retrieve paginated download tracking entries from the database.

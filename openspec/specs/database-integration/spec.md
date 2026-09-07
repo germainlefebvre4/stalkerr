@@ -1,7 +1,7 @@
 # database-integration Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines how the Helm chart integrates a PostgreSQL database, either deploying it as an optional subchart or connecting to an externally managed database, including credential and persistence configuration.
 ## Requirements
 ### Requirement: PostgreSQL subchart dependency
 The chart SHALL declare Bitnami PostgreSQL as an optional subchart dependency.

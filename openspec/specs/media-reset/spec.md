@@ -1,7 +1,7 @@
 # media-reset Specification
 
 ## Purpose
-TBD - created by archiving change m3u-url-reset-and-db-pruning. Update Purpose after archive.
+Provides a way to surgically reset a single movie or TV show's processing state by deleting its associated `processed_lines`, via REST endpoints, without affecting the rest of the database.
 ## Requirements
 ### Requirement: Surgical Reset of Specific Media
 The system SHALL support resetting individual movies or TV shows by deleting all `processed_lines` associated with their database ID.

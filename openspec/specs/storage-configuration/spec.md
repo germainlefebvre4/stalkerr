@@ -1,7 +1,7 @@
 # storage-configuration Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines the Helm chart's persistent and ephemeral storage — PVCs for M3U playlist and media files, their mounts on the server and CronJob pods, temporary storage, and subpath layout matching Jellyfin/Sonarr/Radarr expectations.
 ## Requirements
 ### Requirement: M3U playlist storage
 The chart SHALL provide PVC for M3U playlist file storage with configurable size and access mode.

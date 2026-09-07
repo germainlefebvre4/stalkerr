@@ -1,7 +1,7 @@
 # ingress-configuration Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines the Helm chart's Ingress resource for exposing the API server outside the cluster, including host/path routing, TLS termination, custom annotations, and ingress controller selection.
 ## Requirements
 ### Requirement: Standard Ingress resource
 The chart SHALL create a standard Kubernetes Ingress resource for exposing the API server.

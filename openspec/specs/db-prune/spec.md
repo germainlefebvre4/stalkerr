@@ -1,7 +1,7 @@
 # db-prune Specification
 
 ## Purpose
-TBD - created by archiving change m3u-url-reset-and-db-pruning. Update Purpose after archive.
+Provides a command to prune `processed_lines` and their associated orphaned metadata (movies/tvshows) that are no longer present in the active M3U playlist, keeping the database in sync with the current source file.
 ## Requirements
 ### Requirement: Database Pruning of Expired M3U Streams
 The system SHALL support pruning `processed_lines` from the database that are no longer present in the currently active M3U playlist file.

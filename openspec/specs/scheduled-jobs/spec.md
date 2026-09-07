@@ -1,7 +1,7 @@
 # scheduled-jobs Specification
 
 ## Purpose
-TBD - created by archiving change helm-chart-stalkeer. Update Purpose after archive.
+Defines the Helm chart's CronJob resources that run the M3U download, processing, and unified Radarr/Sonarr download commands on configurable schedules, with shared configuration and consistent restart/retention policies.
 ## Requirements
 ### Requirement: M3U download CronJob
 The chart SHALL create a CronJob resource for downloading M3U playlists on a configurable schedule.

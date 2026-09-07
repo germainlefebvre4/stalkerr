@@ -1,7 +1,7 @@
 # local-dev Specification
 
 ## Purpose
-TBD - created by archiving change local-dev-adaptation. Update Purpose after archive.
+Defines the local development tooling for running the frontend and backend together — Makefile targets, a unified hybrid dev command, configurable API port resolution kept consistent across the Go server, Vite proxy, and docker-compose, and the developer-facing documentation.
 ## Requirements
 ### Requirement: Frontend Make targets
 The system SHALL provide Makefile targets to install, run, build, and lint the frontend application.

@@ -1,7 +1,7 @@
 # m3u-playlist-details-sidepanel Specification
 
 ## Purpose
-TBD - created by archiving change m3u-playlist-sidepanel. Update Purpose after archive.
+Defines the M3U playlist item details sidepanel — surfacing ingestion metadata (line number, raw content, TMDB enrichment), pipeline/download status badges, and per-occurrence actions to force a download or open the manual TMDB association dialog.
 ## Requirements
 ### Requirement: Track Ingestion Line Number Capture
 Le parser M3U SHALL capturer et enregistrer le numéro de la ligne d'origine de chaque entrée (la ligne `#EXTINF` correspondante) lors de la lecture du fichier, et le stocker sous le nom de `line_number` dans la base de données.
