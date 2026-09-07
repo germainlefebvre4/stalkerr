@@ -19,6 +19,7 @@ type FileInfo struct {
 }
 
 var yearRegex = regexp.MustCompile(`\b(19|20)\d{2}\b`)
+var parenYearRegex = regexp.MustCompile(`\((19|20)\d{2}\)`)
 var resolutionRegex = regexp.MustCompile(`(?i)\b(2160p|4K|1080p|720p|480p|360p)\b`)
 
 var validExtensions = map[string]bool{
@@ -54,7 +55,13 @@ func Parse(downloadPath string, tmdbYear *int) *FileInfo {
 	var hasYearInPath bool
 	var yearMismatch bool
 
-	yearStr := yearRegex.FindString(downloadPath)
+	yearStr := ""
+	if parenMatches := parenYearRegex.FindAllString(downloadPath, -1); len(parenMatches) > 0 {
+		yearStr = strings.Trim(parenMatches[len(parenMatches)-1], "()")
+	} else {
+		yearStr = yearRegex.FindString(downloadPath)
+	}
+
 	if yearStr != "" {
 		var y int
 		_, err := fmt.Sscanf(yearStr, "%d", &y)

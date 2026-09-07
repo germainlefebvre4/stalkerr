@@ -24,7 +24,11 @@ A pure Go package that extracts technical file metadata from download paths usin
 **WHEN** Parse() is called  
 **THEN** the system SHALL return nil
 
-**GIVEN** a path containing multiple 4-digit years  
+**GIVEN** a path containing one or more years enclosed in parentheses (`(YYYY)`, this app's own `Title (Year)` naming convention)  
+**WHEN** Parse() is called  
+**THEN** the system SHALL treat the last such parenthesized year in the path as `detected_year`, even when an earlier, non-parenthesized 4-digit number elsewhere in the path (e.g. a year-like number embedded in the title itself) would otherwise match first
+
+**GIVEN** a path containing multiple 4-digit years and no parenthesized year  
 **WHEN** Parse() is called  
 **THEN** the system SHALL extract the first year matching the pattern `\b(19|20)\d{2}\b`
 
@@ -109,7 +113,7 @@ Output:
   }
 ```
 
-### Example 4: Ambiguous Year
+### Example 4: Ambiguous Year (no parenthesized year)
 
 ```go
 Input:
@@ -123,8 +127,48 @@ Output:
     FileName:        "movie.mkv",
     HasYearInPath:   true,
     YearMismatch:    true,  // 2001 != 1968
-    DetectedYear:    2001,  // First match
+    DetectedYear:    2001,  // First bare match (no parenthesized year present)
     DetectedRes:     "720p",
+    IsValidFormat:   true,
+  }
+```
+
+### Example 4b: Embedded Year-Like Title Number, Parenthesized Year Wins
+
+```go
+Input:
+  path = "/media/movies/Valensole 1965 (2025)/Valensole 1965 (2025).mkv"
+  tmdbYear = 2025
+
+Output:
+  &FileInfo{
+    Extension:       ".mkv",
+    FolderName:      "Valensole 1965 (2025)",
+    FileName:        "Valensole 1965 (2025).mkv",
+    HasYearInPath:   true,
+    YearMismatch:    false,
+    DetectedYear:    2025,  // Last parenthesized year, not the embedded "1965"
+    DetectedRes:     nil,
+    IsValidFormat:   true,
+  }
+```
+
+### Example 4c: Multiple Parenthesized Years
+
+```go
+Input:
+  path = "/media/movies/Title (1984) (2021)/movie.mkv"
+  tmdbYear = 2021
+
+Output:
+  &FileInfo{
+    Extension:       ".mkv",
+    FolderName:      "Title (1984) (2021)",
+    FileName:        "movie.mkv",
+    HasYearInPath:   true,
+    YearMismatch:    false,
+    DetectedYear:    2021,  // Last parenthesized year found
+    DetectedRes:     nil,
     IsValidFormat:   true,
   }
 ```
@@ -154,7 +198,8 @@ Output:
 **File Location**: `internal/fileparser/parser.go`
 
 **Regex Patterns**:
-- Year: `\b(19|20)\d{2}\b` (matches 1900-2099 with word boundaries)
+- Parenthesized year (checked first): `\((19|20)\d{2}\)` (matches a strict `(YYYY)` group only; a group with extra text around the year, e.g. `(2021 Remaster)`, does not match)
+- Year (fallback, used only when no parenthesized year matches): `\b(19|20)\d{2}\b` (matches 1900-2099 with word boundaries)
 - Resolution: `(?i)\b(2160p|4K|1080p|720p|480p|360p)\b` (case-insensitive)
 
 **Valid Extensions**: Map-based lookup for O(1) validation
@@ -165,7 +210,8 @@ Output:
 - Paths without extension: extension = ""
 - Paths without year: detected_year = nil
 - Paths without resolution: detected_res = nil
-- Multiple years: use first regex match
+- Multiple years, no parenthesized year: use first bare regex match
+- Multiple parenthesized years (e.g. `Title (1984) (2021)`): use the last parenthesized match; picking a non-canonical year (e.g. an edition/remaster year) when more than one parenthesized year is present is a known, accepted limitation
 - Case variations: normalize to lowercase for extensions, preserve case for paths
 
 ## Testing Requirements
@@ -175,7 +221,9 @@ Output:
 - Valid TV show paths
 - Missing year scenarios
 - Year mismatch scenarios
-- Ambiguous year scenarios (multiple years in path)
+- Ambiguous year scenarios (multiple years in path, no parenthesized year)
+- Parenthesized-year precedence over an embedded year-like title number
+- Multiple parenthesized years (last one selected)
 - Invalid/unknown formats
 - Edge cases (null, empty, malformed paths)
 - Case sensitivity (MKV vs mkv)
