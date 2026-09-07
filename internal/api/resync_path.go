@@ -67,7 +67,7 @@ func extractDownloadRoot(downloadPath string, contentType models.ContentType) (d
 // current movie.Path/series.Path) and, when they differ, returns the
 // corrected full file path with root.SubPath preserved below targetRoot.
 func computeReconciledPath(root downloadRoot, targetRoot string) (newPath string, changed bool) {
-	if targetRoot == "" || targetRoot == root.Root {
+	if targetRoot == "" || filepath.Clean(targetRoot) == filepath.Clean(root.Root) {
 		return "", false
 	}
 	return filepath.Join(targetRoot, root.SubPath), true

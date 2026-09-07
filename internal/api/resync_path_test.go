@@ -89,6 +89,39 @@ func TestComputeReconciledPath_RootMovedToDifferentParent(t *testing.T) {
 	}
 }
 
+func TestComputeReconciledPath_TargetRootTrailingSeparatorIsNoOp(t *testing.T) {
+	root := downloadRoot{Root: "/media/movies/Dune (2021)", SubPath: "Dune (2021).mkv"}
+
+	if _, changed := computeReconciledPath(root, "/media/movies/Dune (2021)/"); changed {
+		t.Errorf("expected no change when targetRoot only differs from root by a trailing separator")
+	}
+}
+
+func TestComputeReconciledPath_TrailingSeparatorDoesNotMaskRealDrift(t *testing.T) {
+	root := downloadRoot{Root: "/media/movies/Dune (2021)", SubPath: "Dune (2021).mkv"}
+
+	cases := []struct {
+		name       string
+		targetRoot string
+	}{
+		{"without trailing separator", "/media/movies/Dune Part Two (2021)"},
+		{"with trailing separator", "/media/movies/Dune Part Two (2021)/"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			newPath, changed := computeReconciledPath(root, tc.targetRoot)
+			if !changed {
+				t.Fatalf("expected a change for a genuinely different root")
+			}
+			want := filepath.Join("/media/movies/Dune Part Two (2021)", "Dune (2021).mkv")
+			if newPath != want {
+				t.Errorf("got %q, want %q", newPath, want)
+			}
+		})
+	}
+}
+
 // --- 1.3 applyPathCorrection ---
 
 func TestApplyPathCorrection_MovesFileAndUpdatesDB(t *testing.T) {
@@ -303,6 +336,45 @@ func TestReconcileScheduledDownloadPaths_CorrectsMatchedRow(t *testing.T) {
 	db.First(&untouched, unmatchedDl.ID)
 	if untouched.DownloadPath == nil || *untouched.DownloadPath != unmatchedPath {
 		t.Errorf("expected unmatched download_path to remain %q, got %v", unmatchedPath, untouched.DownloadPath)
+	}
+}
+
+func TestReconcileScheduledDownloadPaths_TrailingSeparatorNoOp(t *testing.T) {
+	db := setupTestDB(t)
+	tempDir := t.TempDir()
+
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	db.Create(&movie)
+
+	root := filepath.Join(tempDir, "movies", "Dune (2021)")
+	oldPath := filepath.Join(root, "Dune (2021).mkv")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatalf("failed to create source dir: %v", err)
+	}
+	if err := os.WriteFile(oldPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to write source file: %v", err)
+	}
+
+	dl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &oldPath}
+	db.Create(&dl)
+	line := models.ProcessedLine{
+		LineContent: "dune", LineHash: "hash-dune", TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &movie.ID, DownloadInfoID: &dl.ID,
+		State: models.StateDownloaded,
+	}
+	db.Create(&line)
+
+	// Fake Radarr/Sonarr library fixture reports the same root with a
+	// trailing separator: should be a no-op, not a "drift" correction.
+	ReconcileScheduledDownloadPaths(db, map[int]string{42: root + string(filepath.Separator)}, map[int]string{})
+
+	var unchanged models.DownloadInfo
+	db.First(&unchanged, dl.ID)
+	if unchanged.DownloadPath == nil || *unchanged.DownloadPath != oldPath {
+		t.Errorf("expected download_path to remain %q, got %v", oldPath, unchanged.DownloadPath)
+	}
+	if _, err := os.Stat(oldPath); err != nil {
+		t.Errorf("expected file to remain at original path untouched: %v", err)
 	}
 }
 
