@@ -128,6 +128,95 @@ input, select {
   font-size: 0.85rem;
 }
 
+.home-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.home-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.home-card-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.home-card-brand-icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex-shrink: 0;
+}
+
+.home-card-hero {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--primary-slate);
+  line-height: 1.15;
+}
+
+.home-card-hero-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.home-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 1rem;
+}
+
+.home-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.home-subsection + .home-subsection {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.home-progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.home-progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.home-disclosure-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--primary-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.home-disclosure-btn:hover {
+  text-decoration: underline;
+}
+
 /* Filter Card Layout */
 .filter-grid {
   display: grid;
@@ -969,6 +1058,14 @@ input, select {
 
   .home-fields {
     font-size: 0.8rem;
+  }
+
+  .home-card-hero {
+    font-size: 1.5rem;
+  }
+
+  .home-secondary-grid {
+    grid-template-columns: 1fr;
   }
 
   .tab-panel {

@@ -11,7 +11,11 @@
     "loading": "Chargement du résumé...",
     "monitored": "surveillés",
     "matched": "avec correspondance",
-    "unmatched": "sans correspondance"
+    "unmatched": "sans correspondance",
+    "status": {
+      "success": "Succès",
+      "failed": "Échec"
+    }
   },
   "films": {
     "heading": "Films (Radarr)",

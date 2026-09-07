@@ -101,6 +101,26 @@ describe('RadarrSonarrTab sub-tabs', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
   });
 
+  it('shows a success-styled status badge and matched-ratio progress bar for Radarr, and a success badge for Sonarr', () => {
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 };
+    renderTab({ stats });
+
+    const successBadges = screen.getAllByText('Success');
+    expect(successBadges).toHaveLength(2);
+    successBadges.forEach(badge => expect(badge.className).toContain('badge-success'));
+
+    const indicator = document.querySelector('.progress-indicator') as HTMLElement;
+    expect(indicator.style.width).toBe('70%');
+  });
+
+  it('shows a failure-styled status badge for the failing service while the other stays success', () => {
+    const stats: RadarrSonarrStats = { radarr_monitored: null, radarr_matched: null, radarr_error: 'radarr_unreachable', sonarr_monitored: 5 };
+    renderTab({ stats });
+
+    expect(screen.getByText('Failed').className).toContain('badge-failed');
+    expect(screen.getByText('Success').className).toContain('badge-success');
+  });
+
   it('switching to the Sonarr sub-tab shows Séries content and hides Films', () => {
     const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true, occurrence_count: 0 };
     const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 2, monitored_count: 4, occurrence_count: 0 };

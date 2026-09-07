@@ -17,7 +17,7 @@
 
 ## 4. Frontend: pagination UI
 
-- [x] 4.1 In `frontend/src/components/DownloadsTab.tsx`, render `<Pagination total={downloadsTotal} page={downloadsPage} setPage={setDownloadsPage} limit={downloadsLimit} setLimit={setDownloadsLimit} limitOptions={[20, 50, 100]} />` below `DownloadsSummaryList`, mirroring the usage in `PlaylistTab.tsx`.
+- [x] 4.1 In `frontend/src/components/DownloadsTab.tsx`, render `<Pagination total={downloadsTotal} page={downloadsPage} setPage={setDownloadsPage} limit={downloadsLimit} setLimit={setDownloadsLimit} limitOptions={[10, 50, 100]} />` below `DownloadsSummaryList`, mirroring the usage in `PlaylistTab.tsx`.
 - [x] 4.2 Update/add tests in `frontend/src/components/DownloadsTab.test.tsx` asserting the pagination controls render and that changing page/limit triggers the corresponding fetch with the expected `offset`/`limit` — verify with `npx vitest run DownloadsTab`.
 
 ## 5. Verification

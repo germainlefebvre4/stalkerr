@@ -17,7 +17,8 @@
     "tmdbMatched": "TMDB trouvés",
     "tmdbUnmatched": "TMDB non trouvés",
     "groupTitles": "Groupes",
-    "noGroupTitles": "Aucun"
+    "noGroupTitles": "Aucun",
+    "moreGroupTitles": "+{{count}} autres"
   },
   "catalog": {
     "title": "Vue d'ensemble du catalogue",

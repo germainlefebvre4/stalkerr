@@ -1,6 +1,7 @@
 import React from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
+import * as Progress from '@radix-ui/react-progress';
 import { useTranslation } from 'react-i18next';
 import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats, MatchStatusFilter } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
@@ -58,6 +59,13 @@ function seriesBadgeClass(matched: number, monitored: number): string {
 
 function padNumber(n: number): string {
   return String(n).padStart(2, '0');
+}
+
+function renderStatusIndicator(isMobile: boolean, badgeClass: string, label: string) {
+  if (isMobile) {
+    return <span className={`status-dot ${badgeClass}`} role="img" title={label} aria-label={label} />;
+  }
+  return <span className={`badge ${badgeClass}`}>{label}</span>;
 }
 
 export function RadarrSonarrTab({
@@ -236,6 +244,10 @@ export function RadarrSonarrTab({
   const filmsEmptyMessage = filmsSearch ? t('films.noResults') : t('films.empty');
   const seriesEmptyMessage = seriesSearch ? t('series.noResults') : t('series.empty');
 
+  const radarrMatchedRatio = stats && stats.radarr_monitored && stats.radarr_matched !== null
+    ? Math.round((stats.radarr_matched / stats.radarr_monitored) * 100)
+    : 0;
+
   return (
     <Tabs.Content value="radarr-sonarr" className="card tab-panel">
       <Tabs.Root value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'resume' | 'radarr' | 'sonarr')}>
@@ -249,7 +261,17 @@ export function RadarrSonarrTab({
         <Tabs.Content value="resume" className="tab-panel">
           <section className="home-grid">
             <div className="home-card">
-              <h3 className="home-card-title">{t('resume.radarrHeading')}</h3>
+              <header className="home-card-header">
+                <div className="home-card-heading">
+                  <img src={radarrIcon} alt="" className="home-card-brand-icon" />
+                  <h3 className="home-card-title">{t('resume.radarrHeading')}</h3>
+                </div>
+                {!(statsLoading && stats === null) && renderStatusIndicator(
+                  isMobile,
+                  (statsError || stats?.radarr_error) ? 'badge-failed' : 'badge-success',
+                  (statsError || stats?.radarr_error) ? t('resume.status.failed') : t('resume.status.success')
+                )}
+              </header>
               {statsError ? (
                 <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
                   <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
@@ -262,16 +284,34 @@ export function RadarrSonarrTab({
               ) : statsLoading && stats === null ? (
                 <div className="home-card-loading">{t('resume.loading')}</div>
               ) : (
-                <div className="home-fields">
-                  <div><strong>{stats?.radarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
-                  <div><strong>{stats?.radarr_matched ?? '-'}</strong> {t('resume.matched')}</div>
-                  <div><strong>{stats && stats.radarr_monitored !== null && stats.radarr_matched !== null ? stats.radarr_monitored - stats.radarr_matched : '-'}</strong> {t('resume.unmatched')}</div>
-                </div>
+                <>
+                  <div className="home-card-hero">{stats?.radarr_monitored ?? '-'}</div>
+                  <div className="home-card-hero-label">{t('resume.monitored')}</div>
+                  <div className="home-fields">
+                    <div className="home-secondary-grid">
+                      <div><strong>{stats?.radarr_matched ?? '-'}</strong> {t('resume.matched')}</div>
+                      <div><strong>{stats && stats.radarr_monitored !== null && stats.radarr_matched !== null ? stats.radarr_monitored - stats.radarr_matched : '-'}</strong> {t('resume.unmatched')}</div>
+                    </div>
+                    <Progress.Root value={radarrMatchedRatio} className="progress-root">
+                      <Progress.Indicator className="progress-indicator" style={{ width: `${radarrMatchedRatio}%` }} />
+                    </Progress.Root>
+                  </div>
+                </>
               )}
             </div>
 
             <div className="home-card">
-              <h3 className="home-card-title">{t('resume.sonarrHeading')}</h3>
+              <header className="home-card-header">
+                <div className="home-card-heading">
+                  <img src={sonarrIcon} alt="" className="home-card-brand-icon" />
+                  <h3 className="home-card-title">{t('resume.sonarrHeading')}</h3>
+                </div>
+                {!(statsLoading && stats === null) && renderStatusIndicator(
+                  isMobile,
+                  (statsError || stats?.sonarr_error) ? 'badge-failed' : 'badge-success',
+                  (statsError || stats?.sonarr_error) ? t('resume.status.failed') : t('resume.status.success')
+                )}
+              </header>
               {statsError ? (
                 <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
                   <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
@@ -284,7 +324,10 @@ export function RadarrSonarrTab({
               ) : statsLoading && stats === null ? (
                 <div className="home-card-loading">{t('resume.loading')}</div>
               ) : (
-                <div className="home-fields"><strong>{stats?.sonarr_monitored ?? '-'}</strong> {t('resume.monitored')}</div>
+                <>
+                  <div className="home-card-hero">{stats?.sonarr_monitored ?? '-'}</div>
+                  <div className="home-card-hero-label">{t('resume.monitored')}</div>
+                </>
               )}
             </div>
           </section>

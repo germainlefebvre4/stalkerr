@@ -11,7 +11,11 @@
     "loading": "Loading summary...",
     "monitored": "monitored",
     "matched": "matched",
-    "unmatched": "unmatched"
+    "unmatched": "unmatched",
+    "status": {
+      "success": "Success",
+      "failed": "Failed"
+    }
   },
   "films": {
     "heading": "Films (Radarr)",

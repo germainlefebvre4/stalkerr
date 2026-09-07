@@ -1,25 +1,4 @@
-# frontend-home-dashboard Specification
-
-## Purpose
-
-A single Home/Dashboard landing tab, on both desktop and mobile, that aggregates the outcome of the last M3U processing run together with catalog, Radarr/Sonarr, downloads, and error counts, replacing the previous always-visible KPI banner.
-
-## Requirements
-
-### Requirement: Home Tab as Default Landing Page
-The frontend SHALL add a "Home" tab, positioned first among the section tabs on both the desktop segmented tab list and the mobile bottom tab bar. The Home tab SHALL follow the same active-tab persistence rules as the other tabs (capability `frontend-ihm-dashboard`'s "Real-time Monitoring Dashboard" requirement): reflected in the URL's `tab` query parameter, persisted to `localStorage`, and restored on refresh. When no `tab` URL parameter and no stored `localStorage` value are present, the frontend SHALL activate the Home tab by default.
-
-#### Scenario: Home is the default tab on first load
-- **WHEN** the user opens the application for the first time, with no `tab` query parameter and no `stalkeer_active_tab` value in `localStorage`
-- **THEN** the frontend SHALL activate the Home tab
-
-#### Scenario: Home appears first in both desktop and mobile navigation
-- **WHEN** the user views the tab navigation, on desktop or on a mobile viewport
-- **THEN** the frontend SHALL render "Home" as the first entry, before Playlist, Logs, Downloads, and the other tabs
-
-#### Scenario: A restored tab choice still takes priority over the Home default
-- **WHEN** the user previously selected the "Downloads" tab and refreshes the browser
-- **THEN** the frontend SHALL restore the "Downloads" tab as active, not fall back to Home
+## MODIFIED Requirements
 
 ### Requirement: Last Processing Run Summary
 The Home tab SHALL display a summary of the most recent processing run, fetched from `GET /api/v1/processing-logs`: its execution date/time (`started_at`), elapsed duration (computed from `started_at` and `completed_at`, or presented as "in progress" when `completed_at` is absent), its status, its movies count, TV shows count, new-items count, TMDB matched count, TMDB unmatched count, and its list of `group_title` values, all as defined by capability `processing-run-statistics`. When no processing run has ever been recorded, the Home tab SHALL render an empty state instead of blank or zeroed fields. The card SHALL present the run's status as a status badge (success, failure, or in-progress style, reusing the app's existing badge styles) at the top of the card, followed by the execution date/time and duration, with the remaining counts (movies, TV shows, new items, TMDB matched, TMDB unmatched) arranged in a compact secondary grid below. When the `group_title` list contains more entries than fit on a single line, the Home tab SHALL collapse it behind a disclosure control showing a count of the remaining hidden entries (e.g. "+3 autres"), expandable to reveal the full list.

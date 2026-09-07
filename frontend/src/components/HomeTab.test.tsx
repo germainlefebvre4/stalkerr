@@ -1,12 +1,20 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { HomeTab } from './HomeTab';
 import { ProcessingLog, RadarrSonarrStats, StatsResponse } from '../types';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
-afterEach(cleanup);
+vi.mock('../hooks/useMediaQuery', () => ({
+  useIsMobile: vi.fn(() => false),
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.mocked(useIsMobile).mockReturnValue(false);
+});
 
 interface Overrides {
   latestLog?: ProcessingLog | null;
@@ -105,7 +113,8 @@ describe('HomeTab', () => {
 
     renderHomeTab({ latestLog: inProgressLog });
 
-    expect(screen.getByText((_, node) => node?.textContent === 'In progress - In progress...')).toBeInTheDocument();
+    expect(screen.getByText('In progress', { selector: '.badge' })).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === '01/01/2026 Started · In progress...')).toBeInTheDocument();
     expect(screen.queryByText(/Duration:/)).not.toBeInTheDocument();
   });
 
@@ -121,5 +130,126 @@ describe('HomeTab', () => {
 
     expect(screen.getByText('Failed to reach Radarr. Please try again.', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('Failed', { selector: '.badge' })).toBeInTheDocument();
+    expect(screen.getByText('Success', { selector: '.badge' })).toBeInTheDocument();
+  });
+
+  it('renders a short group-titles list fully with no disclosure control', () => {
+    renderHomeTab({ latestLog: completedLog });
+
+    expect(screen.getByText(/ACTION-FR, ANIMATION/)).toBeInTheDocument();
+    expect(screen.queryByText(/\+\d+ more/)).not.toBeInTheDocument();
+  });
+
+  it('collapses a long group-titles list behind a disclosure and expands it on activation', () => {
+    const longLog: ProcessingLog = {
+      ...completedLog,
+      group_titles: ['ACTION-FR', 'ANIMATION', 'DOCUMENTAIRE', 'HORREUR', 'COMEDIE'],
+    };
+    renderHomeTab({ latestLog: longLog });
+
+    expect(screen.getByText(/ACTION-FR, ANIMATION, DOCUMENTAIRE/)).toBeInTheDocument();
+    expect(screen.queryByText(/HORREUR/)).not.toBeInTheDocument();
+    const disclosureButton = screen.getByText('+2 more');
+    expect(disclosureButton).toBeInTheDocument();
+
+    fireEvent.click(disclosureButton);
+
+    expect(screen.getByText(/ACTION-FR, ANIMATION, DOCUMENTAIRE, HORREUR, COMEDIE/)).toBeInTheDocument();
+    expect(screen.queryByText('+2 more')).not.toBeInTheDocument();
+  });
+
+  it('renders the catalog download-success progress bar matching getDownloadSuccessRatio', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Tabs.Root value="home">
+          <HomeTab
+            latestLog={null}
+            latestLogLoading={false}
+            stats={{ total_items: 100, by_content_type: { movies: 60, tvshows: 40 }, by_state: {} }}
+            getDownloadSuccessRatio={() => '87%'}
+            radarrSonarrStats={null}
+            radarrSonarrStatsLoading={false}
+            radarrSonarrStatsError={null}
+            downloadsTotal={0}
+            errorsTotal={0}
+          />
+        </Tabs.Root>
+      </I18nextProvider>
+    );
+
+    const indicator = document.querySelector('.progress-indicator') as HTMLElement;
+    expect(indicator.style.width).toBe('87%');
+  });
+
+  it('renders the downloads/errors badge as neutral when there are no errors and failed when there are', () => {
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <Tabs.Root value="home">
+          <HomeTab
+            latestLog={null}
+            latestLogLoading={false}
+            stats={null}
+            getDownloadSuccessRatio={() => '100%'}
+            radarrSonarrStats={null}
+            radarrSonarrStatsLoading={false}
+            radarrSonarrStatsError={null}
+            downloadsTotal={10}
+            errorsTotal={0}
+          />
+        </Tabs.Root>
+      </I18nextProvider>
+    );
+
+    expect(screen.getByText(/0 Naming errors/).className).toContain('badge-neutral');
+
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <Tabs.Root value="home">
+          <HomeTab
+            latestLog={null}
+            latestLogLoading={false}
+            stats={null}
+            getDownloadSuccessRatio={() => '100%'}
+            radarrSonarrStats={null}
+            radarrSonarrStatsLoading={false}
+            radarrSonarrStatsError={null}
+            downloadsTotal={10}
+            errorsTotal={3}
+          />
+        </Tabs.Root>
+      </I18nextProvider>
+    );
+
+    expect(screen.getByText(/3 Naming errors/).className).toContain('badge-failed');
+  });
+});
+
+describe('HomeTab mobile layout', () => {
+  it('replaces status badges with compact status dots on mobile', () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    renderHomeTab({
+      latestLog: completedLog,
+      radarrSonarrStats: { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 },
+    });
+
+    // The Downloads & Errors card's badge conveys the errors count itself (not a card
+    // load-status), so it intentionally stays a full badge even on mobile.
+    expect(document.querySelectorAll('.badge:not(.status-dot)').length).toBe(1);
+    const dots = document.querySelectorAll('.status-dot');
+    expect(dots.length).toBeGreaterThan(0);
+    dots.forEach(dot => expect(dot.textContent).toBe(''));
+  });
+
+  it('meets the 44px minimum tap target on the group-titles disclosure control on mobile', () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    const longLog: ProcessingLog = {
+      ...completedLog,
+      group_titles: ['ACTION-FR', 'ANIMATION', 'DOCUMENTAIRE', 'HORREUR', 'COMEDIE'],
+    };
+    renderHomeTab({ latestLog: longLog });
+
+    const disclosureButton = screen.getByText('+2 more');
+    expect(disclosureButton).toHaveClass('home-disclosure-btn');
   });
 });
