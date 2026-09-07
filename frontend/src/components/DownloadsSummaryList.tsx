@@ -15,18 +15,24 @@ function filepathBase(path: string) {
   return parts[parts.length - 1];
 }
 
-function getStatusInfo(item: DownloadEnriched, t: TFunction) {
+function getStatusInfo(item: DownloadEnriched, t: TFunction, isMobile: boolean) {
   if (item.status === 'completed') {
-    return { label: t('status.completed'), badgeClass: 'badge-success' };
+    const label = isMobile ? t('status.completed') : `${t('status.completed')} ${t('status.completedText')}`;
+    return { label, badgeClass: 'badge-success' };
   }
   if (item.status === 'downloading') {
-    return { label: t('status.downloading'), badgeClass: 'badge-progress' };
+    const label = isMobile ? t('status.downloading') : `${t('status.downloading')} ${t('status.downloadingText')}`;
+    return { label, badgeClass: 'badge-progress' };
   }
   if (item.status === 'failed') {
-    return {
-      label: item.retry_count > 0 ? t('status.failedWithRetry', { count: item.retry_count }) : t('status.failed'),
-      badgeClass: 'badge-failed',
-    };
+    if (item.retry_count > 0) {
+      const label = isMobile
+        ? t('status.failedWithRetry', { count: item.retry_count })
+        : `${t('status.failed')} ${t('status.failedText')} (${item.retry_count}×)`;
+      return { label, badgeClass: 'badge-failed' };
+    }
+    const label = isMobile ? t('status.failed') : `${t('status.failed')} ${t('status.failedText')}`;
+    return { label, badgeClass: 'badge-failed' };
   }
   if (item.status === 'retrying') {
     return { label: t('status.retrying'), badgeClass: 'badge-pending' };
@@ -34,10 +40,11 @@ function getStatusInfo(item: DownloadEnriched, t: TFunction) {
   if (item.status === 'cancelled') {
     return { label: t('status.cancelled'), badgeClass: 'badge-neutral' };
   }
-  return { label: t('status.pending'), badgeClass: 'badge-pending' };
+  const label = isMobile ? t('status.pending') : `${t('status.pending')} ${t('status.pendingText')}`;
+  return { label, badgeClass: 'badge-pending' };
 }
 
-function buildRow(item: DownloadEnriched, t: TFunction) {
+function buildRow(item: DownloadEnriched, t: TFunction, isMobile: boolean) {
   const total = item.total_bytes || 0;
   const downloaded = item.bytes_downloaded || 0;
   const progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
@@ -45,7 +52,7 @@ function buildRow(item: DownloadEnriched, t: TFunction) {
   const title = item.content?.title || (item.download_path ? filepathBase(item.download_path) : item.url);
   const year = item.content?.year ? `(${item.content.year})` : '';
   const typeIcon = item.content?.type === 'movies' ? '🎬' : item.content?.type === 'tvshows' ? '📺' : '🔗';
-  const { label: statusLabel, badgeClass: statusBadgeClass } = getStatusInfo(item, t);
+  const { label: statusLabel, badgeClass: statusBadgeClass } = getStatusInfo(item, t, isMobile);
 
   return { item, title, year, typeIcon, statusLabel, statusBadgeClass, isProgressStatus, progress };
 }
@@ -54,7 +61,7 @@ export function DownloadsSummaryList({ downloads, loading, onRowClick }: Downloa
   const { t } = useTranslation('downloads');
   const isMobile = useIsMobile();
 
-  const rows = downloads.map(item => buildRow(item, t));
+  const rows = downloads.map(item => buildRow(item, t, isMobile));
 
   if (isMobile) {
     return (

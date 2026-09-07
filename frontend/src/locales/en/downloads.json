@@ -32,10 +32,14 @@
   },
   "status": {
     "completed": "✅",
+    "completedText": "Completed",
     "downloading": "📥",
+    "downloadingText": "In progress",
     "failedWithRetry": "❌ ({{count}}×)",
     "failed": "❌",
+    "failedText": "Failed",
     "pending": "⏳",
+    "pendingText": "Pending",
     "retrying": "🔄 Retrying",
     "cancelled": "Cancelled"
   },

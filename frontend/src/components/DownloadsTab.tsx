@@ -7,6 +7,7 @@ import { DownloadEnriched } from '../types';
 import { formatDate } from '../utils/date';
 import { DownloadsSummaryList } from './DownloadsSummaryList';
 import { Pagination } from './Pagination';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 interface DownloadsTabProps {
   downloads: DownloadEnriched[];
@@ -55,6 +56,7 @@ export function DownloadsTab({
   onCancelDownload
 }: DownloadsTabProps) {
   const { t, i18n } = useTranslation('downloads');
+  const isMobile = useIsMobile();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selectedItem = downloads.find(d => d.id === selectedId) ?? null;
   const [isResyncing, setIsResyncing] = useState(false);
@@ -112,16 +114,22 @@ export function DownloadsTab({
     let statusLabel: string = selectedItem.status;
     let statusBadgeClass = 'badge-pending';
     if (selectedItem.status === 'completed') {
-      statusLabel = t('status.completed');
+      statusLabel = isMobile ? t('status.completed') : `${t('status.completed')} ${t('status.completedText')}`;
       statusBadgeClass = 'badge-success';
     } else if (selectedItem.status === 'downloading') {
-      statusLabel = t('status.downloading');
+      statusLabel = isMobile ? t('status.downloading') : `${t('status.downloading')} ${t('status.downloadingText')}`;
       statusBadgeClass = 'badge-progress';
     } else if (selectedItem.status === 'failed') {
-      statusLabel = selectedItem.retry_count > 0 ? t('status.failedWithRetry', { count: selectedItem.retry_count }) : t('status.failed');
+      if (selectedItem.retry_count > 0) {
+        statusLabel = isMobile
+          ? t('status.failedWithRetry', { count: selectedItem.retry_count })
+          : `${t('status.failed')} ${t('status.failedText')} (${selectedItem.retry_count}×)`;
+      } else {
+        statusLabel = isMobile ? t('status.failed') : `${t('status.failed')} ${t('status.failedText')}`;
+      }
       statusBadgeClass = 'badge-failed';
     } else if (selectedItem.status === 'pending') {
-      statusLabel = t('status.pending');
+      statusLabel = isMobile ? t('status.pending') : `${t('status.pending')} ${t('status.pendingText')}`;
       statusBadgeClass = 'badge-pending';
     } else if (selectedItem.status === 'retrying') {
       statusLabel = t('status.retrying');

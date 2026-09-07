@@ -92,4 +92,50 @@ describe('DownloadsSummaryList', () => {
 
     expect(onRowClick).toHaveBeenCalledWith(item);
   });
+
+  describe('status badge text', () => {
+    it('shows emoji + text on desktop for completed', () => {
+      setMatchMedia(false);
+      renderList([{ ...baseDownload, status: 'completed' }]);
+
+      expect(screen.getByText('✅ Completed')).toBeInTheDocument();
+    });
+
+    it('shows emoji only on mobile for completed', () => {
+      setMatchMedia(true);
+      renderList([{ ...baseDownload, status: 'completed' }]);
+
+      expect(screen.getByText('✅')).toBeInTheDocument();
+      expect(screen.queryByText(/Completed/)).not.toBeInTheDocument();
+    });
+
+    it('shows emoji + text on desktop for a no-retry failed download', () => {
+      setMatchMedia(false);
+      renderList([{ ...baseDownload, status: 'failed', retry_count: 0 }]);
+
+      expect(screen.getByText('❌ Failed')).toBeInTheDocument();
+    });
+
+    it('shows emoji only on mobile for a no-retry failed download', () => {
+      setMatchMedia(true);
+      renderList([{ ...baseDownload, status: 'failed', retry_count: 0 }]);
+
+      expect(screen.getByText('❌')).toBeInTheDocument();
+    });
+
+    it('shows emoji + text + retry count on desktop for a retried failed download', () => {
+      setMatchMedia(false);
+      renderList([{ ...baseDownload, status: 'failed', retry_count: 3 }]);
+
+      expect(screen.getByText('❌ Failed (3×)')).toBeInTheDocument();
+    });
+
+    it('shows emoji + retry count (no text) on mobile for a retried failed download', () => {
+      setMatchMedia(true);
+      renderList([{ ...baseDownload, status: 'failed', retry_count: 3 }]);
+
+      expect(screen.getByText('❌ (3×)')).toBeInTheDocument();
+      expect(screen.queryByText(/Failed/)).not.toBeInTheDocument();
+    });
+  });
 });

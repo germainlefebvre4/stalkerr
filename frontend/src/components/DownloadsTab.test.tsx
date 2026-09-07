@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
@@ -7,6 +7,25 @@ import { DownloadsTab } from './DownloadsTab';
 import { DownloadEnriched } from '../types';
 
 afterEach(cleanup);
+
+const originalMatchMedia = window.matchMedia;
+
+afterEach(() => {
+  window.matchMedia = originalMatchMedia;
+});
+
+function setMatchMedia(matches: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })) as unknown as typeof window.matchMedia;
+}
 
 interface PaginationOverrides {
   downloadsTotal?: number;
@@ -50,6 +69,10 @@ function renderDownloadsTab(downloads: DownloadEnriched[], overrides: Pagination
 function openDrawer(download: DownloadEnriched) {
   const title = download.content?.title || download.url;
   fireEvent.click(screen.getByText(new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))));
+}
+
+function drawerContent() {
+  return within(document.querySelector('.drawer-content') as HTMLElement);
 }
 
 const baseDownload: DownloadEnriched = {
@@ -205,6 +228,64 @@ describe('DownloadsTab sidepanel', () => {
     );
 
     expect(screen.queryByText('Download Details')).not.toBeInTheDocument();
+  });
+});
+
+describe('DownloadsTab status badge', () => {
+  it('shows emoji + text for a completed download on desktop', () => {
+    setMatchMedia(false);
+    const download = { ...baseDownload, status: 'completed' as const, content: { type: 'movies' as const, title: 'Done Movie' } };
+    renderDownloadsTab([download]);
+    openDrawer(download);
+
+    expect(drawerContent().getByText('✅ Completed')).toBeInTheDocument();
+  });
+
+  it('shows emoji only for a completed download on mobile', () => {
+    setMatchMedia(true);
+    const download = { ...baseDownload, status: 'completed' as const, content: { type: 'movies' as const, title: 'Done Movie' } };
+    renderDownloadsTab([download]);
+    openDrawer(download);
+
+    expect(drawerContent().getByText('✅')).toBeInTheDocument();
+    expect(drawerContent().queryByText(/Completed/)).not.toBeInTheDocument();
+  });
+
+  it('shows emoji + text + retry count for a retried failed download on desktop', () => {
+    setMatchMedia(false);
+    const download = { ...baseDownload, status: 'failed' as const, retry_count: 3, content: { type: 'movies' as const, title: 'Errored Movie' } };
+    renderDownloadsTab([download]);
+    openDrawer(download);
+
+    expect(drawerContent().getByText('❌ Failed (3×)')).toBeInTheDocument();
+  });
+
+  it('shows emoji + retry count (no text) for a retried failed download on mobile', () => {
+    setMatchMedia(true);
+    const download = { ...baseDownload, status: 'failed' as const, retry_count: 3, content: { type: 'movies' as const, title: 'Errored Movie' } };
+    renderDownloadsTab([download]);
+    openDrawer(download);
+
+    expect(drawerContent().getByText('❌ (3×)')).toBeInTheDocument();
+    expect(drawerContent().queryByText(/Failed/)).not.toBeInTheDocument();
+  });
+
+  it('shows emoji + text for a no-retry failed download on desktop', () => {
+    setMatchMedia(false);
+    const download = { ...baseDownload, status: 'failed' as const, retry_count: 0, content: { type: 'movies' as const, title: 'Errored Movie' } };
+    renderDownloadsTab([download]);
+    openDrawer(download);
+
+    expect(drawerContent().getByText('❌ Failed')).toBeInTheDocument();
+  });
+
+  it('shows emoji only for a no-retry failed download on mobile', () => {
+    setMatchMedia(true);
+    const download = { ...baseDownload, status: 'failed' as const, retry_count: 0, content: { type: 'movies' as const, title: 'Errored Movie' } };
+    renderDownloadsTab([download]);
+    openDrawer(download);
+
+    expect(drawerContent().getByText('❌')).toBeInTheDocument();
   });
 });
 
