@@ -12,21 +12,23 @@ import { useLogs } from './hooks/useLogs';
 import { useDownloads } from './hooks/useDownloads';
 import { useErrorsTab } from './hooks/useErrorsTab';
 import { useRadarrSonarr } from './hooks/useRadarrSonarr';
+import { useHomeDashboard } from './hooks/useHomeDashboard';
 import { useURLState, URLStateSchema } from './hooks/useURLState';
 import { useIsMobile } from './hooks/useMediaQuery';
 import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
 import { resolveRenameFolderName } from './utils/renameDialog';
 
-const VALID_TABS = ['playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr', 'errors'];
+const VALID_TABS = ['home', 'playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr', 'errors'];
 
-// The Erreurs tab is desktop-only: it is never part of the mobile bottom tab
-// bar, so falling back off it while narrowing the viewport lands here.
-const MOBILE_FALLBACK_TAB = 'playlist';
+// The Erreurs and Filtres tabs are desktop-only: neither is part of the
+// mobile bottom tab bar, so falling back off either while narrowing the
+// viewport lands here.
+const MOBILE_FALLBACK_TAB = 'home';
 
 const TAB_URL_SCHEMA = {
   tab: {
-    default: 'playlist',
+    default: 'home',
     parse: (raw: string) => raw,
     serialize: (v: string) => v,
     isValid: (v: string) => VALID_TABS.includes(v),
@@ -38,11 +40,11 @@ function readInitialActiveTab(): string {
   if (urlTab && VALID_TABS.includes(urlTab)) return urlTab;
 
   const storedTab = localStorage.getItem('stalkeer_active_tab');
-  return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'playlist';
+  return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'home';
 }
 
 import { FloatingHeader } from './components/FloatingHeader';
-import { StatsKPICards } from './components/StatsKPICards';
+import { HomeTab } from './components/HomeTab';
 import { PlaylistTab } from './components/PlaylistTab';
 import { FiltersTab } from './components/FiltersTab';
 import { LogsTab } from './components/LogsTab';
@@ -108,7 +110,12 @@ export default function App() {
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
     seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter,
     stats: radarrSonarrStats, statsLoading: radarrSonarrStatsLoading, statsError: radarrSonarrStatsError, fetchStats: fetchRadarrSonarrStats,
-  } = useRadarrSonarr(activeTab === 'radarr-sonarr');
+  } = useRadarrSonarr(activeTab === 'radarr-sonarr', activeTab === 'radarr-sonarr' || activeTab === 'home');
+
+  const {
+    latestLog: homeLatestLog, latestLogLoading: homeLatestLogLoading,
+    downloadsTotal: homeDownloadsTotal, errorsTotal: homeErrorsTotal,
+  } = useHomeDashboard(activeTab === 'home');
 
   const [isCreateFilterOpen, setIsCreateFilterOpen] = useState(false);
   const [isMoveOpen, setIsMoveOpen] = useState(false);
@@ -143,11 +150,11 @@ export default function App() {
     }
   }, [activeTab, fetchFilters]);
 
-  // The Erreurs tab is desktop-only (never in the mobile bottom tab bar): if
-  // the viewport narrows while it's active, fall back to another tab instead
-  // of continuing to render it.
+  // The Erreurs and Filtres tabs are desktop-only (never in the mobile bottom
+  // tab bar): if the viewport narrows while either is active, fall back to
+  // another tab instead of continuing to render it.
   useEffect(() => {
-    if (isMobile && activeTab === 'errors') {
+    if (isMobile && (activeTab === 'errors' || activeTab === 'filters')) {
       setActiveTab(MOBILE_FALLBACK_TAB);
     }
   }, [isMobile, activeTab]);
@@ -233,8 +240,8 @@ export default function App() {
   };
 
   const tabs = [
+    { value: 'home', icon: '🏠', label: t('tabs.home') },
     { value: 'playlist', icon: '🎬', label: t('tabs.playlist') },
-    { value: 'filters', icon: '🔍', label: t('tabs.filters') },
     { value: 'logs', icon: '⚙️', label: t('tabs.logs') },
     { value: 'downloads', icon: '📥', label: t('tabs.downloads') },
     { value: 'radarr-sonarr', icon: '🎯', label: t('tabs.radarrSonarr') },
@@ -257,10 +264,10 @@ export default function App() {
       )}
 
       <FloatingHeader />
-      <StatsKPICards stats={stats} getDownloadSuccessRatio={getDownloadSuccessRatio} />
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="segmented-tabs-list">
+          <Tabs.Trigger value="home" className="segmented-tabs-trigger">🏠 {t('tabs.home')}</Tabs.Trigger>
           <Tabs.Trigger value="playlist" className="segmented-tabs-trigger">🎬 {t('tabs.playlist')}</Tabs.Trigger>
           <Tabs.Trigger value="filters" className="segmented-tabs-trigger">🔍 {t('tabs.filters')}</Tabs.Trigger>
           <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ {t('tabs.logs')}</Tabs.Trigger>
@@ -268,6 +275,13 @@ export default function App() {
           <Tabs.Trigger value="radarr-sonarr" className="segmented-tabs-trigger">🎯 {t('tabs.radarrSonarr')}</Tabs.Trigger>
           <Tabs.Trigger value="errors" className="segmented-tabs-trigger">🩺 {t('tabs.errors')}</Tabs.Trigger>
         </Tabs.List>
+
+        <HomeTab
+          latestLog={homeLatestLog} latestLogLoading={homeLatestLogLoading}
+          stats={stats} getDownloadSuccessRatio={getDownloadSuccessRatio}
+          radarrSonarrStats={radarrSonarrStats} radarrSonarrStatsLoading={radarrSonarrStatsLoading} radarrSonarrStatsError={radarrSonarrStatsError}
+          downloadsTotal={homeDownloadsTotal} errorsTotal={homeErrorsTotal}
+        />
 
         <PlaylistTab
           playlist={playlist} playlistSearch={playlistSearch} setPlaylistSearch={setPlaylistSearch}

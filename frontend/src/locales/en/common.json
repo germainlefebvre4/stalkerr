@@ -9,6 +9,7 @@
     "checking": "Checking..."
   },
   "tabs": {
+    "home": "Home",
     "playlist": "Playlist",
     "filters": "Filters",
     "logs": "Processing",
@@ -25,28 +26,6 @@
   },
   "media": {
     "unnamed": "Media"
-  },
-  "kpi": {
-    "playlist": {
-      "title": "M3U Playlist",
-      "subtitle": "Entries saved in DB"
-    },
-    "movies": {
-      "title": "Identified Movies",
-      "subtitle": "TMDB enriched"
-    },
-    "tvshows": {
-      "title": "Tracked TV Shows",
-      "subtitle": "Seasons and episodes"
-    },
-    "successRate": {
-      "title": "Success Rate",
-      "detail": "{{downloaded}} succeeded / {{failed}} failed",
-      "fallback": "Downloads"
-    },
-    "toggle": {
-      "label": "📊 Statistics"
-    }
   },
   "language": {
     "label": "Language",

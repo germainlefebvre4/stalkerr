@@ -72,6 +72,12 @@ export interface ProcessingLog {
   started_at: string;
   completed_at?: string;
   error_message?: string;
+  movies_count?: number;
+  tv_shows_count?: number;
+  new_items_count?: number;
+  tmdb_matched_count?: number;
+  tmdb_unmatched_count?: number;
+  group_titles?: string[] | null;
 }
 
 export interface DownloadInfo {

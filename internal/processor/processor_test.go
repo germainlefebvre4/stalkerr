@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/glefebvre/stalkeer/internal/classifier"
 	"github.com/glefebvre/stalkeer/internal/config"
@@ -496,6 +497,237 @@ http://example.com/movie.mkv`
 
 	if line.ProcessingLogID == nil || *line.ProcessingLogID != firstLog.ID {
 		t.Errorf("expected ProcessingLogID to remain %d, got %v", firstLog.ID, line.ProcessingLogID)
+	}
+}
+
+func TestProcessNewItemsCountOnlyCountsCreatedLines(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	firstContent := `#EXTM3U
+#EXTINF:-1 tvg-name="Existing Movie" group-title="Movies",Existing Movie
+http://example.com/existing.mkv`
+
+	proc, err := NewProcessor(createTestM3U(t, firstContent))
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	opts := ProcessOptions{BatchSize: 10, ProgressInterval: 100}
+	if _, err := proc.Process(opts); err != nil {
+		t.Fatalf("First Process failed: %v", err)
+	}
+
+	// Second run: force re-processing of the existing line (update), plus one brand-new line (create).
+	secondContent := `#EXTM3U
+#EXTINF:-1 tvg-name="Existing Movie" group-title="Movies",Existing Movie
+http://example.com/existing.mkv
+#EXTINF:-1 tvg-name="New Movie" group-title="Movies",New Movie
+http://example.com/new.mkv`
+
+	proc2, err := NewProcessor(createTestM3U(t, secondContent))
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	optsForce := opts
+	optsForce.Force = true
+	stats, err := proc2.Process(optsForce)
+	if err != nil {
+		t.Fatalf("Second Process failed: %v", err)
+	}
+
+	if stats.Processed != 2 {
+		t.Fatalf("expected 2 processed items, got %d", stats.Processed)
+	}
+	if stats.NewItems != 1 {
+		t.Errorf("expected NewItems to count only the newly-created line, got %d", stats.NewItems)
+	}
+}
+
+func TestUpdateProcessingLogPersistsRunStatistics(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Movie One (2020)" group-title="ACTION-FR",Movie One (2020)
+http://example.com/movie1.mkv
+#EXTINF:-1 tvg-name="Show One S01E01" group-title="ANIMATION",Show One S01E01
+http://example.com/show1.mkv`
+
+	proc, err := NewProcessor(createTestM3U(t, content))
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	opts := ProcessOptions{BatchSize: 10, ProgressInterval: 100, SkipTMDB: true}
+	stats, err := proc.Process(opts)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	if stats.Movies != 1 {
+		t.Fatalf("expected 1 movie classified, got %d", stats.Movies)
+	}
+	if stats.TVShows != 1 {
+		t.Fatalf("expected 1 TV show classified, got %d", stats.TVShows)
+	}
+
+	db := database.Get()
+	var log models.ProcessingLog
+	if err := db.Where("action = ?", "process_m3u").Order("created_at DESC").First(&log).Error; err != nil {
+		t.Fatalf("failed to load processing log: %v", err)
+	}
+
+	if log.MoviesCount == nil || *log.MoviesCount != stats.Movies {
+		t.Errorf("expected MoviesCount %d, got %v", stats.Movies, log.MoviesCount)
+	}
+	if log.TVShowsCount == nil || *log.TVShowsCount != stats.TVShows {
+		t.Errorf("expected TVShowsCount %d, got %v", stats.TVShows, log.TVShowsCount)
+	}
+	if log.NewItemsCount == nil || *log.NewItemsCount != stats.NewItems {
+		t.Errorf("expected NewItemsCount %d, got %v", stats.NewItems, log.NewItemsCount)
+	}
+	if log.TMDBMatchedCount == nil || *log.TMDBMatchedCount != stats.TMDBMatched {
+		t.Errorf("expected TMDBMatchedCount %d, got %v", stats.TMDBMatched, log.TMDBMatchedCount)
+	}
+	if log.TMDBUnmatchedCount == nil || *log.TMDBUnmatchedCount != stats.TMDBNotFound {
+		t.Errorf("expected TMDBUnmatchedCount %d, got %v", stats.TMDBNotFound, log.TMDBUnmatchedCount)
+	}
+
+	expectedTitles := []string{"ACTION-FR", "ANIMATION"}
+	if len(log.GroupTitles) != len(expectedTitles) {
+		t.Fatalf("expected group titles %v, got %v", expectedTitles, log.GroupTitles)
+	}
+	for i, title := range expectedTitles {
+		if log.GroupTitles[i] != title {
+			t.Errorf("expected group titles %v, got %v", expectedTitles, log.GroupTitles)
+			break
+		}
+	}
+}
+
+func TestProcessingLogPersistsPartialStatisticsOnFailure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
+http://example.com/movie1.mkv`
+
+	proc, err := NewProcessor(createTestM3U(t, content))
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	// Simulate a run that accumulated statistics from items processed before a
+	// fatal error, then got marked failed - mirroring the call `Process` makes
+	// when `parser.Parse` errors out, but with non-zero accumulated statistics
+	// to verify updateProcessingLog persists them rather than dropping them.
+	logEntry := &models.ProcessingLog{
+		Action:    "process_m3u",
+		Status:    "in_progress",
+		StartedAt: time.Now(),
+	}
+	if err := proc.db.Create(logEntry).Error; err != nil {
+		t.Fatalf("failed to create processing log: %v", err)
+	}
+
+	stats := &Statistics{
+		Processed:   6,
+		Movies:      4,
+		TVShows:     2,
+		NewItems:    6,
+		TMDBMatched: 5,
+		GroupTitles: map[string]struct{}{"ACTION-FR": {}},
+	}
+
+	proc.updateProcessingLog(logEntry, "failed", stats, "fatal parse error")
+
+	db := database.Get()
+	var log models.ProcessingLog
+	if err := db.First(&log, logEntry.ID).Error; err != nil {
+		t.Fatalf("failed to reload processing log: %v", err)
+	}
+
+	if log.Status != "failed" {
+		t.Errorf("expected status 'failed', got %q", log.Status)
+	}
+	if log.MoviesCount == nil || *log.MoviesCount != 4 {
+		t.Errorf("expected MoviesCount 4, got %v", log.MoviesCount)
+	}
+	if log.TVShowsCount == nil || *log.TVShowsCount != 2 {
+		t.Errorf("expected TVShowsCount 2, got %v", log.TVShowsCount)
+	}
+	if log.NewItemsCount == nil || *log.NewItemsCount != 6 {
+		t.Errorf("expected NewItemsCount 6, got %v", log.NewItemsCount)
+	}
+	if len(log.GroupTitles) != 1 || log.GroupTitles[0] != "ACTION-FR" {
+		t.Errorf("expected GroupTitles [ACTION-FR], got %v", log.GroupTitles)
+	}
+}
+
+func TestProcessNoItemsProcessedRecordsEmptyGroupTitlesAndZeroCounts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
+http://example.com/movie1.mkv`
+
+	proc, err := NewProcessor(createTestM3U(t, content))
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	opts := ProcessOptions{BatchSize: 10, ProgressInterval: 100}
+	if _, err := proc.Process(opts); err != nil {
+		t.Fatalf("First Process failed: %v", err)
+	}
+
+	// Second, non-forced run over the same content: every line is a duplicate and skipped.
+	proc2, err := NewProcessor(createTestM3U(t, content))
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	if _, err := proc2.Process(opts); err != nil {
+		t.Fatalf("Second Process failed: %v", err)
+	}
+
+	db := database.Get()
+	var log models.ProcessingLog
+	if err := db.Where("action = ?", "process_m3u").Order("created_at DESC").First(&log).Error; err != nil {
+		t.Fatalf("failed to load second processing log: %v", err)
+	}
+
+	if log.MoviesCount == nil || *log.MoviesCount != 0 {
+		t.Errorf("expected MoviesCount 0, got %v", log.MoviesCount)
+	}
+	if log.NewItemsCount == nil || *log.NewItemsCount != 0 {
+		t.Errorf("expected NewItemsCount 0, got %v", log.NewItemsCount)
+	}
+	if log.GroupTitles == nil {
+		t.Error("expected GroupTitles to be an empty list, got nil")
+	}
+	if len(log.GroupTitles) != 0 {
+		t.Errorf("expected GroupTitles to be empty, got %v", log.GroupTitles)
 	}
 }
 

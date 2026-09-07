@@ -58,3 +58,86 @@ describe('App mobile fallback off the Erreurs tab', () => {
     expect(screen.getByText('Naming Errors')).toBeInTheDocument();
   });
 });
+
+describe('App mobile fallback off the Filtres tab', () => {
+  it('falls back to Home when mounted below the 768px breakpoint with filters active', async () => {
+    window.history.replaceState(null, '', '/?tab=filters');
+    setMatchMedia(true);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.queryByText('Inclusion & Exclusion Regular Expressions')).not.toBeInTheDocument();
+    expect(screen.getByText('Last Processing Run')).toBeInTheDocument();
+  });
+
+  it('keeps the Filtres tab active on a desktop-width viewport', async () => {
+    window.history.replaceState(null, '', '/?tab=filters');
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.getByText('Inclusion & Exclusion Regular Expressions')).toBeInTheDocument();
+  });
+});
+
+describe('App default tab', () => {
+  it('activates Home when no tab param and no localStorage value are present', async () => {
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.getByText('Last Processing Run')).toBeInTheDocument();
+  });
+
+  it('restores a previously selected tab over the Home default', async () => {
+    window.history.replaceState(null, '', '/?tab=downloads');
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.queryByText('Last Processing Run')).not.toBeInTheDocument();
+  });
+});
+
+describe('App mobile bottom tab bar', () => {
+  it('shows Home first and does not show Filtres', async () => {
+    setMatchMedia(true);
+
+    let container!: HTMLElement;
+    await act(async () => {
+      ({ container } = render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      ));
+    });
+
+    const labels = Array.from(container.querySelectorAll('.mobile-tab-bar-label')).map(el => el.textContent);
+    expect(labels[0]).toBe('Home');
+    expect(labels).not.toContain('Filters');
+  });
+});

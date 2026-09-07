@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { getDateGroupLabel, getDateGroupStarts } from './date';
+import { formatRunDuration, getDateGroupLabel, getDateGroupStarts } from './date';
+
+describe('formatRunDuration', () => {
+  it('returns null for an in-progress run (no completedAt)', () => {
+    expect(formatRunDuration('2026-08-27T10:00:00Z', null)).toBeNull();
+    expect(formatRunDuration('2026-08-27T10:00:00Z', undefined)).toBeNull();
+  });
+
+  it('formats a sub-minute duration in seconds', () => {
+    expect(formatRunDuration('2026-08-27T10:00:00Z', '2026-08-27T10:00:42Z')).toBe('42s');
+  });
+
+  it('formats a sub-hour duration in minutes and seconds', () => {
+    expect(formatRunDuration('2026-08-27T10:00:00Z', '2026-08-27T10:05:09Z')).toBe('5m 09s');
+  });
+
+  it('formats an hour-plus duration in hours and minutes', () => {
+    expect(formatRunDuration('2026-08-27T10:00:00Z', '2026-08-27T11:30:00Z')).toBe('1h 30m');
+  });
+
+  it('is stable across repeated calls for the same input (deterministic, not locale-dependent)', () => {
+    const a = formatRunDuration('2026-08-27T10:00:00Z', '2026-08-27T10:05:09Z');
+    const b = formatRunDuration('2026-08-27T10:00:00Z', '2026-08-27T10:05:09Z');
+    expect(a).toBe(b);
+  });
+});
 
 describe('getDateGroupStarts', () => {
   it('marks the first item as starting a group', () => {

@@ -113,6 +113,126 @@ func TestListProcessingLogs(t *testing.T) {
 	}
 }
 
+func TestListProcessingLogs_IncludesRunStatistics(t *testing.T) {
+	db := setupTestDB(t)
+
+	movies, tvShows, newItems, matched, unmatched := 12, 5, 8, 17, 3
+	log := models.ProcessingLog{
+		Action:             "process_m3u",
+		Status:             "success",
+		StartedAt:          time.Now(),
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+		MoviesCount:        &movies,
+		TVShowsCount:       &tvShows,
+		NewItemsCount:      &newItems,
+		TMDBMatchedCount:   &matched,
+		TMDBUnmatchedCount: &unmatched,
+		GroupTitles:        models.StringList{"ACTION-FR", "ANIMATION"},
+	}
+	db.Create(&log)
+
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/processing-logs", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+
+	var raw struct {
+		Data []models.ProcessingLog `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if len(raw.Data) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(raw.Data))
+	}
+
+	entry := raw.Data[0]
+	if entry.MoviesCount == nil || *entry.MoviesCount != 12 {
+		t.Errorf("expected movies_count 12, got %v", entry.MoviesCount)
+	}
+	if entry.TVShowsCount == nil || *entry.TVShowsCount != 5 {
+		t.Errorf("expected tv_shows_count 5, got %v", entry.TVShowsCount)
+	}
+	if entry.NewItemsCount == nil || *entry.NewItemsCount != 8 {
+		t.Errorf("expected new_items_count 8, got %v", entry.NewItemsCount)
+	}
+	if entry.TMDBMatchedCount == nil || *entry.TMDBMatchedCount != 17 {
+		t.Errorf("expected tmdb_matched_count 17, got %v", entry.TMDBMatchedCount)
+	}
+	if entry.TMDBUnmatchedCount == nil || *entry.TMDBUnmatchedCount != 3 {
+		t.Errorf("expected tmdb_unmatched_count 3, got %v", entry.TMDBUnmatchedCount)
+	}
+	expectedTitles := []string{"ACTION-FR", "ANIMATION"}
+	if len(entry.GroupTitles) != len(expectedTitles) {
+		t.Fatalf("expected group_titles %v, got %v", expectedTitles, entry.GroupTitles)
+	}
+	for i, title := range expectedTitles {
+		if entry.GroupTitles[i] != title {
+			t.Errorf("expected group_titles %v, got %v", expectedTitles, entry.GroupTitles)
+			break
+		}
+	}
+}
+
+func TestListProcessingLogs_PreMigrationEntryOmitsStatistics(t *testing.T) {
+	db := setupTestDB(t)
+
+	// A pre-migration entry: created without any of the new statistics fields set.
+	log := models.ProcessingLog{
+		Action:    "process_m3u",
+		Status:    "success",
+		StartedAt: time.Now(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	db.Create(&log)
+
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/processing-logs", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", w.Code)
+	}
+
+	var raw struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if len(raw.Data) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(raw.Data))
+	}
+
+	entry := raw.Data[0]
+
+	// The *int fields are omitted entirely (pointer is nil) rather than present as 0.
+	for _, field := range []string{"movies_count", "tv_shows_count", "new_items_count", "tmdb_matched_count", "tmdb_unmatched_count"} {
+		if v, present := entry[field]; present {
+			t.Errorf("expected field %q to be absent for a pre-migration entry, got %v", field, v)
+		}
+	}
+
+	// group_titles is present but explicitly null, not an empty list, distinguishing
+	// "never recorded" from "run legitimately processed zero group titles".
+	titles, present := entry["group_titles"]
+	if !present {
+		t.Fatal("expected group_titles key to be present (as null)")
+	}
+	if titles != nil {
+		t.Errorf("expected group_titles to be null for a pre-migration entry, got %v", titles)
+	}
+}
+
 func TestListDownloads(t *testing.T) {
 	db := setupTestDB(t)
 

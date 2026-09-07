@@ -1,8 +1,5 @@
-# api-processing-logs Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change frontend-ihm-react-radix. Update Purpose after archive.
-## Requirements
 ### Requirement: List Processing Logs
 The system SHALL expose a REST endpoint `GET /api/v1/processing-logs` to retrieve paginated background processing log entries from the database. Each returned entry SHALL include the per-run statistics defined by capability `processing-run-statistics` (movies count, TV shows count, new-items count, TMDB matched count, TMDB unmatched count, and the distinct `group_title` list), represented as absent/null for entries that predate that capability rather than as zero or an empty list.
 
@@ -21,4 +18,3 @@ The system SHALL expose a REST endpoint `GET /api/v1/processing-logs` to retriev
 #### Scenario: A pre-migration entry omits per-run statistics
 - **WHEN** a client requests `GET /api/v1/processing-logs` and the response includes an entry created before per-run statistics were introduced
 - **THEN** that entry's statistics fields SHALL be `null`/absent rather than `0` or an empty list
-

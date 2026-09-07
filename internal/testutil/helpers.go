@@ -27,6 +27,7 @@ func TestDB(t *testing.T) *gorm.DB {
 		&models.Movie{},
 		&models.TVShow{},
 		&models.ProcessedLine{},
+		&models.ProcessingLog{},
 	); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
 	}

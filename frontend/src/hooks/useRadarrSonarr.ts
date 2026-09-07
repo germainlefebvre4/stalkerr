@@ -29,8 +29,10 @@ const RADARR_SONARR_FILTER_URL_SCHEMA = {
 // the tab, a pagination change, a search term change, or the section's own
 // refresh button - never on a timer, and never because the other section's
 // request failed or succeeded. The Résumé stats fetch follows the same
-// activation-triggered discipline.
-export function useRadarrSonarr(isActive: boolean) {
+// activation-triggered discipline, but is also requested on Home-tab
+// activation (`statsActive`, distinct from `isActive`) since the Home tab
+// shows the same Radarr/Sonarr summary without mounting the Films/Séries lists.
+export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActive) {
   const [filmsItems, setFilmsItems] = useState<RadarrMovieListItem[]>([]);
   const [filmsLoading, setFilmsLoading] = useState(false);
   const [filmsError, setFilmsError] = useState<string | null>(null);
@@ -138,10 +140,10 @@ export function useRadarrSonarr(isActive: boolean) {
   }, [isActive, seriesPage, seriesSearch, seriesFilter]);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!statsActive) return;
     void Promise.resolve().then(fetchStats);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive]);
+  }, [statsActive]);
 
   return {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit: PAGE_SIZE, fetchFilms,

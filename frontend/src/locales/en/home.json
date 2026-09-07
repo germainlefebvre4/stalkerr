@@ -1,0 +1,42 @@
+{
+  "lastRun": {
+    "title": "Last Processing Run",
+    "empty": "No processing run has been recorded yet.",
+    "unavailable": "Statistics unavailable for this run.",
+    "inProgress": "In progress...",
+    "status": {
+      "success": "Success",
+      "failed": "Failed",
+      "in_progress": "In progress"
+    },
+    "startedAt": "Started",
+    "duration": "Duration",
+    "movies": "movies",
+    "tvShows": "TV shows",
+    "newItems": "new items",
+    "tmdbMatched": "TMDB matched",
+    "tmdbUnmatched": "TMDB unmatched",
+    "groupTitles": "Group titles",
+    "noGroupTitles": "None"
+  },
+  "catalog": {
+    "title": "Catalog Overview",
+    "totalItems": "Playlist items",
+    "movies": "Movies",
+    "tvShows": "TV shows",
+    "successRate": "Download success rate"
+  },
+  "radarrSonarr": {
+    "title": "Radarr / Sonarr",
+    "radarrHeading": "Radarr",
+    "sonarrHeading": "Sonarr",
+    "loading": "Loading...",
+    "monitored": "monitored",
+    "matched": "matched"
+  },
+  "downloadsErrors": {
+    "title": "Downloads & Errors",
+    "downloads": "Total downloads",
+    "errors": "Naming errors"
+  }
+}

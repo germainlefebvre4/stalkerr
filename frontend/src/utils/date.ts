@@ -3,6 +3,25 @@ export function formatDate(value: string | Date, locale: string = 'en'): string 
   return new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 }
 
+/**
+ * Returns the elapsed duration between `startedAt` and `completedAt` as a
+ * fixed-format string (independent of locale, mirroring formatDate's
+ * deterministic DD/MM/YYYY convention), or `null` when the run is still in
+ * progress (no `completedAt` yet) - callers render an "in progress" state instead.
+ */
+export function formatRunDuration(startedAt: string, completedAt?: string | null): string | null {
+  if (!completedAt) return null;
+
+  const totalSeconds = Math.max(0, Math.round((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+}
+
 function isSameLocalDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }

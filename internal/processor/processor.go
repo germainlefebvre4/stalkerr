@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,6 +41,8 @@ type Statistics struct {
 	TVShows                int
 	Channels               int
 	Uncategorized          int
+	NewItems               int
+	GroupTitles            map[string]struct{}
 	TMDBMatched            int
 	TMDBNotFound           int
 	TMDBErrors             int
@@ -110,6 +113,7 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 
 	stats := &Statistics{
 		ErrorMessages: make([]string, 0),
+		GroupTitles:   make(map[string]struct{}),
 	}
 
 	p.logger.WithFields(map[string]interface{}{
@@ -667,6 +671,7 @@ func (p *Processor) saveBatch(batch []*models.ProcessedLine, stats *Statistics, 
 				if err := tx.Create(line).Error; err != nil {
 					return fmt.Errorf("failed to create processed line: %w", err)
 				}
+				stats.NewItems++
 			} else {
 				return fmt.Errorf("failed to check for existing line: %w", err)
 			}
@@ -683,6 +688,9 @@ func (p *Processor) saveBatch(batch []*models.ProcessedLine, stats *Statistics, 
 			case models.ContentTypeUncategorized:
 				stats.Uncategorized++
 			}
+			if line.GroupTitle != "" {
+				stats.GroupTitles[line.GroupTitle] = struct{}{}
+			}
 		}
 		return nil
 	})
@@ -697,6 +705,25 @@ func (p *Processor) updateProcessingLog(logEntry *models.ProcessingLog, status s
 	if errorMsg != "" {
 		logEntry.ErrorMessage = &errorMsg
 	}
+
+	movies := stats.Movies
+	tvShows := stats.TVShows
+	newItems := stats.NewItems
+	tmdbMatched := stats.TMDBMatched
+	tmdbUnmatched := stats.TMDBNotFound
+	logEntry.MoviesCount = &movies
+	logEntry.TVShowsCount = &tvShows
+	logEntry.NewItemsCount = &newItems
+	logEntry.TMDBMatchedCount = &tmdbMatched
+	logEntry.TMDBUnmatchedCount = &tmdbUnmatched
+
+	groupTitles := make([]string, 0, len(stats.GroupTitles))
+	for title := range stats.GroupTitles {
+		groupTitles = append(groupTitles, title)
+	}
+	sort.Strings(groupTitles)
+	logEntry.GroupTitles = groupTitles
+
 	p.db.Save(logEntry)
 }
 

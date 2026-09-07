@@ -9,6 +9,7 @@
     "checking": "Vérification..."
   },
   "tabs": {
+    "home": "Accueil",
     "playlist": "Playlist",
     "filters": "Filtres",
     "logs": "Traitements",
@@ -25,28 +26,6 @@
   },
   "media": {
     "unnamed": "Média"
-  },
-  "kpi": {
-    "playlist": {
-      "title": "Playlist M3U",
-      "subtitle": "Flux enregistrés en DB"
-    },
-    "movies": {
-      "title": "Films identifiés",
-      "subtitle": "TMDB enrichis"
-    },
-    "tvshows": {
-      "title": "Séries suivies",
-      "subtitle": "Saisons et épisodes"
-    },
-    "successRate": {
-      "title": "Taux de Réussite",
-      "detail": "{{downloaded}} réussis / {{failed}} échecs",
-      "fallback": "Téléchargements"
-    },
-    "toggle": {
-      "label": "📊 Statistiques"
-    }
   },
   "language": {
     "label": "Langue",

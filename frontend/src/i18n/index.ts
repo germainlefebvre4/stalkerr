@@ -10,6 +10,7 @@ import enLogs from '../locales/en/logs.json';
 import enDialogs from '../locales/en/dialogs.json';
 import enRadarrSonarr from '../locales/en/radarrSonarr.json';
 import enErrors from '../locales/en/errors.json';
+import enHome from '../locales/en/home.json';
 
 import frCommon from '../locales/fr/common.json';
 import frPlaylist from '../locales/fr/playlist.json';
@@ -19,6 +20,7 @@ import frLogs from '../locales/fr/logs.json';
 import frDialogs from '../locales/fr/dialogs.json';
 import frRadarrSonarr from '../locales/fr/radarrSonarr.json';
 import frErrors from '../locales/fr/errors.json';
+import frHome from '../locales/fr/home.json';
 
 export const LANGUAGE_STORAGE_KEY = 'stalkeer_language';
 
@@ -29,7 +31,7 @@ i18n
     fallbackLng: 'en',
     supportedLngs: ['en', 'fr'],
     defaultNS: 'common',
-    ns: ['common', 'playlist', 'filters', 'downloads', 'logs', 'dialogs', 'radarrSonarr', 'errors'],
+    ns: ['common', 'playlist', 'filters', 'downloads', 'logs', 'dialogs', 'radarrSonarr', 'errors', 'home'],
     resources: {
       en: {
         common: enCommon,
@@ -40,6 +42,7 @@ i18n
         dialogs: enDialogs,
         radarrSonarr: enRadarrSonarr,
         errors: enErrors,
+        home: enHome,
       },
       fr: {
         common: frCommon,
@@ -50,6 +53,7 @@ i18n
         dialogs: frDialogs,
         radarrSonarr: frRadarrSonarr,
         errors: frErrors,
+        home: frHome,
       },
     },
     detection: {

@@ -1,0 +1,42 @@
+{
+  "lastRun": {
+    "title": "Dernier traitement",
+    "empty": "Aucun traitement n'a encore été enregistré.",
+    "unavailable": "Statistiques indisponibles pour ce traitement.",
+    "inProgress": "En cours...",
+    "status": {
+      "success": "Succès",
+      "failed": "Échec",
+      "in_progress": "En cours"
+    },
+    "startedAt": "Démarré",
+    "duration": "Durée",
+    "movies": "films",
+    "tvShows": "séries",
+    "newItems": "nouveaux items",
+    "tmdbMatched": "TMDB trouvés",
+    "tmdbUnmatched": "TMDB non trouvés",
+    "groupTitles": "Groupes",
+    "noGroupTitles": "Aucun"
+  },
+  "catalog": {
+    "title": "Vue d'ensemble du catalogue",
+    "totalItems": "Items de la playlist",
+    "movies": "Films",
+    "tvShows": "Séries",
+    "successRate": "Taux de succès des téléchargements"
+  },
+  "radarrSonarr": {
+    "title": "Radarr / Sonarr",
+    "radarrHeading": "Radarr",
+    "sonarrHeading": "Sonarr",
+    "loading": "Chargement...",
+    "monitored": "surveillés",
+    "matched": "trouvés"
+  },
+  "downloadsErrors": {
+    "title": "Téléchargements & Erreurs",
+    "downloads": "Téléchargements totaux",
+    "errors": "Erreurs de nommage"
+  }
+}
