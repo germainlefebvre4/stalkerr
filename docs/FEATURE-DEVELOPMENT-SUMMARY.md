@@ -1,5 +1,7 @@
 # Feature Development Summary
 
+> **Historical snapshot** — the `radarr`/`sonarr` CLI commands described here were later removed and unified into a single `download` command. See [README.md](../README.md) for the current CLI.
+
 ## Overview
 This document summarizes the features developed for Task 3.3: Radarr/Sonarr Download CLI Commands.
 

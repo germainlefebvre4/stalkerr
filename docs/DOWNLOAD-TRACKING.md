@@ -1,5 +1,7 @@
 # Download Tracking Enhancement Summary
 
+> **Historical snapshot** — the `radarr`/`sonarr` commands mentioned throughout have since been unified into a single `download` command. The `DownloadInfo` model has also gained `url`, `target_path`, and `staging_path` columns since this was written. See [README.md](../README.md) for the current CLI and [DATABASE.md](DATABASE.md) for the current schema.
+
 ## Overview
 
 Enhanced the radarr and sonarr commands to properly track download information in the database using the new DownloadInfo model and StateManager.
@@ -191,8 +193,8 @@ ORDER BY updated_at DESC;
 # Resume all incomplete downloads
 stalkeer resume-downloads
 
-# Resume with radarr integration
-stalkeer radarr --resume --limit 20
+# Download missing movies/episodes (resume is now automatic)
+stalkeer download --limit 20
 ```
 
 ## Next Steps

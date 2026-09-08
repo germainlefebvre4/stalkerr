@@ -1,5 +1,7 @@
 # Docker Deployment Implementation Summary
 
+> **Historical snapshot** — see [DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md) and [DOCKER-QUICKSTART.md](../DOCKER-QUICKSTART.md) for current, maintained deployment instructions (a Helm chart is also available under `charts/stalkerr`).
+
 ## Overview
 
 Successfully implemented complete Docker containerization and deployment preparation for Stalkeer, including multi-stage builds, comprehensive configuration management, and production-ready deployment guides.

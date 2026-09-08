@@ -1,5 +1,7 @@
 # Stalkeer - Implementation Summary
 
+> **Historical snapshot** — this document describes the state of the project at the end of Phase 1 (January 29, 2026). Models, API endpoints, and file structure described below have since changed significantly. For the current state of the project, see [README.md](README.md) and [docs/STATUS.md](docs/STATUS.md).
+
 ## ✅ Phase 1: Foundation - Complete
 
 All foundational tasks (1.1-1.4) have been successfully implemented and tested.

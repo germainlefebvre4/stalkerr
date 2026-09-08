@@ -497,9 +497,10 @@ stalkeer resume-downloads --dry-run --verbose
 # Resume with limits
 stalkeer resume-downloads --limit 10 --parallel 5
 
-# Integrate with radarr/sonarr
-stalkeer radarr --resume --limit 20
-stalkeer sonarr --resume --limit 20
+# Download missing movies/episodes from Radarr and Sonarr
+# (the separate `radarr`/`sonarr` commands were later unified into `download`,
+# with resume/tier-upgrade now handled automatically by the scheduler)
+stalkeer download --limit 20
 ```
 
 #### Test Coverage
@@ -519,17 +520,31 @@ stalkeer sonarr --resume --limit 20
 
 #### Future Enhancements
 
-1. Complete ParallelDownloader integration for actual resume execution
+1. ~~Complete ParallelDownloader integration for actual resume execution~~ ✅ Done
 2. Implement content type filtering via ProcessedLine associations
 3. Add checksum verification for partial files
 4. Implement download prioritization
-5. Add web UI for download management
+5. ~~Add web UI for download management~~ ✅ Done — see [Post-Phase 4 Highlights](#post-phase-4-highlights) below
 6. Support distributed download coordination
 7. Add bandwidth throttling
 8. Implement notification system
 
 ---
 
-**Last Updated**: February 1, 2026  
-**Version**: 0.1.0  
-**Status**: Phase 1-4 Complete ✅
+## Post-Phase 4 Highlights
+
+This log was not kept up to date task-by-task after Task 4.3 (tasks 2.x, 3.x, 4.1-4.2, 5.x and 6.x were completed per [docs/plan](plan/) but never logged here). For an authoritative view of what shipped, use `git log`. Major features delivered since the last update below, in brief:
+
+- **Web Dashboard (IHM)**: React 19 + Radix UI dashboard with a home view, stat cards, playlist/download exploration, and processing logs — fully responsive on mobile.
+- **Unified `download` command**: replaced the separate `radarr`/`sonarr` commands; resume and tier-2 upgrade selection are now automatic (`downloads.force_tier_probability`).
+- **Radarr/Sonarr path reconciliation**: download destinations are reconciled against Radarr/Sonarr root folders and monitored items.
+- **Download quality/language tagging**: downloaded filenames are automatically tagged with quality/language metadata.
+- **Downloads error handling**: dedicated errors tab with cancel, resync-path, and rename actions, plus empty-file and duplicate-tier-stream guards.
+- **Grouped playlist view**: playlist items grouped with per-group filters and expandable latest-run details.
+- **Helm chart**: Kubernetes deployment via `charts/stalkerr`, including a scheduled `CronJob`.
+
+---
+
+**Last Updated**: September 8, 2026
+**Version**: 0.1.0
+**Status**: Phase 1-4 Complete ✅ — later phases (5-6) and post-6.1 feature work completed but not individually logged here

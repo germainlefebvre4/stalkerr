@@ -4,7 +4,7 @@ This document describes the database schema for the Stalkeer application.
 
 ## Overview
 
-The schema implements a polymorphic design where M3U playlist lines are stored in `processed_lines` with relationships to content-specific tables (`movies`, `tvshows`). This approach:
+The schema implements a polymorphic design where M3U playlist lines are stored in `processed_lines` with relationships to content-specific tables (`movies`, `tvshows`, `channels`, `uncategorized`). This approach:
 
 - Preserves original M3U line content
 - Enables TMDB integration for normalized metadata
@@ -23,26 +23,34 @@ Stores original M3U playlist lines with polymorphic relationships to content typ
 | `line_content` | TEXT | NOT NULL | Original M3U EXTINF line |
 | `line_url` | TEXT | NULLABLE | Stream URL from M3U |
 | `line_hash` | VARCHAR(64) | NOT NULL, UNIQUE | SHA-256 hash for deduplication |
+| `line_number` | INTEGER | NOT NULL, DEFAULT 0 | Line number in the source M3U file |
 | `tvg_name` | VARCHAR(255) | NOT NULL | Original TVG name from M3U |
 | `group_title` | VARCHAR(255) | NOT NULL | Original group title from M3U |
 | `processed_at` | TIMESTAMP | NOT NULL | Processing timestamp |
 | `content_type` | VARCHAR(20) | NOT NULL | Content category (movies/tvshows/channels/uncategorized) |
+| `resolution` | VARCHAR(10) | NULLABLE | Detected video resolution (e.g. 1080p) |
+| `language` | VARCHAR(10) | NULLABLE | Detected audio/subtitle language |
+| `french_variant` | VARCHAR(10) | NULLABLE | Detected French audio variant (VF/VFF/VOSTFR, etc.) |
 | `channel_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to channels |
 | `movie_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to movies |
 | `tvshow_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to tvshows |
 | `uncategorized_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to uncategorized |
-| `download_info_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to download tracking |
-| `state` | VARCHAR(50) | NOT NULL | Processing state |
+| `download_info_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to download tracking (`download_info`) |
+| `processing_log_id` | INTEGER | FOREIGN KEY, NULLABLE | Reference to the processing run (`processing_logs`) that created this line |
+| `state` | VARCHAR(50) | NOT NULL, DEFAULT 'processed' | Processing state |
+| `override_by` | VARCHAR(50) | NULLABLE | Identifier of who/what manually overrode this line's match |
+| `override_at` | TIMESTAMP | NULLABLE | Timestamp of the manual override |
+| `downloaded_at` | TIMESTAMP | NULLABLE | Timestamp the download completed |
 | `created_at` | TIMESTAMP | NOT NULL | Record creation time |
 | `updated_at` | TIMESTAMP | NOT NULL | Record update time |
-| `overrides_id` | INTEGER | FOREIGN KEY, NULLABLE | Self-reference for version history |
-| `overrides_at` | TIMESTAMP | NULLABLE | Override timestamp |
 
 **Indexes:**
-- `idx_processed_lines_hash` on `line_hash`
+- `idx_processed_lines_hash` (unique) on `line_hash`
 - `idx_processed_lines_content` on `(content_type, state)`
 - `idx_processed_lines_m3u` on `(group_title, tvg_name)`
 - `idx_processed_lines_download` on `download_info_id`
+- `idx_processed_lines_created_at` on `created_at`
+- individual indexes on `channel_id`, `movie_id`, `tvshow_id`, `uncategorized_id`, `processing_log_id`
 
 **Content Types:**
 - `movies` - Movie content
@@ -54,8 +62,10 @@ Stores original M3U playlist lines with polymorphic relationships to content typ
 - `processed` - Successfully parsed and categorized
 - `pending` - Awaiting processing
 - `downloading` - Currently being downloaded
+- `organizing` - Download complete, being moved/renamed into its final destination
 - `downloaded` - Download completed
 - `failed` - Processing or download failed
+- `cancelled` - Manually cancelled or exhausted its retry budget
 
 ---
 
@@ -72,16 +82,18 @@ Stores movie metadata from TMDB with deduplication by title and year.
 | `tmdb_year` | INTEGER | NOT NULL | Release year from TMDB |
 | `tmdb_genres` | TEXT | NULLABLE | Genres as JSON array |
 | `duration` | INTEGER | NULLABLE | Duration in minutes |
+| `poster_path` | VARCHAR(255) | NULLABLE | TMDB poster path |
+| `overview` | TEXT | NULLABLE | TMDB synopsis |
+| `imdb_id` | VARCHAR(20) | NULLABLE | IMDb ID (from TMDB external_ids) |
 | `created_at` | TIMESTAMP | NOT NULL | Record creation time |
 | `updated_at` | TIMESTAMP | NOT NULL | Record update time |
 
 **Indexes:**
 - `idx_movies_tmdb` on `tmdb_id`
 - `idx_movies_tvdb` on `tvdb_id`
-- `idx_movies_year` on `tmdb_year`
 
 **Unique Constraints:**
-- `(tmdb_title, tmdb_year)` - Prevents duplicate movies
+- `idx_movies_unique` composite unique index on `(tmdb_title, tmdb_year)` - Prevents duplicate movies
 
 **Foreign Keys:**
 - `processed_lines.movie_id` → `movies.id` (CASCADE)
@@ -102,6 +114,9 @@ Stores TV show metadata from TMDB with season/episode information.
 | `tmdb_genres` | TEXT | NULLABLE | Genres as JSON array |
 | `season` | INTEGER | NULLABLE | Season number |
 | `episode` | INTEGER | NULLABLE | Episode number |
+| `poster_path` | VARCHAR(255) | NULLABLE | TMDB poster path |
+| `overview` | TEXT | NULLABLE | TMDB synopsis |
+| `imdb_id` | VARCHAR(20) | NULLABLE | IMDb ID (from TMDB external_ids) |
 | `created_at` | TIMESTAMP | NOT NULL | Record creation time |
 | `updated_at` | TIMESTAMP | NOT NULL | Record update time |
 
@@ -110,11 +125,143 @@ Stores TV show metadata from TMDB with season/episode information.
 - `idx_tvshows_tvdb` on `tvdb_id`
 - `idx_tvshows_season_episode` on `(season, episode)`
 
-**Unique Constraints:**
-- `(tmdb_title, tmdb_year, season, episode)` - Prevents duplicate episodes
+Note: unlike `movies`, `tvshows` currently has no composite unique constraint on `(tmdb_title, tmdb_year, season, episode)` at the database level; deduplication for TV episodes is handled in application logic.
 
 **Foreign Keys:**
 - `processed_lines.tvshow_id` → `tvshows.id` (CASCADE)
+
+---
+
+### channels
+
+Stores live TV channel metadata.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `name` | VARCHAR(255) | NOT NULL | Channel name |
+| `logo` | TEXT | NULLABLE | Channel logo URL |
+| `group_title` | VARCHAR(255) | NOT NULL, INDEXED | Original group title from M3U |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL | Record update time |
+
+**Foreign Keys:**
+- `processed_lines.channel_id` → `channels.id`
+
+---
+
+### uncategorized
+
+Stores content that could not be classified as a movie, TV show, or channel.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `title` | VARCHAR(255) | NOT NULL | Raw title extracted from the M3U line |
+| `group_title` | VARCHAR(255) | NOT NULL, INDEXED | Original group title from M3U |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL | Record update time |
+
+**Foreign Keys:**
+- `processed_lines.uncategorized_id` → `uncategorized.id`
+
+---
+
+### download_info
+
+Tracks per-line download progress and resumability.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `url` | TEXT | INDEXED | Source URL of the download |
+| `status` | VARCHAR(50) | NOT NULL, INDEXED | `pending`, `downloading`, `paused`, `completed`, `failed`, `retrying`, `cancelled` |
+| `download_path` | TEXT | NULLABLE | Final local path once downloaded |
+| `target_path` | TEXT | NULLABLE | Planned final destination for the current/last attempt (cleared on completion) |
+| `staging_path` | TEXT | NULLABLE | Temp file location for the current/last attempt (cleared on completion) |
+| `file_size` | BIGINT | NULLABLE | Total file size, if known upfront |
+| `bytes_downloaded` | BIGINT | DEFAULT 0 | Bytes downloaded so far |
+| `total_bytes` | BIGINT | NULLABLE | Expected total file size |
+| `resume_token` | VARCHAR(255) | NULLABLE | Server-specific resume identifier (ETag, etc.) |
+| `retry_count` | INTEGER | NOT NULL, DEFAULT 0 | Number of retry attempts |
+| `last_retry_at` | TIMESTAMP | NULLABLE | Timestamp of the last retry attempt |
+| `locked_at` | TIMESTAMP | NULLABLE, INDEXED | Lock timestamp to prevent concurrent downloads |
+| `locked_by` | VARCHAR(100) | NULLABLE | Instance/process that acquired the lock |
+| `started_at` | TIMESTAMP | NULLABLE | When the download started |
+| `completed_at` | TIMESTAMP | NULLABLE | When the download completed |
+| `error_message` | TEXT | NULLABLE | Last error message, if any |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL, INDEXED | Record update time |
+
+**Foreign Keys:**
+- `processed_lines.download_info_id` → `download_info.id`
+
+See [DOWNLOAD-TRACKING.md](DOWNLOAD-TRACKING.md) and [RESUME-DOWNLOADS.md](RESUME-DOWNLOADS.md) for behavior details.
+
+---
+
+### processing_logs
+
+Records metrics for each processing run (see [`internal/models/log.go`](../internal/models/log.go)).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `action` | VARCHAR(100) | NOT NULL | Action performed (e.g. `process`, `download`) |
+| `item_count` | INTEGER | NOT NULL, DEFAULT 0 | Number of items handled |
+| `status` | VARCHAR(50) | NOT NULL | `success`, `failed`, or `in_progress` |
+| `started_at` | TIMESTAMP | NOT NULL | Run start time |
+| `completed_at` | TIMESTAMP | NULLABLE | Run completion time |
+| `error_message` | TEXT | NULLABLE | Error message, if any |
+| `movies_count` | INTEGER | NULLABLE | Movies processed |
+| `tv_shows_count` | INTEGER | NULLABLE | TV shows processed |
+| `new_items_count` | INTEGER | NULLABLE | New items created |
+| `tmdb_matched_count` | INTEGER | NULLABLE | Items matched via TMDB |
+| `tmdb_unmatched_count` | INTEGER | NULLABLE | Items not matched via TMDB |
+| `group_titles` | JSON | NOT NULL (nullable value) | List of group titles involved in the run |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL | Record update time |
+
+**Foreign Keys:**
+- `processed_lines.processing_log_id` → `processing_logs.id`
+
+---
+
+### filter_configs
+
+Runtime filters manageable via the `/api/v1/filters` endpoints, in addition to the file-based filters in `config.yml`.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `name` | VARCHAR(255) | NOT NULL, UNIQUE | Filter name |
+| `attribute` | VARCHAR(50) | NOT NULL | `group_title` or `tvg_name` |
+| `include_patterns` | TEXT | NULLABLE | JSON array of include regex patterns |
+| `exclude_patterns` | TEXT | NULLABLE | JSON array of exclude regex patterns |
+| `is_runtime` | BOOLEAN | NOT NULL, DEFAULT true, INDEXED | Whether the filter is runtime-only (vs. seeded from config) |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL | Record update time |
+
+---
+
+### manual_mappings
+
+Persistent manual overrides mapping a malformed raw M3U title to a specific TMDB entry.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `tvg_name` | VARCHAR(255) | NOT NULL, part of composite unique | Raw TVG name from M3U |
+| `group_title` | VARCHAR(255) | NOT NULL, part of composite unique | Raw group title from M3U |
+| `content_type` | VARCHAR(20) | NOT NULL | `movies` or `tvshows` |
+| `tmdb_id` | INTEGER | NOT NULL | Target TMDB ID |
+| `season` | INTEGER | NULLABLE | Season number, for TV mappings |
+| `episode` | INTEGER | NULLABLE | Episode number, for TV mappings |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL | Record update time |
+
+**Unique Constraints:**
+- `idx_manual_mappings_unique` composite unique index on `(tvg_name, group_title)`
 
 ---
 
@@ -122,14 +269,26 @@ Stores TV show metadata from TMDB with season/episode information.
 
 ```
 processed_lines
+    ├── channel_id → channels.id
     ├── movie_id → movies.id
     ├── tvshow_id → tvshows.id
-    └── overrides_id → processed_lines.id (self-reference)
+    ├── uncategorized_id → uncategorized.id
+    ├── download_info_id → download_info.id
+    └── processing_log_id → processing_logs.id
 
 movies
     └── processed_lines[] (one-to-many)
 
 tvshows
+    └── processed_lines[] (one-to-many)
+
+channels
+    └── processed_lines[] (one-to-many)
+
+uncategorized
+    └── processed_lines[] (one-to-many)
+
+download_info
     └── processed_lines[] (one-to-many)
 ```
 
@@ -148,12 +307,13 @@ The `processed_lines` table uses nullable foreign keys to establish relationship
 ### Deduplication Strategy
 
 1. **M3U lines**: SHA-256 hash (`line_hash`) prevents duplicate playlist entries
-2. **Movies**: Unique constraint on `(title, year)` prevents duplicate TMDB entries
-3. **TV Shows**: Unique constraint on `(title, year, season, episode)` prevents duplicate episodes
+2. **Movies**: Unique constraint on `(tmdb_title, tmdb_year)` prevents duplicate TMDB entries
+3. **TV Shows**: Deduplication of `(tmdb_title, tmdb_year, season, episode)` is enforced in application logic (no DB-level composite unique constraint)
+4. **Manual mappings**: Unique constraint on `(tvg_name, group_title)` prevents duplicate overrides
 
-### Version History
+### Manual Overrides
 
-The `overrides_id` and `overrides_at` fields in `processed_lines` enable tracking when a line is superseded by a newer version, maintaining audit trail.
+The `override_by` and `override_at` fields in `processed_lines` track when a line's match was manually overridden (via `POST /api/v1/items/:id/override`), maintaining an audit trail.
 
 ## Migration Strategy
 
@@ -205,9 +365,6 @@ HAVING COUNT(*) > 1;
 
 Potential schema additions:
 
-- `channels` table for live TV content
-- `uncategorized` table for unclassified content
-- `download_info` table for tracking downloads
-- `user_preferences` table for filtering rules
 - Full-text search indexes on titles
 - Materialized views for statistics
+- Database-level composite unique constraint on `tvshows (tmdb_title, tmdb_year, season, episode)`

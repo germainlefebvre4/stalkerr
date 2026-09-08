@@ -1,5 +1,7 @@
 # Task 3.1: Error Handling & Resilience - Implementation Summary
 
+> **Historical snapshot** — reflects the implementation as of the date below. See [ERROR-HANDLING.md](ERROR-HANDLING.md) and the current codebase for up-to-date behavior.
+
 **Status**: ✅ Complete  
 **Date**: January 29, 2026
 

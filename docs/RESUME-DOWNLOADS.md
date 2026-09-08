@@ -68,12 +68,11 @@ stalkeer resume-downloads --service radarr
 
 #### Integration with Radarr/Sonarr
 
-```bash
-# Resume incomplete movie downloads before fetching new ones
-stalkeer radarr --resume --limit 20
+The separate `radarr` and `sonarr` commands have been removed and unified into a single `download` command. Resuming incomplete downloads and tier-2 upgrades are now handled automatically by the scheduler (`downloads.force_tier_probability`) rather than an explicit `--resume` flag:
 
-# Resume incomplete TV show downloads before fetching new episodes
-stalkeer sonarr --resume --limit 20 --verbose
+```bash
+# Download missing movies and TV episodes from Radarr and Sonarr
+stalkeer download --limit 20 --verbose
 ```
 
 ### Configuration

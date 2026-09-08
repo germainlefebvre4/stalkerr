@@ -1,5 +1,7 @@
 # Development Summary - Radarr/Sonarr Integration
 
+> **Historical snapshot** — the standalone `radarr`/`sonarr` commands described here were later unified into a single `download` command with automatic path reconciliation. See the "Radarr / Sonarr" and "download" sections in [README.md](../README.md) for the current behavior.
+
 ## Date: January 29, 2026
 
 ## Summary

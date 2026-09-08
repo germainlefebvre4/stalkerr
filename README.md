@@ -18,7 +18,11 @@
 - ⬇️ Download missing items via direct links
 - 🚀 REST API for querying and managing media items
 - 📊 Processing logs and statistics
-- 🖥️ **Web Dashboard (IHM)** - Modern light-themed dashboard built with React 19 and Radix UI to explore playlists, monitor download progress, view processing logs, and execute folder-level media moves.
+- 🖥️ **Web Dashboard (IHM)** - Modern light-themed dashboard built with React 19 and Radix UI to explore playlists, monitor download progress, view processing logs, and execute folder-level media moves. Fully responsive on mobile.
+- 🔗 **Radarr/Sonarr path reconciliation** - Automatic reconciliation of download destinations against Radarr/Sonarr root folders and monitored items
+- 🏷️ Automatic quality/language tagging of downloaded filenames
+- ⚠️ Dedicated downloads error tab with cancel, resync-path, and rename actions
+- 🗂️ Grouped playlist view with per-group filters and expandable latest-run details
 
 ## Quick Start
 
@@ -41,11 +45,15 @@ For detailed Docker deployment instructions, see:
 - [Docker Quick Start](DOCKER-QUICKSTART.md) - Get running in 5 minutes
 - [Docker Deployment Guide](docs/DOCKER-DEPLOYMENT.md) - Complete deployment guide
 
-### Option 2: Build from Source
+### Option 2: Kubernetes (Helm)
+
+A Helm chart is available under [charts/stalkerr](charts/stalkerr) for deploying Stalkeer to a Kubernetes cluster, including a `CronJob` for scheduled processing. See [charts/stalkerr/README.md](charts/stalkerr/README.md) for values and installation instructions.
+
+### Option 3: Build from Source
 
 ### Prerequisites
 
-- Go 1.24 or higher
+- Go 1.25 or higher
 - PostgreSQL 12 or higher
 - M3U playlist file
 
@@ -136,11 +144,11 @@ export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 # Preview what would be resumed (dry-run)
 ./bin/stalkeer resume-downloads --dry-run
 
-# Integrate with Radarr - resume incomplete downloads first
-./bin/stalkeer radarr --resume --limit 20
+# Download missing movies/episodes from Radarr and Sonarr
+./bin/stalkeer download --limit 20
 
-# Integrate with Sonarr - resume incomplete downloads first
-./bin/stalkeer sonarr --resume --limit 20
+# Preview matches without downloading
+./bin/stalkeer download --dry-run
 
 # Check version
 ./bin/stalkeer version
@@ -302,37 +310,75 @@ stalkeer resume-downloads --limit 10 --parallel 5
 stalkeer resume-downloads --service radarr
 ```
 
-#### radarr
+#### download
 
-Download missing movies from Radarr by matching against M3U playlist:
+Unified command that downloads missing movies (Radarr) and TV episodes (Sonarr) by matching against the M3U playlist. This command replaces the removed `radarr` and `sonarr` commands. Resuming incomplete downloads and tier-2 upgrades are now handled automatically by the scheduler (see `downloads.force_tier_probability` in the config) instead of dedicated `--resume`/`--force` flags:
 
 ```bash
-stalkeer radarr [flags]
+stalkeer download [flags]
 
 Flags:
-      --dry-run      preview matches without downloading
-      --limit int    maximum number of movies to process (0 = no limit)
-      --parallel int number of concurrent downloads (default 3)
-      --force        re-download existing files
+      --dry-run      preview planned streams without downloading
+      --limit int    maximum number of work units (movies/series) to consider (0 = no limit)
+      --parallel int number of concurrent worker streams
   -v, --verbose      verbose output
-      --resume       resume incomplete downloads before fetching new items
 ```
 
-#### sonarr
+#### cleanup
 
-Download missing TV show episodes from Sonarr by matching against M3U playlist:
+Clean up orphaned temp download files:
 
 ```bash
-stalkeer sonarr [flags]
+stalkeer cleanup [flags]
 
 Flags:
-      --dry-run       preview matches without downloading
-      --limit int     maximum number of episodes to process (0 = no limit)
-      --parallel int  number of concurrent downloads (default 3)
-      --force         re-download existing files
-  -v, --verbose       verbose output
-      --series-id int filter to specific Sonarr series ID
-      --resume        resume incomplete downloads before fetching new episodes
+      --dry-run             preview cleanup without deleting files
+      --retention-hours int delete temp files older than this many hours (default 24)
+```
+
+#### config
+
+Validate and display the current configuration:
+
+```bash
+stalkeer config [flags]
+
+Flags:
+      --show-secrets   reveal password fields
+```
+
+#### db-prune
+
+Prune expired M3U stream URLs and orphaned metadata:
+
+```bash
+stalkeer db-prune [flags]
+
+Flags:
+      --dry-run   simulate pruning and display metrics without deleting
+      --hard      force delete downloaded and downloading stream records
+```
+
+#### enrich-tvdb
+
+Backfill missing TVDB IDs on Movie and TVShow records:
+
+```bash
+stalkeer enrich-tvdb [flags]
+
+Flags:
+      --dry-run     preview records that would be updated without writing to database
+      --limit int   maximum number of records to process (0 = no limit)
+  -v, --verbose     verbose output
+```
+
+#### reset
+
+Surgically reset a specific movie or TV show stream state by ID:
+
+```bash
+stalkeer reset movie --id 42
+stalkeer reset tvshow --id 17
 ```
 
 #### dryrun
@@ -382,16 +428,25 @@ docker-compose up -d postgres
 
 ```
 stalkeer/
-├── cmd/                    # Application entry points
-│   └── main.go
+├── cmd/                    # CLI commands (process, download, resume-downloads,
+│                           # cleanup, config, db-prune, enrich-tvdb, reset, server, ...)
 ├── frontend/               # React 19 + Radix UI Frontend Web Dashboard
 ├── internal/               # Private application code
 │   ├── api/               # REST API handlers
+│   ├── classifier/        # Content classification (movie/TV/channel)
 │   ├── config/            # Configuration management
 │   ├── database/          # Database connection and migrations
+│   ├── downloader/        # Download engine (resume, tiers, path reconciliation)
+│   ├── external/          # Radarr/Sonarr/TMDB/TVDB API clients
+│   ├── filter/            # Include/exclude pattern filtering
+│   ├── logger/            # Modular application/database logging
+│   ├── matcher/           # Playlist-to-Radarr/Sonarr matching
 │   ├── models/            # Data models
 │   ├── parser/            # M3U parser
-│   └── testing/           # Test helpers and fixtures
+│   ├── processor/         # M3U processing pipeline
+│   ├── scheduler/         # Download scheduler (tier selection, cron)
+│   └── testutil/          # Test helpers and fixtures
+├── charts/stalkerr/        # Helm chart for Kubernetes deployment
 ├── docs/                  # Documentation
 ├── .github/               # GitHub workflows and templates
 ├── config.yml.example     # Example configuration
@@ -444,7 +499,7 @@ To quickly run and develop both the Go backend API and the React 19 Frontend Web
 #### 1. Prerequisites
 
 Ensure you have the following installed on your machine:
-- **Go** 1.24 or higher
+- **Go** 1.25 or higher
 - **Node.js** 22 or higher (with `npm`)
 - **Docker** and **Docker Compose** (for the database and profile dependencies)
 
@@ -474,7 +529,7 @@ For advanced settings, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detail
 
 ## API Documentation
 
-The REST API provides endpoints for managing processed M3U lines, movies, and TV shows.
+The REST API provides endpoints for managing processed M3U items, movies, TV shows, filters, and downloads.
 
 ### Health Check
 
@@ -482,30 +537,79 @@ The REST API provides endpoints for managing processed M3U lines, movies, and TV
 GET /health
 ```
 
-### Processed Lines
+### Items (processed M3U entries)
 
 ```bash
-GET /api/v1/lines       # List all processed M3U lines
-GET /api/v1/lines/:id   # Get line by ID
+GET  /api/v1/items                    # List all processed items
+GET  /api/v1/items/grouped            # List items grouped by title
+GET  /api/v1/items/:id                # Get item by ID
+PUT  /api/v1/items/:id                # Update item
+POST /api/v1/items/search             # Search items
+POST /api/v1/items/:id/override       # Manually override an item's match
+POST /api/v1/items/:id/force-download # Force (re-)download an item
 ```
 
 ### Movies
 
 ```bash
-GET  /api/v1/movies     # List all movies
-POST /api/v1/movies     # Create a new movie
+GET  /api/v1/movies             # List all movies
+GET  /api/v1/movies/:id         # Get movie by ID
+POST /api/v1/movies/:id/move    # Move a movie's folder
+POST /api/v1/movies/:id/reset   # Reset a movie's stream state
 ```
 
 ### TV Shows
 
 ```bash
-GET /api/v1/tvshows     # List all TV shows
+GET  /api/v1/tvshows            # List all TV shows
+GET  /api/v1/tvshows/:id        # Get TV show by ID
+POST /api/v1/tvshows/:id/move   # Move a TV show's folder
+POST /api/v1/tvshows/:id/reset  # Reset a TV show's stream state
 ```
 
-### Statistics
+### Radarr / Sonarr
 
 ```bash
-GET /api/v1/stats       # Get processing statistics
+GET /api/v1/radarr/movies                  # List Radarr-monitored movies
+GET /api/v1/radarr/movies/:id/matches       # Get playlist matches for a Radarr movie
+GET /api/v1/sonarr/series                   # List Sonarr-monitored series
+GET /api/v1/sonarr/series/:id/episodes      # Get episodes for a Sonarr series
+GET /api/v1/radarr-sonarr/stats             # Radarr/Sonarr reconciliation stats
+```
+
+### Filters
+
+```bash
+GET    /api/v1/filters            # List filters
+POST   /api/v1/filters            # Create a filter
+PATCH  /api/v1/filters/:id        # Update a filter
+DELETE /api/v1/filters/:id        # Delete a filter
+DELETE /api/v1/filters/runtime    # Clear runtime-only filters
+```
+
+### Downloads
+
+```bash
+GET  /api/v1/downloads                     # List downloads (enriched)
+GET  /api/v1/downloads/simple              # List downloads (simple)
+POST /api/v1/downloads/:id/rename          # Rename a download
+POST /api/v1/downloads/:id/resync-path     # Resync a download's destination path
+POST /api/v1/downloads/:id/cancel          # Cancel a download
+```
+
+### Dry Run, Stats & Logs
+
+```bash
+POST /api/v1/dryrun            # Execute a dry-run analysis
+GET  /api/v1/stats             # Get processing statistics
+GET  /api/v1/processing-logs   # List processing logs
+GET  /api/v1/config/paths      # Get configured download paths
+```
+
+### TMDB Proxy
+
+```bash
+GET /api/v1/tmdb/search   # Proxy a TMDB search query
 ```
 
 ## Configuration
@@ -560,6 +664,58 @@ For more details, see [docs/LOGGING.md](docs/LOGGING.md).
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `api.port` | int | `8080` | API server port |
+
+### Filter Configuration
+
+File-based filters applied to `group_title` and `tvg_name` fields (can be overridden by runtime filters via the `/api/v1/filters` endpoints):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `filter.group_title.include_patterns` | []string | Regex patterns a group title must match |
+| `filter.group_title.exclude_patterns` | []string | Regex patterns that exclude a group title |
+| `filter.tvg_name.include_patterns` | []string | Regex patterns a channel/stream name must match |
+| `filter.tvg_name.exclude_patterns` | []string | Regex patterns that exclude a channel/stream name |
+
+### TMDB Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tmdb.enabled` | bool | `true` | Enable TMDB metadata enrichment |
+| `tmdb.api_key` | string | - | TMDB API key |
+| `tmdb.language` | string | `en-US` | Language for TMDB metadata |
+| `tmdb.requests_per_second` | float | `4.0` | Max TMDB API requests per second (0 disables rate limiting) |
+
+### Radarr / Sonarr Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `radarr.enabled` | bool | `false` | Enable Radarr integration |
+| `radarr.url` | string | - | Radarr base URL |
+| `radarr.api_key` | string | - | Radarr API key |
+| `radarr.sync_interval` | int | `3600` | Sync interval in seconds |
+| `radarr.quality_profile_id` | int | `1` | Radarr quality profile ID |
+| `sonarr.enabled` | bool | `false` | Enable Sonarr integration |
+| `sonarr.url` | string | - | Sonarr base URL |
+| `sonarr.api_key` | string | - | Sonarr API key |
+| `sonarr.sync_interval` | int | `3600` | Sync interval in seconds |
+| `sonarr.quality_profile_id` | int | `1` | Sonarr quality profile ID |
+
+### Downloads Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `downloads.movies_path` | string | `./data/downloads/movies` | Fallback path when Radarr's `movie.Path` is empty |
+| `downloads.tvshows_path` | string | `./data/downloads/tvshows` | Fallback path when Sonarr's `series.Path` is empty |
+| `downloads.temp_dir` | string | OS temp dir | Directory for in-progress downloads |
+| `downloads.max_parallel` | int | `3` | Number of concurrent downloads |
+| `downloads.timeout` | int | `600` | Download timeout in seconds |
+| `downloads.retry_attempts` | int | `3` | HTTP sub-retry attempts within a single download attempt |
+| `downloads.resume_enabled` | bool | `true` | Enable resumable downloads |
+| `downloads.progress_interval_mb` | int | `10` | Persist progress every N megabytes |
+| `downloads.progress_interval_seconds` | int | `30` | Persist progress every N seconds |
+| `downloads.lock_timeout_minutes` | int | `5` | Consider a download lock stale after this many minutes |
+| `downloads.max_retry_attempts` | int | `5` | Max full download attempts before an occurrence is permanently skipped |
+| `downloads.force_tier_probability` | float | `0.1` | Chance (0-1) that the `download` command scheduler draws an already-downloaded/upgrade candidate instead of new content |
 
 ## Environment Variables
 
