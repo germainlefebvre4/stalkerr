@@ -8,7 +8,7 @@ Provides the Downloads tab's detail sidepanel: the click-triggered Radix UI draw
 
 ### Requirement: Download Item Details Sidepanel
 The Downloads tab SHALL open a sliding sidepanel (drawer), based on Radix UI `Dialog`, when the user clicks or taps any download's summary row (capability `downloads-display-ui`). The sidepanel SHALL display, for the selected download:
-- A status section: the status badge and, when the status is `downloading` or `retrying`, a progress bar with percentage and downloaded/total size.
+- A status section: the status badge — following the same viewport-dependent emoji/text rule as the list's status badge (capability `downloads-display-ui`: emoji only on mobile, emoji plus text label on desktop) — and, when the status is `downloading` or `retrying`, a progress bar with percentage and downloaded/total size.
 - A file section: the folder and file names (from `file_info`) and the full `download_path` when the download is `completed`. When `download_path` is not yet available, the file section SHALL instead show, when present, the planned final location (`target_path`) labeled distinctly as a planned/not-yet-final location, and the temporary file location (`staging_path`) labeled distinctly as a temporary file that may no longer exist on disk. When none of `download_path`, `target_path`, or `staging_path` are available, the file section SHALL fall back to the source `url`.
 - A technical specifications section: format (extension), detected resolution, total file size, duration (when known), and completion date (when `completed_at` is set).
 - A validation section: the same badge chips previously shown inline (year OK/missing/mismatch, format OK/unknown, low-quality warning for 480p/360p).
@@ -39,6 +39,14 @@ The sidepanel SHALL omit any of the above sections or fields that have no data, 
 #### Scenario: Completed download shows only the final path
 - **WHEN** the sidepanel is open for a download whose `status` is `completed`
 - **THEN** the file section SHALL show only `download_path` as before; `target_path` and `staging_path` SHALL be absent by this point and SHALL NOT be rendered
+
+#### Scenario: Sidepanel status badge shows emoji only on mobile
+- **WHEN** the sidepanel is open on a viewport narrower than the mobile breakpoint
+- **THEN** the status section's badge SHALL display only the status's emoji, with no text label, matching the list's mobile status badge
+
+#### Scenario: Sidepanel status badge shows emoji and text on desktop
+- **WHEN** the sidepanel is open on a viewport at or above the mobile breakpoint
+- **THEN** the status section's badge SHALL display the status's emoji followed by its text label, matching the list's desktop status badge
 
 ### Requirement: Live-Synced Sidepanel Selection
 While the sidepanel is open, the Downloads tab SHALL keep it synchronized with the existing 5-second polling refresh: the displayed download SHALL be looked up by id from the current downloads list on every refresh, rather than frozen at the moment the user opened the panel. If the selected download's id is no longer present in the current (possibly filtered) list, the sidepanel SHALL close automatically.
