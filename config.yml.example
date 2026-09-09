@@ -26,10 +26,6 @@ m3u:
     # Optional: HTTP authentication
     # auth_username: ""
     # auth_password: ""
-    
-    # Optional: Scheduled downloads
-    # schedule_enabled: false  # Enable automatic scheduled downloads
-    # interval_hours: 24  # Download interval in hours
 
 # File-based filters (can be overridden by runtime filters)
 filter:

@@ -34,10 +34,6 @@ m3u:
     # Optional: HTTP Basic Authentication
     auth_username: ""
     auth_password: ""
-    
-    # Optional: Scheduled downloads (future feature)
-    schedule_enabled: false
-    interval_hours: 24
 ```
 
 ### Configuration Options
@@ -306,11 +302,10 @@ stalkeer process
 
 ## Best Practices
 
-1. **Regular Downloads**: Set up a cron job for periodic downloads
-   ```bash
-   # Download playlist daily at 2 AM
-   0 2 * * * /usr/local/bin/stalkeer m3u-download
-   ```
+1. **Regular Downloads**: Set up periodic downloads
+   - Running a bare `stalkeer` binary: use a host crontab entry, e.g. `0 2 * * * /usr/local/bin/stalkeer m3u-download`
+   - Running via Docker Compose: see [DOCKER-QUICKSTART.md's Next Steps](../DOCKER-QUICKSTART.md#next-steps) for the `cron` profile sidecar (default: daily 23:30) or the equivalent host-crontab recipe
+   - Running on Kubernetes: see the Helm chart's [`CronJob` documentation](../charts/stalkerr/README.md)
 
 2. **Monitor Archives**: Check archive count periodically
    ```bash

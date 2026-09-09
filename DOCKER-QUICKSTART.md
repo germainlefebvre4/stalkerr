@@ -225,7 +225,27 @@ For production deployment, see:
 ## Next Steps
 
 1. Configure Radarr/Sonarr integration
-2. Set up scheduled processing
+2. Set up scheduled processing:
+
+   **Option A: Compose cron sidecar** (simplest, but grants Docker socket access):
+
+   ```bash
+   docker-compose --profile stalkerr --profile cron up -d
+   ```
+
+   This starts an [Ofelia](https://github.com/mcuadros/ofelia) sidecar that runs
+   `m3u-download` (daily 23:30), `process` (daily 00:00), and `download` (every 2 hours) —
+   the same default cadence as the project's Helm chart `CronJob` resources.
+
+   **Option B: Host crontab** (no Docker socket access required):
+
+   ```bash
+   # crontab -e
+   30 23 * * * cd /path/to/stalkeer && docker compose --profile stalkerr run --rm m3u-download
+   0  0  * * * cd /path/to/stalkeer && docker compose --profile stalkerr run --rm process
+   0  */2 * * * cd /path/to/stalkeer && docker compose --profile stalkerr run --rm download
+   ```
+
 3. Configure filters
 4. Set up monitoring
 5. Configure backups

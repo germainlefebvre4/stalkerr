@@ -45,6 +45,8 @@ For detailed Docker deployment instructions, see:
 - [Docker Quick Start](DOCKER-QUICKSTART.md) - Get running in 5 minutes
 - [Docker Deployment Guide](docs/DOCKER-DEPLOYMENT.md) - Complete deployment guide
 
+**Scheduled Execution**: enable the `cron` profile (`docker-compose --profile stalkerr --profile cron up -d`) for an opt-in Ofelia sidecar that runs `m3u-download`/`process`/`download` on the same default cadence as the Helm chart's `CronJob` resources below. See [Docker Quick Start](DOCKER-QUICKSTART.md#next-steps) for the full recipe, including a lower-privilege host-crontab alternative.
+
 ### Option 2: Kubernetes (Helm)
 
 A Helm chart is available under [charts/stalkerr](charts/stalkerr) for deploying Stalkeer to a Kubernetes cluster, including a `CronJob` for scheduled processing. See [charts/stalkerr/README.md](charts/stalkerr/README.md) for values and installation instructions.
