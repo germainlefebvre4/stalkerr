@@ -86,6 +86,13 @@ sonarr:
   sync_interval: 3600  # seconds
   quality_profile_id: 1
 
+# Jellyfin integration (optional): notifies Jellyfin of newly downloaded
+# library paths so it can rescan them without waiting for its own periodic scan
+jellyfin:
+  enabled: false
+  url: http://localhost:8096
+  api_key: your_jellyfin_api_key_here
+
 # Download settings
 downloads:
   # Fallback base path for movie downloads. When using the radarr command, movie.Path

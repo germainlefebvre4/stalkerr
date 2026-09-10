@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/external/jellyfin"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 )
@@ -152,6 +153,22 @@ func (rh *ResumeHelper) ResumeDownloads(ctx context.Context, opts ResumeOptions)
 	parallelDownloader := NewParallelWithDownloader(rh.downloader, parallel)
 	results := parallelDownloader.DownloadBatch(ctx, jobs)
 
+	changedPaths := rh.processResults(results, jobInfo, stats)
+	rh.notifyJellyfin(ctx, cfg, changedPaths)
+
+	stats.EndTime = time.Now()
+	return stats, nil
+}
+
+// processResults drains the parallel downloader's result channel, updating
+// stats for each outcome, and returns the destination folder (movie folder,
+// or season folder for a TV episode) of every successfully resumed item.
+// Results are consumed one at a time from a single channel, so no additional
+// synchronization is needed.
+func (rh *ResumeHelper) processResults(results <-chan DownloadJobResult, jobInfo map[int]resumeJobInfo, stats *ResumeStats) []string {
+	log := logger.AppLogger()
+	var changedPaths []string
+
 	for result := range results {
 		info, ok := jobInfo[result.JobID]
 		if !ok {
@@ -173,6 +190,7 @@ func (rh *ResumeHelper) ResumeDownloads(ctx context.Context, opts ResumeOptions)
 		}
 
 		stats.Resumed++
+		changedPaths = append(changedPaths, filepath.Clean(filepath.Dir(result.Result.FilePath)))
 		log.WithFields(map[string]interface{}{
 			"download_id": info.downloadID,
 			"title":       info.displayName,
@@ -181,8 +199,62 @@ func (rh *ResumeHelper) ResumeDownloads(ctx context.Context, opts ResumeOptions)
 		}).Info("resume download completed")
 	}
 
-	stats.EndTime = time.Now()
-	return stats, nil
+	return changedPaths
+}
+
+// notifyJellyfin sends a single best-effort library-scan notification to
+// Jellyfin for this run's deduplicated changed paths, mirroring the
+// `download` command's gating and logging-only failure handling. Jellyfin is
+// contacted only when it is enabled, configured with a base URL, and at
+// least one path was collected.
+func (rh *ResumeHelper) notifyJellyfin(ctx context.Context, cfg *config.Config, changedPaths []string) {
+	log := logger.AppLogger()
+
+	if !cfg.Jellyfin.Enabled {
+		return
+	}
+	if cfg.Jellyfin.URL == "" {
+		log.Warn("jellyfin integration is enabled but no url is configured, skipping library scan notification")
+		return
+	}
+
+	paths := dedupeChangedPaths(changedPaths)
+	if len(paths) == 0 {
+		return
+	}
+
+	jellyfinClient := jellyfin.New(jellyfin.Config{
+		BaseURL: cfg.Jellyfin.URL,
+		APIKey:  cfg.Jellyfin.APIKey,
+		Logger:  log,
+	})
+
+	if err := jellyfinClient.NotifyPathsUpdated(ctx, paths); err != nil {
+		log.WithFields(map[string]interface{}{
+			"error":      err,
+			"path_count": len(paths),
+		}).Warn("failed to notify jellyfin of library changes")
+	}
+}
+
+// dedupeChangedPaths cleans and deduplicates a set of collected paths, so a
+// run with multiple episodes of the same season reports that season's
+// folder once.
+func dedupeChangedPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(paths))
+	deduped := make([]string, 0, len(paths))
+	for _, p := range paths {
+		clean := filepath.Clean(p)
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		deduped = append(deduped, clean)
+	}
+	return deduped
 }
 
 type resumeJobInfo struct {

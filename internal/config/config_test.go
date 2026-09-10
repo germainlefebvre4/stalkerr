@@ -44,6 +44,15 @@ func TestLoad_WithDefaults(t *testing.T) {
 	if config.Downloads.MinFileSizeMB != 1 {
 		t.Errorf("expected default min_file_size_mb 1, got %v", config.Downloads.MinFileSizeMB)
 	}
+	if config.Jellyfin.Enabled != false {
+		t.Errorf("expected jellyfin.enabled to default to false, got %v", config.Jellyfin.Enabled)
+	}
+	if config.Jellyfin.URL != "" {
+		t.Errorf("expected jellyfin.url to default to empty, got %q", config.Jellyfin.URL)
+	}
+	if config.Jellyfin.APIKey != "" {
+		t.Errorf("expected jellyfin.api_key to default to empty, got %q", config.Jellyfin.APIKey)
+	}
 }
 
 func TestLoad_MinFileSizeMBOverride(t *testing.T) {

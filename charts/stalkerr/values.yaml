@@ -131,6 +131,13 @@ config:
     quality_profile_id: 1
     # api_key: injected from secrets
   
+  # Jellyfin integration (optional): notifies Jellyfin of newly downloaded
+  # library paths so it can rescan them without waiting for its own periodic scan
+  jellyfin:
+    enabled: false
+    url: http://jellyfin:8096
+    api_key: your_jellyfin_api_key_here
+
   # Download configuration
   downloads:
     movies_path: /media/radarr/movies

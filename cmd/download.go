@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
+	"github.com/glefebvre/stalkeer/internal/external/jellyfin"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/logger"
@@ -161,6 +163,8 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		sched := scheduler.NewScheduler(streams, cfg.Downloads.ForceTierProbability)
 		stats := runDownloadWorkerPool(ctx, sched, dl, cfg, parallel, verbose)
 
+		notifyJellyfin(ctx, cfg, stats.changedPaths)
+
 		fmt.Println("\n=== Download Summary ===")
 		fmt.Printf("Total items:      %d\n", stats.Total)
 		fmt.Printf("Downloaded:       %d\n", stats.Downloaded)
@@ -255,18 +259,25 @@ func printDryRunPlan(streams []*scheduler.Stream) {
 
 // downloadStats accumulates run statistics across concurrent workers.
 type downloadStats struct {
-	mu         sync.Mutex
-	Total      int
-	Downloaded int
-	Failed     int
+	mu           sync.Mutex
+	Total        int
+	Downloaded   int
+	Failed       int
+	changedPaths []string
 }
 
-func (s *downloadStats) recordItem(success bool) {
+// recordItem records one item's outcome. When successful and changedPath is
+// non-empty, the (movie or season) folder is added to this run's set of
+// changed library paths for the later Jellyfin notification.
+func (s *downloadStats) recordItem(success bool, changedPath string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Total++
 	if success {
 		s.Downloaded++
+		if changedPath != "" {
+			s.changedPaths = append(s.changedPaths, changedPath)
+		}
 	} else {
 		s.Failed++
 	}
@@ -305,12 +316,15 @@ func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *
 
 func drainStream(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, stream *scheduler.Stream, stats *downloadStats, verbose bool) {
 	for i := range stream.Items {
-		success := downloadItem(ctx, dl, cfg, &stream.Items[i], verbose)
-		stats.recordItem(success)
+		success, changedPath := downloadItem(ctx, dl, cfg, &stream.Items[i], verbose)
+		stats.recordItem(success, changedPath)
 	}
 }
 
-func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, item *scheduler.Item, verbose bool) bool {
+// downloadItem attempts each candidate in quality-preference order and
+// returns whether the item was downloaded, and, on success, the item's
+// destination folder (movie folder, or season folder for a TV episode).
+func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, item *scheduler.Item, verbose bool) (bool, string) {
 	db := database.Get()
 
 	for j, candidate := range item.Candidates {
@@ -341,8 +355,61 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 		}
 
 		fmt.Printf("Downloaded: %s -> %s (%s)\n", item.DisplayName, result.FilePath, formatBytes(result.FileSize))
-		return true
+		return true, filepath.Clean(filepath.Dir(result.FilePath))
 	}
 
-	return false
+	return false, ""
+}
+
+// notifyJellyfin sends a single best-effort library-scan notification to
+// Jellyfin for this run's deduplicated changed paths. Jellyfin is contacted
+// only when it is enabled, configured with a base URL, and at least one path
+// was collected. A failure to notify (misconfiguration, timeout, unreachable
+// server, etc.) is logged as a warning and never affects the run's exit
+// status or reported statistics.
+func notifyJellyfin(ctx context.Context, cfg *config.Config, changedPaths []string) {
+	if !cfg.Jellyfin.Enabled {
+		return
+	}
+	if cfg.Jellyfin.URL == "" {
+		logger.AppLogger().Warn("jellyfin integration is enabled but no url is configured, skipping library scan notification")
+		return
+	}
+
+	paths := dedupePaths(changedPaths)
+	if len(paths) == 0 {
+		return
+	}
+
+	jellyfinClient := jellyfin.New(jellyfin.Config{
+		BaseURL: cfg.Jellyfin.URL,
+		APIKey:  cfg.Jellyfin.APIKey,
+		Logger:  logger.AppLogger(),
+	})
+
+	if err := jellyfinClient.NotifyPathsUpdated(ctx, paths); err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{
+			"error":      err,
+			"path_count": len(paths),
+		}).Warn("failed to notify jellyfin of library changes")
+	}
+}
+
+// dedupePaths cleans and deduplicates a set of collected paths, so a run with
+// multiple episodes of the same season reports that season's folder once.
+func dedupePaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(paths))
+	deduped := make([]string, 0, len(paths))
+	for _, p := range paths {
+		clean := filepath.Clean(p)
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		deduped = append(deduped, clean)
+	}
+	return deduped
 }

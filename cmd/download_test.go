@@ -230,10 +230,11 @@ func TestDownloadItem_QualityFallbackLoop(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success := downloadItem(context.Background(), dl, cfg, item, false)
+	success, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
 
 	require.True(t, success, "expected the second candidate to succeed")
 	require.EqualValues(t, 2, hits, "both candidates should have been attempted, no more")
+	require.Equal(t, tempDir, changedPath, "expected the item's destination folder to be reported")
 
 	var failedLine models.ProcessedLine
 	require.NoError(t, db.First(&failedLine, failingLine.ID).Error)
@@ -263,9 +264,10 @@ func TestDownloadItem_AllCandidatesFail(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success := downloadItem(context.Background(), dl, cfg, item, false)
+	success, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
 
 	require.False(t, success, "expected the item to be counted as failed, not crash")
+	require.Empty(t, changedPath, "a failed item must not report a changed path")
 }
 
 func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
@@ -292,7 +294,7 @@ func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success := downloadItem(context.Background(), dl, cfg, item, false)
+	success, _ := downloadItem(context.Background(), dl, cfg, item, false)
 
 	require.True(t, success)
 	require.EqualValues(t, 1, hits, "no further candidates should be attempted once one succeeds")
@@ -324,7 +326,7 @@ func TestDownloadItem_TaggedFilenameFromSucceedingCandidate(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success := downloadItem(context.Background(), dl, cfg, item, false)
+	success, _ := downloadItem(context.Background(), dl, cfg, item, false)
 
 	require.True(t, success)
 	require.FileExists(t, filepath.Join(tempDir, "Test Movie[1080p][MULTI][VFQ].mp4"))
@@ -363,7 +365,7 @@ func TestDownloadItem_TaggedFilenameFromSucceedingCandidateAfterFailure(t *testi
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success := downloadItem(context.Background(), dl, cfg, item, false)
+	success, _ := downloadItem(context.Background(), dl, cfg, item, false)
 
 	require.True(t, success)
 	require.FileExists(t, filepath.Join(tempDir, "Test Movie[1080p][MULTI].mp4"))

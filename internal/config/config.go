@@ -18,6 +18,7 @@ type Config struct {
 	TMDB      TMDBConfig      `mapstructure:"tmdb"`
 	Radarr    RadarrConfig    `mapstructure:"radarr"`
 	Sonarr    SonarrConfig    `mapstructure:"sonarr"`
+	Jellyfin  JellyfinConfig  `mapstructure:"jellyfin"`
 	Downloads DownloadsConfig `mapstructure:"downloads"`
 }
 
@@ -108,6 +109,13 @@ type SonarrConfig struct {
 	Enabled          bool   `mapstructure:"enabled"`
 	SyncInterval     int    `mapstructure:"sync_interval"`
 	QualityProfileID int    `mapstructure:"quality_profile_id"`
+}
+
+// JellyfinConfig holds Jellyfin integration settings
+type JellyfinConfig struct {
+	URL     string `mapstructure:"url"`
+	APIKey  string `mapstructure:"api_key"`
+	Enabled bool   `mapstructure:"enabled"`
 }
 
 // DownloadsConfig holds download settings
@@ -208,6 +216,10 @@ func Load() error {
 	viper.BindEnv("sonarr.sync_interval")
 	viper.BindEnv("sonarr.quality_profile_id")
 
+	bindEnvWithAlternatives("jellyfin.url", "JELLYFIN_URL")
+	bindEnvWithAlternatives("jellyfin.api_key", "JELLYFIN_API_KEY")
+	viper.BindEnv("jellyfin.enabled")
+
 	bindEnvWithAlternatives("downloads.movies_path", "MOVIES_PATH")
 	bindEnvWithAlternatives("downloads.tvshows_path", "TVSHOWS_PATH")
 	bindEnvWithAlternatives("downloads.temp_dir", "TEMP_DIR")
@@ -283,6 +295,9 @@ func setDefaults() {
 	viper.SetDefault("sonarr.enabled", false)
 	viper.SetDefault("sonarr.sync_interval", 3600)
 	viper.SetDefault("sonarr.quality_profile_id", 1)
+
+	// Jellyfin defaults
+	viper.SetDefault("jellyfin.enabled", false)
 
 	// Downloads defaults
 	viper.SetDefault("downloads.movies_path", "./data/downloads/movies")
