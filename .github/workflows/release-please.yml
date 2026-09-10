@@ -62,6 +62,7 @@ jobs:
             COMMIT=${{ steps.meta.outputs.commit }}
             DATE=${{ steps.meta.outputs.date }}
           tags: |
+            germainlefebvre4/stalkerr:${{ steps.meta.outputs.commit }}
             germainlefebvre4/stalkerr:${{ needs.release-please.outputs.tag_name }}
             germainlefebvre4/stalkerr:latest
 
@@ -91,5 +92,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
+            germainlefebvre4/stalkerr-frontend:${{ steps.meta.outputs.commit }}
             germainlefebvre4/stalkerr-frontend:${{ needs.release-please.outputs.tag_name }}
             germainlefebvre4/stalkerr-frontend:latest
