@@ -139,6 +139,23 @@ func TestSystemStatus_OneDependencyFailureDoesNotAffectOthers(t *testing.T) {
 	}
 }
 
+func TestSystemStatus_ReportsBuildMetadata(t *testing.T) {
+	setupTestDB(t)
+
+	originalVersion, originalCommit, originalDate := buildVersion, buildCommit, buildDate
+	SetBuildInfo("1.2.3", "abc1234", "2026-09-10_12:00:00")
+	defer func() { SetBuildInfo(originalVersion, originalCommit, originalDate) }()
+
+	newSystemStatusTestConfig(t, "", "", "", "")
+	server := NewServer()
+
+	resp := getSystemStatusResponse(t, server)
+
+	if resp.Version != "1.2.3" || resp.Commit != "abc1234" || resp.Date != "2026-09-10_12:00:00" {
+		t.Errorf("expected build metadata in response, got %+v", resp)
+	}
+}
+
 func TestSystemStatus_NotConfiguredSkipsOutboundCall(t *testing.T) {
 	setupTestDB(t)
 

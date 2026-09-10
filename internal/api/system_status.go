@@ -43,6 +43,24 @@ const (
 	reasonUnavailable  = "unavailable"
 )
 
+// buildVersion, buildCommit, and buildDate hold the running binary's build
+// metadata, set once at startup via SetBuildInfo (main can't be imported
+// here, since it imports this package).
+var (
+	buildVersion string
+	buildCommit  string
+	buildDate    string
+)
+
+// SetBuildInfo records the running binary's version, commit, and build date
+// so getSystemStatus can report them. Call once at startup before serving
+// requests.
+func SetBuildInfo(version, commit, date string) {
+	buildVersion = version
+	buildCommit = commit
+	buildDate = date
+}
+
 // ServiceStatus is the three-state reachability result for one dependency
 // (database, Radarr, Sonarr, or TMDB).
 type ServiceStatus struct {
@@ -70,6 +88,9 @@ type SystemStatusResponse struct {
 	Sonarr   ServiceStatus       `json:"sonarr"`
 	TMDB     ServiceStatus       `json:"tmdb"`
 	Disk     []DiskUsageResponse `json:"disk"`
+	Version  string              `json:"version"`
+	Commit   string              `json:"commit"`
+	Date     string              `json:"date"`
 }
 
 // statusCoder is implemented by each external client's status-check error
@@ -107,6 +128,9 @@ func (s *Server) getSystemStatus(c *gin.Context) {
 		Sonarr:   sonarrStatus,
 		TMDB:     tmdbStatus,
 		Disk:     toDiskUsageResponses(diskEntries),
+		Version:  buildVersion,
+		Commit:   buildCommit,
+		Date:     buildDate,
 	})
 }
 

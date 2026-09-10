@@ -64,6 +64,8 @@ filters, and statistics.`,
 
 		log.Info("Database connection established")
 
+		api.SetBuildInfo(version, commit, date)
+
 		// Create shutdown handler with 30 second timeout
 		shutdownHandler := shutdown.New(30 * time.Second)
 

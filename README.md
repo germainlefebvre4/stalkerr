@@ -749,6 +749,10 @@ Contributions are welcome! Please read our contributing guidelines (coming soon)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+### Commit / PR title format
+
+This repository only allows squash merges, so a pull request's title becomes its commit message on `main`. That title **must** follow the [Conventional Commits](https://www.conventionalcommits.org/) format (see [`.github/skills/git-commit/SKILL.md`](.github/skills/git-commit/SKILL.md) for the full type list and examples) - CI ([`commitlint.yml`](.github/workflows/commitlint.yml)) enforces this on every pull request, and the format drives automatic semantic-version bumps and changelog generation via [release-please](https://github.com/googleapis/release-please).
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
