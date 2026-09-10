@@ -9,6 +9,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/processor"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 )
 
 var enrichTVDBCmd = &cobra.Command{
@@ -57,7 +58,9 @@ TVShow records are deduplicated by TMDB ID to minimise API calls.`,
 		}
 		fmt.Println("Starting TVDB ID backfill...")
 
-		stats, err := processor.EnrichMissingTVDBIDs(db, tmdbClient, opts)
+		// Persist a durable run history entry, independent of whether metrics
+		// exposition is enabled.
+		stats, err := runEnrichTVDB(db, tmdbClient, opts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error during backfill: %v\n", err)
 			os.Exit(1)
@@ -76,4 +79,23 @@ func init() {
 	enrichTVDBCmd.Flags().Int("limit", 0, "maximum number of records to process (0 = no limit)")
 	enrichTVDBCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	rootCmd.AddCommand(enrichTVDBCmd)
+}
+
+// runEnrichTVDB executes a TVDB ID backfill, persisting its outcome to
+// job_runs (see startJobRun/finishJobRun) independent of whether Prometheus
+// metrics exposition is enabled. Counts accumulated before a fatal error are
+// still persisted on the job_runs entry.
+func runEnrichTVDB(db *gorm.DB, client *tmdb.Client, opts processor.EnrichTVDBOptions) (*processor.EnrichTVDBStats, error) {
+	jobRun, err := startJobRun(db, "enrich-tvdb")
+	if err != nil {
+		return nil, err
+	}
+
+	stats, err := processor.EnrichMissingTVDBIDs(db, client, opts)
+	if err != nil {
+		finishJobRun(db, jobRun, "failed", stats.Updated, stats.Errors, stats.Skipped, err.Error())
+		return stats, err
+	}
+	finishJobRun(db, jobRun, "success", stats.Updated, stats.Errors, stats.Skipped, "")
+	return stats, nil
 }

@@ -1,11 +1,13 @@
+# job-run-history Specification
+
 ## Purpose
 
-Persists a durable run history (status, duration, and outcome counts) for the `resume-downloads`, `enrich-tvdb`, and `backfill-metadata` commands, whose results are today only written to logs and lost once the process exits.
+Persists a durable run history (status, duration, and outcome counts) for the `resume-downloads` and `enrich-tvdb` commands, whose results are today only written to logs and lost once the process exits.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Per-Invocation Job Run Persisted
-For every invocation of `resume-downloads`, `enrich-tvdb`, or `backfill-metadata`, the system SHALL persist a `job_runs` entry recording: the action name, status (`success`, `failed`, or `in_progress`), start time, completion time, and the number of items the invocation succeeded on, failed on, and skipped.
+For every invocation of `resume-downloads` or `enrich-tvdb`, the system SHALL persist a `job_runs` entry recording: the action name, status (`success`, `failed`, or `in_progress`), start time, completion time, and the number of items the invocation succeeded on, failed on, and skipped.
 
 #### Scenario: A resume-downloads run records outcome counts
 - **WHEN** a `resume-downloads` invocation resumes 8 downloads successfully, fails to resume 2, and skips 1 already-complete download, then exits normally
@@ -16,7 +18,7 @@ For every invocation of `resume-downloads`, `enrich-tvdb`, or `backfill-metadata
 - **THEN** its `job_runs` entry records status `failed`, the succeeded/failed/skipped counts accumulated from those 6 items (not zero or null), and a non-empty error message
 
 #### Scenario: A running invocation is visible before completion
-- **WHEN** a `backfill-metadata` invocation is still running
+- **WHEN** a `resume-downloads` invocation is still running
 - **THEN** its `job_runs` entry exists with status `in_progress` and no completion time, from the moment the invocation starts
 
 ### Requirement: Job Run History Independent of Metrics Exposition
@@ -24,7 +26,7 @@ The system SHALL persist `job_runs` entries regardless of whether Prometheus met
 
 #### Scenario: History persists with metrics exposition disabled
 - **WHEN** `metrics.enabled` is `false` or unset
-- **THEN** a `resume-downloads`, `enrich-tvdb`, or `backfill-metadata` invocation still creates and finalizes its `job_runs` entry exactly as it would with metrics exposition enabled
+- **THEN** a `resume-downloads` or `enrich-tvdb` invocation still creates and finalizes its `job_runs` entry exactly as it would with metrics exposition enabled
 
 ### Requirement: Job Run Duration Derivable
 Each finalized `job_runs` entry SHALL record its start time and completion time, from which the run's duration can be derived.

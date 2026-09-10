@@ -719,6 +719,11 @@ func (p *Processor) updateProcessingLog(logEntry *models.ProcessingLog, status s
 	logEntry.TMDBMatchedCount = &tmdbMatched
 	logEntry.TMDBUnmatchedCount = &tmdbUnmatched
 
+	metadataBackfilled := stats.MetadataBackfilled
+	metadataBackfillErrors := stats.MetadataBackfillErrors
+	logEntry.MetadataBackfilledCount = &metadataBackfilled
+	logEntry.MetadataBackfillErrorsCount = &metadataBackfillErrors
+
 	groupTitles := make([]string, 0, len(stats.GroupTitles))
 	for title := range stats.GroupTitles {
 		groupTitles = append(groupTitles, title)

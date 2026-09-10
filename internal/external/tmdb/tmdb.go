@@ -295,6 +295,22 @@ func (e *StatusError) StatusCode() int {
 	return e.Code
 }
 
+// CircuitBreakerStatus reports the TMDB client's circuit breaker current
+// state and failure count.
+type CircuitBreakerStatus struct {
+	State    circuitbreaker.State
+	Failures uint
+}
+
+// CircuitBreakerStatus returns the current state and failure count of the
+// client's circuit breaker, for exposition (e.g. Prometheus metrics).
+func (c *Client) CircuitBreakerStatus() CircuitBreakerStatus {
+	return CircuitBreakerStatus{
+		State:    c.circuitBrk.State(),
+		Failures: c.circuitBrk.Failures(),
+	}
+}
+
 // SystemStatus performs a lightweight reachability check against TMDB by
 // requesting the configuration endpoint, which validates the API key without
 // consuming search quota. Unlike makeRequest, it bypasses the client's cache,

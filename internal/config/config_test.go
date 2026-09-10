@@ -54,6 +54,15 @@ func TestLoad_WithDefaults(t *testing.T) {
 	if config.Jellyfin.APIKey != "" {
 		t.Errorf("expected jellyfin.api_key to default to empty, got %q", config.Jellyfin.APIKey)
 	}
+	if config.Metrics.Enabled != false {
+		t.Errorf("expected metrics.enabled to default to false, got %v", config.Metrics.Enabled)
+	}
+	if config.Metrics.Port != 8081 {
+		t.Errorf("expected metrics.port to default to 8081, got %d", config.Metrics.Port)
+	}
+	if config.Metrics.Path != "/metrics" {
+		t.Errorf("expected metrics.path to default to '/metrics', got %q", config.Metrics.Path)
+	}
 }
 
 func TestLoad_MinFileSizeMBOverride(t *testing.T) {

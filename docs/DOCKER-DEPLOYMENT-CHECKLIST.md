@@ -65,6 +65,7 @@ Use this checklist when deploying Stalkeer with Docker.
 - [ ] Radarr URL and API key set (if using)
 - [ ] Sonarr URL and API key set (if using)
 - [ ] Volume paths correct
+- [ ] Prometheus metrics enabled if scraped externally (`METRICS_ENABLED=true`, see [DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md#prometheus-metrics-optional)) - disabled by default
 
 ### Docker Compose
 - [ ] Service dependencies correct
@@ -110,6 +111,7 @@ Use this checklist when deploying Stalkeer with Docker.
 
 ### Monitoring Setup
 - [ ] Container metrics collection: `docker stats`
+- [ ] Prometheus scraping `GET /metrics` on the admin port, if `METRICS_ENABLED=true`
 - [ ] Application logs centralized
 - [ ] Health check monitoring
 - [ ] Disk space monitoring

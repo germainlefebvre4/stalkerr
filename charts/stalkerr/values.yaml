@@ -140,7 +140,15 @@ config:
   # API server configuration
   api:
     port: 8080
-  
+
+  # Prometheus metrics exposition (optional): serves a GET /metrics endpoint on
+  # the admin port for an operator's own external monitoring stack to scrape.
+  # Disabled by default - the port is not opened at all when disabled.
+  metrics:
+    enabled: false
+    port: 8081
+    path: /metrics
+
   # TMDB integration
   tmdb:
     enabled: true

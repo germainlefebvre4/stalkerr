@@ -219,12 +219,38 @@ Records metrics for each processing run (see [`internal/models/log.go`](../inter
 | `new_items_count` | INTEGER | NULLABLE | New items created |
 | `tmdb_matched_count` | INTEGER | NULLABLE | Items matched via TMDB |
 | `tmdb_unmatched_count` | INTEGER | NULLABLE | Items not matched via TMDB |
+| `metadata_backfilled_count` | INTEGER | NULLABLE | Items updated by the run's rich-metadata backfill step (poster/overview/external IDs on legacy records) |
+| `metadata_backfill_errors_count` | INTEGER | NULLABLE | Items on which the rich-metadata backfill step errored |
 | `group_titles` | JSON | NOT NULL (nullable value) | List of group titles involved in the run |
 | `created_at` | TIMESTAMP | NOT NULL | Record creation time |
 | `updated_at` | TIMESTAMP | NOT NULL | Record update time |
 
 **Foreign Keys:**
 - `processed_lines.processing_log_id` → `processing_logs.id`
+
+Note: `metadata_backfilled_count`/`metadata_backfill_errors_count` are `NULL` on rows created before this column existed, not `0` - a `NULL` means "not tracked", `0` means "tracked and nothing changed".
+
+---
+
+### job_runs
+
+Records a durable run history entry for the standalone `resume-downloads` and `enrich-tvdb` CLI commands, whose outcomes were previously only logged and lost on process exit (see [`internal/models/job_run.go`](../internal/models/job_run.go)). Written unconditionally, independent of whether Prometheus metrics exposition is enabled.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PRIMARY KEY | Unique identifier |
+| `action` | VARCHAR(100) | NOT NULL | `resume-downloads` or `enrich-tvdb` |
+| `status` | VARCHAR(50) | NOT NULL | `success`, `failed`, or `in_progress` |
+| `started_at` | TIMESTAMP | NOT NULL | Run start time |
+| `completed_at` | TIMESTAMP | NULLABLE | Run completion time |
+| `succeeded_count` | INTEGER | NOT NULL, DEFAULT 0 | Items the invocation succeeded on |
+| `failed_count` | INTEGER | NOT NULL, DEFAULT 0 | Items the invocation failed on |
+| `skipped_count` | INTEGER | NOT NULL, DEFAULT 0 | Items the invocation skipped |
+| `error_message` | TEXT | NULLABLE | Error message, if any |
+| `created_at` | TIMESTAMP | NOT NULL | Record creation time |
+| `updated_at` | TIMESTAMP | NOT NULL | Record update time |
+
+A row is created with `status=in_progress` when the invocation starts and finalized (`success`/`failed`, with counts accumulated up to that point) when it completes or crashes.
 
 ---
 

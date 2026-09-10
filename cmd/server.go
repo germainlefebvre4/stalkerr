@@ -94,12 +94,22 @@ filters, and statistics.`,
 			}
 		}()
 
+		// Start the Prometheus metrics listener only when enabled, on a
+		// separate port so it is entirely absent (not merely unauthenticated)
+		// when disabled - see the prometheus-metrics spec.
+		metricsErr := maybeStartMetricsServer(cfg, server, shutdownHandler, log, address)
+
 		// Wait for shutdown signal or server error
 		select {
 		case err := <-serverErr:
 			log.WithFields(map[string]interface{}{
 				"error": err,
 			}).Error("server error", err)
+			os.Exit(1)
+		case err := <-metricsErr:
+			log.WithFields(map[string]interface{}{
+				"error": err,
+			}).Error("metrics server error", err)
 			os.Exit(1)
 		case <-time.After(100 * time.Millisecond):
 			// Server started successfully, wait for shutdown signal
@@ -114,4 +124,31 @@ func init() {
 	serverCmd.Flags().IntP("port", "p", 8080, "port to run the server on")
 	serverCmd.Flags().StringP("address", "a", "0.0.0.0", "address to bind the server to")
 	rootCmd.AddCommand(serverCmd)
+}
+
+// maybeStartMetricsServer starts the Prometheus metrics listener in a
+// background goroutine and registers its shutdown, only when
+// cfg.Metrics.Enabled. When disabled, it is a no-op and returns a channel
+// that never receives - the metrics port is never opened at all, not merely
+// unauthenticated (see the prometheus-metrics spec's "absent when disabled"
+// requirement).
+func maybeStartMetricsServer(cfg *config.Config, server *api.Server, shutdownHandler *shutdown.Handler, log *logger.Logger, address string) <-chan error {
+	errCh := make(chan error, 1)
+	if !cfg.Metrics.Enabled {
+		return errCh
+	}
+
+	shutdownHandler.Register(func(ctx context.Context) error {
+		log.Info("Shutting down metrics HTTP server")
+		return server.ShutdownMetrics(ctx)
+	})
+
+	go func() {
+		log.Info(fmt.Sprintf("Metrics server listening on http://%s:%d%s", address, cfg.Metrics.Port, cfg.Metrics.Path))
+
+		if err := server.RunMetrics(cfg.Metrics.Port, cfg.Metrics.Path); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+	return errCh
 }

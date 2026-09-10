@@ -20,7 +20,7 @@ The system SHALL accept `metrics.enabled` (boolean, default `false`), `metrics.p
 - **THEN** a `GET` request to `metrics.path` on `metrics.port` SHALL return a `200 OK` response with a Prometheus text-exposition-format body
 
 ### Requirement: Job Run Status and Duration Exposed Per Action
-When enabled, the metrics endpoint SHALL expose, for each recognized action (`process`, `download`, `m3u-download`, `resume-downloads`, `enrich-tvdb`, `backfill-metadata`), the status and duration of that action's most recent run — sourced from `processing_logs` for the first three actions and from `job_runs` (see the `job-run-history` capability) for the latter three — under one shared metric namespace regardless of source table.
+When enabled, the metrics endpoint SHALL expose, for each recognized action (`process`, `download`, `m3u-download`, `resume-downloads`, `enrich-tvdb`), the status and duration of that action's most recent run — sourced from `processing_logs` for the first three actions and from `job_runs` (see the `job-run-history` capability) for the latter two — under one shared metric namespace regardless of source table.
 
 #### Scenario: Last run status exposed
 - **WHEN** the most recent `process` run completed with status `success`
@@ -44,6 +44,10 @@ When enabled, the metrics endpoint SHALL expose, for each action, its processed/
 #### Scenario: Snapshot reflects only the latest run
 - **WHEN** action `process`'s most recent run processed 12 items, following a prior run that processed 40
 - **THEN** the snapshot metric for that action's processed-item count reflects `12`, not `52`
+
+#### Scenario: Process action's counts include its metadata-backfill outcome
+- **WHEN** the most recent `process` run's internal metadata-backfill step updated 5 items and failed on 1
+- **THEN** the metrics endpoint exposes those 5 updated / 1 error counts as part of action `process`'s item counts, alongside its movies/TV-shows/TMDB-match counts
 
 ### Requirement: Downloads Exposed by Status
 When enabled, the metrics endpoint SHALL expose the current count of tracked downloads grouped by status, and the current total bytes downloaded across all tracked downloads.

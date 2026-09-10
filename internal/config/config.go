@@ -20,6 +20,7 @@ type Config struct {
 	Sonarr    SonarrConfig    `mapstructure:"sonarr"`
 	Jellyfin  JellyfinConfig  `mapstructure:"jellyfin"`
 	Downloads DownloadsConfig `mapstructure:"downloads"`
+	Metrics   MetricsConfig   `mapstructure:"metrics"`
 }
 
 // DatabaseConfig holds database connection settings
@@ -154,6 +155,13 @@ type JellyfinConfig struct {
 	Enabled bool   `mapstructure:"enabled"`
 }
 
+// MetricsConfig holds Prometheus metrics exposition settings
+type MetricsConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Port    int    `mapstructure:"port"`
+	Path    string `mapstructure:"path"`
+}
+
 // DownloadsConfig holds download settings
 type DownloadsConfig struct {
 	MoviesPath              string `mapstructure:"movies_path"`
@@ -257,6 +265,10 @@ func Load() error {
 	bindEnvWithAlternatives("jellyfin.url", "JELLYFIN_URL")
 	bindEnvWithAlternatives("jellyfin.api_key", "JELLYFIN_API_KEY")
 	viper.BindEnv("jellyfin.enabled")
+
+	viper.BindEnv("metrics.enabled")
+	viper.BindEnv("metrics.port")
+	viper.BindEnv("metrics.path")
 
 	bindEnvWithAlternatives("downloads.movies_path", "MOVIES_PATH")
 	bindEnvWithAlternatives("downloads.tvshows_path", "TVSHOWS_PATH")
@@ -363,6 +375,11 @@ func setDefaults() {
 
 	// API defaults
 	viper.SetDefault("api.port", 8080)
+
+	// Metrics defaults
+	viper.SetDefault("metrics.enabled", false)
+	viper.SetDefault("metrics.port", 8081)
+	viper.SetDefault("metrics.path", "/metrics")
 }
 
 func validate() error {

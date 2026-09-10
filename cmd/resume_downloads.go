@@ -13,6 +13,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/shutdown"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 )
 
 var resumeDownloadsCmd = &cobra.Command{
@@ -112,8 +113,9 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 			opts.ContentType = &normalized
 		}
 
-		// Resume downloads
-		stats, err := helper.ResumeDownloads(ctx, opts)
+		// Resume downloads, persisting a durable run history entry independent
+		// of whether metrics exposition is enabled.
+		stats, err := runResumeDownloads(ctx, database.Get(), helper, opts)
 		if err != nil {
 			log.WithFields(map[string]interface{}{
 				"error": err,
@@ -146,6 +148,24 @@ func init() {
 	resumeDownloadsCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	resumeDownloadsCmd.Flags().String("service", "all", "filter by service type: all, radarr, sonarr")
 	rootCmd.AddCommand(resumeDownloadsCmd)
+}
+
+// runResumeDownloads executes a resume-downloads operation, persisting its
+// outcome to job_runs (see startJobRun/finishJobRun) independent of whether
+// Prometheus metrics exposition is enabled.
+func runResumeDownloads(ctx context.Context, db *gorm.DB, helper *downloader.ResumeHelper, opts downloader.ResumeOptions) (*downloader.ResumeStats, error) {
+	jobRun, err := startJobRun(db, "resume-downloads")
+	if err != nil {
+		return nil, err
+	}
+
+	stats, err := helper.ResumeDownloads(ctx, opts)
+	if err != nil {
+		finishJobRun(db, jobRun, "failed", stats.Resumed, stats.Failed, stats.Skipped, err.Error())
+		return stats, err
+	}
+	finishJobRun(db, jobRun, "success", stats.Resumed, stats.Failed, stats.Skipped, "")
+	return stats, nil
 }
 
 func normalizeServiceFilter(service string) (string, error) {

@@ -182,6 +182,8 @@ Resume operation completed:
   Duration: 2m34s
 ```
 
+Each invocation also persists these counts (as `succeeded`/`failed`/`skipped`), its status, and its start/completion time to the `job_runs` table (see [DATABASE.md](DATABASE.md#job_runs)) - independent of whether Prometheus metrics exposition is enabled. When metrics exposition is enabled, this history is also exposed via `GET /metrics` (see [DOCKER-DEPLOYMENT.md](DOCKER-DEPLOYMENT.md#prometheus-metrics-optional)).
+
 ### Common Issues
 
 **Issue**: Downloads not resuming

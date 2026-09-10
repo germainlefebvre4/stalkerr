@@ -86,9 +86,22 @@ DB_SSLMODE=disable           # SSL mode (use 'require' in production)
 
 ```bash
 API_PORT=8080                # API server port
+ADMIN_PORT=8081              # Admin port (Prometheus metrics, when enabled - see below)
 LOG_LEVEL=info              # Log level: debug, info, warn, error
 TMDB_API_KEY=               # TMDB API key for metadata enrichment
 ```
+
+### Prometheus Metrics (optional)
+
+Disabled by default - when disabled, nothing listens on `ADMIN_PORT` at all.
+
+```bash
+METRICS_ENABLED=false        # Set to true to expose GET /metrics on ADMIN_PORT
+METRICS_PORT=8081            # Metrics listener port (defaults to the same value as ADMIN_PORT)
+METRICS_PATH=/metrics        # Metrics endpoint path
+```
+
+Once enabled, `curl http://localhost:${ADMIN_PORT}${METRICS_PATH}` returns job-run status/duration, download counts, and TMDB circuit-breaker signals in Prometheus text format for an operator's own monitoring stack to scrape. See [DATABASE.md](DATABASE.md#job_runs) for the underlying `job_runs`/`processing_logs` history these metrics are derived from.
 
 ### External Services
 

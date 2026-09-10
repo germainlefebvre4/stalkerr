@@ -101,7 +101,13 @@ data:
     # API configuration
     api:
       port: {{ .Values.config.api.port }}
-    
+
+    # Prometheus metrics exposition
+    metrics:
+      enabled: {{ .Values.config.metrics.enabled }}
+      port: {{ .Values.config.metrics.port }}
+      path: {{ .Values.config.metrics.path | quote }}
+
     # TMDB integration
     tmdb:
       enabled: {{ .Values.config.tmdb.enabled }}

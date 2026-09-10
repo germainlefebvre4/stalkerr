@@ -9,16 +9,22 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
+	"github.com/glefebvre/stalkeer/internal/metrics"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Server represents the API server
 type Server struct {
-	router     *gin.Engine
-	httpServer *http.Server
-	tmdbClient *tmdb.Client
-	downloader *downloader.Downloader
+	router          *gin.Engine
+	httpServer      *http.Server
+	metricsServer   *http.Server
+	tmdbClient      *tmdb.Client
+	downloader      *downloader.Downloader
+	metricsRegistry *prometheus.Registry
 }
 
 // NewServer creates a new API server instance
@@ -48,6 +54,9 @@ func NewServer() *Server {
 		})
 	}
 
+	metricsRegistry := prometheus.NewRegistry()
+	metricsRegistry.MustRegister(metrics.New(database.Get(), tmdbClient))
+
 	s := &Server{
 		router:     router,
 		tmdbClient: tmdbClient,
@@ -56,6 +65,7 @@ func NewServer() *Server {
 			cfg.Downloads.RetryAttempts,
 			cfg.Downloads.MinFileSizeMB,
 		),
+		metricsRegistry: metricsRegistry,
 	}
 
 	s.setupRoutes()
@@ -85,6 +95,35 @@ func (s *Server) Run(port int) error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)
+	}
+	return nil
+}
+
+// RunMetrics starts the Prometheus metrics exposition listener on the given
+// port and path. This is a separate HTTP server from the main API router (see
+// design.md's "second, independently-toggleable HTTP listener" decision) so
+// that leaving metrics disabled means this port is never opened at all - not
+// merely unauthenticated. Callers should only invoke this when metrics
+// exposition is enabled.
+func (s *Server) RunMetrics(port int, path string) error {
+	mux := http.NewServeMux()
+	mux.Handle(path, promhttp.HandlerFor(s.metricsRegistry, promhttp.HandlerOpts{}))
+
+	s.metricsServer = &http.Server{
+		Addr:         fmt.Sprintf(":%d", port),
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	return s.metricsServer.ListenAndServe()
+}
+
+// ShutdownMetrics gracefully shuts down the metrics listener, if it was started.
+func (s *Server) ShutdownMetrics(ctx context.Context) error {
+	if s.metricsServer != nil {
+		return s.metricsServer.Shutdown(ctx)
 	}
 	return nil
 }

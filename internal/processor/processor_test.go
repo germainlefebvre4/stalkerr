@@ -615,6 +615,60 @@ http://example.com/show1.mkv`
 	}
 }
 
+// TestUpdateProcessingLogPersistsMetadataBackfillCounts verifies that a run's
+// rich-metadata backfill outcome (BackfillStats.Updated/Errors, folded into
+// Statistics.MetadataBackfilled/MetadataBackfillErrors by Process) is
+// persisted onto that run's processing_logs entry as non-null counts.
+func TestUpdateProcessingLogPersistsMetadataBackfillCounts(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	setupTestDB(t)
+	defer teardownTestDB(t)
+
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
+http://example.com/movie1.mkv`
+
+	proc, err := NewProcessor(createTestM3U(t, content), "default")
+	if err != nil {
+		t.Fatalf("NewProcessor failed: %v", err)
+	}
+
+	logEntry := &models.ProcessingLog{
+		Action:    "process_m3u",
+		Status:    "in_progress",
+		StartedAt: time.Now(),
+	}
+	if err := proc.db.Create(logEntry).Error; err != nil {
+		t.Fatalf("failed to create processing log: %v", err)
+	}
+
+	stats := &Statistics{
+		Processed:              1,
+		Movies:                 1,
+		MetadataBackfilled:     5,
+		MetadataBackfillErrors: 1,
+		GroupTitles:            map[string]struct{}{"ACTION-FR": {}},
+	}
+
+	proc.updateProcessingLog(logEntry, "success", stats, "")
+
+	db := database.Get()
+	var log models.ProcessingLog
+	if err := db.First(&log, logEntry.ID).Error; err != nil {
+		t.Fatalf("failed to reload processing log: %v", err)
+	}
+
+	if log.MetadataBackfilledCount == nil || *log.MetadataBackfilledCount != 5 {
+		t.Errorf("expected MetadataBackfilledCount 5, got %v", log.MetadataBackfilledCount)
+	}
+	if log.MetadataBackfillErrorsCount == nil || *log.MetadataBackfillErrorsCount != 1 {
+		t.Errorf("expected MetadataBackfillErrorsCount 1, got %v", log.MetadataBackfillErrorsCount)
+	}
+}
+
 func TestProcessingLogPersistsPartialStatisticsOnFailure(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
