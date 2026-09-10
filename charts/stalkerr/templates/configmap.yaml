@@ -105,6 +105,12 @@ data:
       sync_interval: {{ .Values.config.sonarr.sync_interval }}
       quality_profile_id: {{ .Values.config.sonarr.quality_profile_id }}
       # api_key: injected via STALKERR_SONARR_API_KEY env var
+
+    # Jellyfin integration
+    jellyfin:
+      enabled: {{ .Values.config.jellyfin.enabled }}
+      url: {{ .Values.config.jellyfin.url }}
+      api_key: {{ .Values.config.jellyfin.api_key | quote }}
     
     # Download configuration
     downloads:
