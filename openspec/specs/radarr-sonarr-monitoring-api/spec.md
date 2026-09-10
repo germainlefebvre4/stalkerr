@@ -94,11 +94,26 @@ The system SHALL expose an endpoint reporting the total number of Radarr-monitor
 - **THEN** it SHALL determine match status using only the local playlist database (as the existing per-page match computation does), without additional live Radarr calls beyond fetching the monitored movie list
 
 ### Requirement: Sonarr monitored series total count without per-series fan-out
-The system SHALL expose the total number of Sonarr-monitored series without fetching each series' episode list from Sonarr.
+The system SHALL expose the total number of Sonarr-monitored series without fetching each series' episode list from Sonarr. This no-fan-out constraint applies only to the monitored total; the matched count reported alongside it is computed separately per the "Sonarr full-catalog matched series stats" requirement, which is explicitly permitted to consult and populate the Sonarr match-status cache.
 
 #### Scenario: Total count avoids per-series episode fetches
 - **WHEN** the Sonarr monitored-series total is requested
 - **THEN** the system SHALL derive it from the monitored series listing alone, without issuing an additional Sonarr episode-list request per series
+
+### Requirement: Sonarr full-catalog matched series stats via match-status cache
+The system SHALL expose, alongside the Sonarr monitored-series total, the count of those monitored series with at least one matched monitored episode (as defined by the match-status filter's per-series matched/unmatched semantics), computed over the entire monitored catalog by consulting the Sonarr match-status cache.
+
+#### Scenario: Stats reflect the full monitored catalog
+- **WHEN** the stats endpoint is called
+- **THEN** it SHALL return both the total monitored series count and the matched-series count, both computed over every currently monitored series, not just one page
+
+#### Scenario: A series counts as matched with at least one matched episode
+- **WHEN** the stats endpoint computes the matched-series count
+- **THEN** a series SHALL count as matched when at least one of its monitored episodes has a playlist match, matching the semantics already used by the Séries match-status filter
+
+#### Scenario: Episode fetch failure during stats computation
+- **WHEN** fetching a monitored series' episodes from Sonarr fails while computing the matched-series count
+- **THEN** the stats endpoint SHALL report the Sonarr section as unreachable (the same `sonarr_error` used elsewhere for Sonarr connectivity failures) rather than returning a partial or incorrect matched count, without affecting the Radarr section of the same response
 
 ### Requirement: List Sonarr monitored series with per-series playlist match aggregate
 The system SHALL expose a paginated endpoint that lists every series currently monitored in Sonarr, each annotated with an aggregate count of how many of its monitored episodes have a matching entry in the local playlist database (e.g. "8 of 12 monitored episodes matched").
@@ -167,14 +182,14 @@ A failure to reach Radarr SHALL NOT affect the Sonarr listing endpoint's ability
 - **THEN** the corresponding listing endpoint SHALL return a response indicating the service is not configured, distinguishable from an upstream connectivity failure
 
 ### Requirement: No caching or persistence of monitoring results, except the Sonarr match-status filter cache
-Results SHALL be computed fresh on every request to these endpoints; the system SHALL NOT persist Radarr/Sonarr monitored items, occurrence counts, or Radarr match status between requests. The sole exception is an in-memory, per-process cache of each Sonarr-monitored series' matched/unmatched status, used only to serve the match-status filter without a full per-series episode fan-out on every filtered request.
+Results SHALL be computed fresh on every request to these endpoints; the system SHALL NOT persist Radarr/Sonarr monitored items, occurrence counts, or Radarr match status between requests. The sole exception is an in-memory, per-process cache of each Sonarr-monitored series' matched/unmatched status, used to serve the match-status filter and the Sonarr full-catalog matched-count stat without a full per-series episode fan-out on every request once warm.
 
 #### Scenario: Repeated request after upstream state changes
 - **WHEN** the same listing endpoint is called twice, and Radarr/Sonarr's monitored catalog changed between the two calls
 - **THEN** the second response SHALL reflect the updated catalog without requiring any cache invalidation step, except for Sonarr matched/unmatched status as covered by the match-status cache requirement
 
 ### Requirement: Sonarr match-status cache backs the match-status filter
-The system SHALL maintain an in-memory, per-process cache mapping each Sonarr-monitored series to its matched/unmatched status (as defined by the match-status filter requirement), populated lazily and invalidated only by the existing manual refresh action for the Séries section - never by a background timer or scheduled job.
+The system SHALL maintain an in-memory, per-process cache mapping each Sonarr-monitored series to its matched/unmatched status (as defined by the match-status filter requirement), shared by the match-status filter and the Sonarr full-catalog matched-count stats endpoint, populated lazily and invalidated only by the existing manual refresh action for the Séries section - never by a background timer or scheduled job.
 
 #### Scenario: Cache miss on first filtered request
 - **WHEN** a match-status-filtered Sonarr listing request is made and a monitored series has no cached status (or its cached status was invalidated)
@@ -183,6 +198,14 @@ The system SHALL maintain an in-memory, per-process cache mapping each Sonarr-mo
 #### Scenario: Cache hit on subsequent filtered requests
 - **WHEN** a match-status-filtered Sonarr listing request is made for a series whose status is already cached
 - **THEN** the system SHALL use the cached status without an additional Sonarr episode-list fetch for that series
+
+#### Scenario: Stats endpoint populates the cache on a cold start
+- **WHEN** the Sonarr full-catalog matched-count stat is requested and one or more monitored series have no cached status
+- **THEN** the system SHALL compute those series' matched/unmatched status by fetching their episodes from Sonarr, store each result in the cache, and use it to compute the matched count
+
+#### Scenario: Stats endpoint reuses a warm cache
+- **WHEN** the Sonarr full-catalog matched-count stat is requested and every monitored series already has a cached status
+- **THEN** the system SHALL compute the matched count entirely from the cache, without issuing any additional Sonarr episode-list requests
 
 #### Scenario: Manual refresh invalidates the cache
 - **WHEN** the user triggers the Séries section's manual refresh action

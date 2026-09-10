@@ -425,16 +425,20 @@ type RadarrSonarrStatsResponse struct {
 	RadarrMatched   *int   `json:"radarr_matched"`
 	RadarrError     string `json:"radarr_error,omitempty"`
 	SonarrMonitored *int   `json:"sonarr_monitored"`
+	SonarrMatched   *int   `json:"sonarr_matched"`
 	SonarrError     string `json:"sonarr_error,omitempty"`
 }
 
 // listRadarrSonarrStats handles GET /api/v1/radarr-sonarr/stats, reporting
-// full-catalog Radarr matched/unmatched counts and the Sonarr monitored-series
-// total for the Résumé sub-tab. Unlike the paginated listing endpoints, the
-// Radarr matched count is computed over the entire monitored list in a single
-// batch: Radarr matching only touches the local DB, so this is one query, not
-// an upstream fan-out. The Sonarr total intentionally skips per-series episode
-// fetches (see radarr-sonarr-monitoring-api spec).
+// full-catalog Radarr and Sonarr matched/unmatched counts for the Résumé
+// sub-tab. The Radarr matched count is computed over the entire monitored
+// list in a single batch: Radarr matching only touches the local DB, so this
+// is one query, not an upstream fan-out. The Sonarr monitored total itself
+// still never triggers per-series Sonarr calls, but the Sonarr matched count
+// resolves each monitored series' status via sonarrMatchCache (concurrently,
+// populating the cache on a miss), so a cold cache pays a one-time full
+// fan-out while a warm cache costs nothing extra (see
+// radarr-sonarr-monitoring-api spec).
 func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
 	defer cancel()
@@ -493,8 +497,43 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 		if allSeries, err := sonarrClient.GetAllMonitoredSeries(ctx); err != nil {
 			resp.SonarrError = "sonarr_unreachable"
 		} else {
-			monitoredCount := len(allSeries)
-			resp.SonarrMonitored = &monitoredCount
+			db := database.Get()
+
+			type statusResult struct {
+				matched bool
+				err     error
+			}
+			statuses := make([]statusResult, len(allSeries))
+			var wg sync.WaitGroup
+			for i, series := range allSeries {
+				wg.Add(1)
+				go func(i int, series sonarr.Series) {
+					defer wg.Done()
+					matched, err := sonarrMatchCache.matchedStatus(ctx, sonarrClient, db, series)
+					statuses[i] = statusResult{matched: matched, err: err}
+				}(i, series)
+			}
+			wg.Wait()
+
+			matchedCount := 0
+			failed := false
+			for _, st := range statuses {
+				if st.err != nil {
+					failed = true
+					break
+				}
+				if st.matched {
+					matchedCount++
+				}
+			}
+
+			if failed {
+				resp.SonarrError = "sonarr_unreachable"
+			} else {
+				monitoredCount := len(allSeries)
+				resp.SonarrMonitored = &monitoredCount
+				resp.SonarrMatched = &matchedCount
+			}
 		}
 	}
 

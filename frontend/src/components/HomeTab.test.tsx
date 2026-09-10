@@ -125,11 +125,61 @@ describe('HomeTab', () => {
         radarr_matched: null,
         radarr_error: 'radarr_unreachable',
         sonarr_monitored: 42,
+        sonarr_matched: null,
       },
     });
 
     expect(screen.getByText('Failed to reach Radarr. Please try again.', { exact: false })).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('Failed', { selector: '.badge' })).toBeInTheDocument();
+    expect(screen.getByText('Success', { selector: '.badge' })).toBeInTheDocument();
+  });
+
+  it('renders the Sonarr matched count and progress bar when sonarr_matched is present', () => {
+    renderHomeTab({
+      radarrSonarrStats: {
+        radarr_monitored: 10,
+        radarr_matched: 5,
+        sonarr_monitored: 8,
+        sonarr_matched: 6,
+      },
+    });
+
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('6')).toBeInTheDocument();
+
+    const indicators = document.querySelectorAll('.progress-indicator');
+    const widths = Array.from(indicators).map(el => (el as HTMLElement).style.width);
+    expect(widths).toContain('75%');
+  });
+
+  it('falls back to a dash and a zero-width progress bar when sonarr_matched is null', () => {
+    renderHomeTab({
+      radarrSonarrStats: {
+        radarr_monitored: 10,
+        radarr_matched: 5,
+        sonarr_monitored: 8,
+        sonarr_matched: null,
+      },
+    });
+
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getAllByText('-').length).toBeGreaterThan(0);
+  });
+
+  it('still renders the Sonarr error state unchanged when sonarr_error is set, without hiding a successful Radarr section', () => {
+    renderHomeTab({
+      radarrSonarrStats: {
+        radarr_monitored: 10,
+        radarr_matched: 5,
+        sonarr_monitored: null,
+        sonarr_matched: null,
+        sonarr_error: 'sonarr_unreachable',
+      },
+    });
+
+    expect(screen.getByText('Failed to reach Sonarr. Please try again.', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
     expect(screen.getByText('Failed', { selector: '.badge' })).toBeInTheDocument();
     expect(screen.getByText('Success', { selector: '.badge' })).toBeInTheDocument();
   });
@@ -230,7 +280,7 @@ describe('HomeTab mobile layout', () => {
     vi.mocked(useIsMobile).mockReturnValue(true);
     renderHomeTab({
       latestLog: completedLog,
-      radarrSonarrStats: { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 },
+      radarrSonarrStats: { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: 3 },
     });
 
     // The Downloads & Errors card's badge conveys the errors count itself (not a card

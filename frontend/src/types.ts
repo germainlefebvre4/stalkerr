@@ -220,6 +220,7 @@ export interface RadarrSonarrStats {
   radarr_matched: number | null;
   radarr_error?: string;
   sonarr_monitored: number | null;
+  sonarr_matched: number | null;
   sonarr_error?: string;
 }
 

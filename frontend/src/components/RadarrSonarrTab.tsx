@@ -248,6 +248,10 @@ export function RadarrSonarrTab({
     ? Math.round((stats.radarr_matched / stats.radarr_monitored) * 100)
     : 0;
 
+  const sonarrMatchedRatio = stats && stats.sonarr_monitored && stats.sonarr_matched !== null
+    ? Math.round((stats.sonarr_matched / stats.sonarr_monitored) * 100)
+    : 0;
+
   return (
     <Tabs.Content value="radarr-sonarr" className="card tab-panel">
       <Tabs.Root value={activeSubTab} onValueChange={(value) => setActiveSubTab(value as 'resume' | 'radarr' | 'sonarr')}>
@@ -327,6 +331,15 @@ export function RadarrSonarrTab({
                 <>
                   <div className="home-card-hero">{stats?.sonarr_monitored ?? '-'}</div>
                   <div className="home-card-hero-label">{t('resume.monitored')}</div>
+                  <div className="home-fields">
+                    <div className="home-secondary-grid">
+                      <div><strong>{stats?.sonarr_matched ?? '-'}</strong> {t('resume.matched')}</div>
+                      <div><strong>{stats && stats.sonarr_monitored !== null && stats.sonarr_matched !== null ? stats.sonarr_monitored - stats.sonarr_matched : '-'}</strong> {t('resume.unmatched')}</div>
+                    </div>
+                    <Progress.Root value={sonarrMatchedRatio} className="progress-root">
+                      <Progress.Indicator className="progress-indicator" style={{ width: `${sonarrMatchedRatio}%` }} />
+                    </Progress.Root>
+                  </div>
                 </>
               )}
             </div>

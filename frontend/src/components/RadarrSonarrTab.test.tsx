@@ -93,7 +93,7 @@ function renderTab(overrides: Overrides = {}) {
 
 describe('RadarrSonarrTab sub-tabs', () => {
   it('defaults to the Summary sub-tab and shows the monitoring summary', () => {
-    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 };
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
     renderTab({ stats });
 
     expect(screen.getByText('10')).toBeInTheDocument();
@@ -102,23 +102,47 @@ describe('RadarrSonarrTab sub-tabs', () => {
   });
 
   it('shows a success-styled status badge and matched-ratio progress bar for Radarr, and a success badge for Sonarr', () => {
-    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5 };
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
     renderTab({ stats });
 
     const successBadges = screen.getAllByText('Success');
     expect(successBadges).toHaveLength(2);
     successBadges.forEach(badge => expect(badge.className).toContain('badge-success'));
 
-    const indicator = document.querySelector('.progress-indicator') as HTMLElement;
-    expect(indicator.style.width).toBe('70%');
+    const indicators = document.querySelectorAll('.progress-indicator');
+    const widths = Array.from(indicators).map(el => (el as HTMLElement).style.width);
+    expect(widths).toContain('70%');
   });
 
   it('shows a failure-styled status badge for the failing service while the other stays success', () => {
-    const stats: RadarrSonarrStats = { radarr_monitored: null, radarr_matched: null, radarr_error: 'radarr_unreachable', sonarr_monitored: 5 };
+    const stats: RadarrSonarrStats = { radarr_monitored: null, radarr_matched: null, radarr_error: 'radarr_unreachable', sonarr_monitored: 5, sonarr_matched: null };
     renderTab({ stats });
 
     expect(screen.getByText('Failed').className).toContain('badge-failed');
     expect(screen.getByText('Success').className).toContain('badge-success');
+  });
+
+  it('renders the Sonarr matched/unmatched breakdown and progress bar when sonarr_matched is present', () => {
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 8, sonarr_matched: 6 };
+    renderTab({ stats });
+
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('6')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+
+    const indicators = document.querySelectorAll('.progress-indicator');
+    const widths = Array.from(indicators).map(el => (el as HTMLElement).style.width);
+    expect(widths).toContain('75%');
+  });
+
+  it('falls back to the total-only display for the Sonarr card when sonarr_matched is null, without breaking the Radarr card', () => {
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
+    renderTab({ stats });
+
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getAllByText('-').length).toBeGreaterThan(0);
   });
 
   it('switching to the Sonarr sub-tab shows Séries content and hides Films', () => {

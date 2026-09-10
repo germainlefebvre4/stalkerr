@@ -160,16 +160,16 @@ The Séries table SHALL include a column showing each series' total playlist occ
 - **WHEN** a series has zero monitored episodes with a playlist match
 - **THEN** the Occurrences column SHALL display 0
 
-### Requirement: Résumé sub-tab shows a monitoring summary
-The Résumé sub-tab SHALL display, for Radarr, the total number of monitored movies and how many of them are matched vs. unmatched in the local playlist, computed across the full monitored catalog; and, for Sonarr, the total number of monitored series only, without a matched/unmatched breakdown. Each service's card SHALL display that service's existing brand icon alongside a status badge reflecting whether it loaded successfully or reported an error, matching the same status-badge, hero-metric, and progress-bar presentation used by the Home dashboard's Radarr/Sonarr summary card. The Radarr card SHALL render its matched-vs-monitored ratio as a progress bar alongside the numeric counts.
+### Requirement: Résumé sub-tab shows matched-vs-monitored summaries for both services
+The Résumé sub-tab SHALL display, for both Radarr and Sonarr, the total number of monitored items and how many of them are matched vs. unmatched in the local playlist, computed across the full monitored catalog (for Sonarr, a series counts as matched when at least one of its monitored episodes has a playlist match). Each service's card SHALL display that service's existing brand icon alongside a status badge reflecting whether it loaded successfully or reported an error, matching the same status-badge, hero-metric, and progress-bar presentation used by the Home dashboard's Radarr/Sonarr summary card. Both the Radarr and Sonarr cards SHALL render their matched-vs-monitored ratio as a progress bar alongside the numeric counts.
 
 #### Scenario: Radarr summary shows full-catalog matched/unmatched counts
 - **WHEN** the user opens the Résumé sub-tab
 - **THEN** it SHALL display the total count of Radarr-monitored movies as the card's hero metric, the count of those matched vs. unmatched, a matched-ratio progress bar, and a success-styled status badge alongside the Radarr icon, reflecting the entire monitored catalog
 
-#### Scenario: Sonarr summary shows only a total count
+#### Scenario: Sonarr summary shows full-catalog matched/unmatched counts
 - **WHEN** the user opens the Résumé sub-tab
-- **THEN** it SHALL display the total count of Sonarr-monitored series as the card's hero metric, without a matched/unmatched breakdown, alongside a success-styled status badge and the Sonarr icon
+- **THEN** it SHALL display the total count of Sonarr-monitored series as the card's hero metric, the count of those with at least one matched monitored episode vs. those with none, a matched-ratio progress bar, and a success-styled status badge alongside the Sonarr icon, reflecting the entire monitored catalog
 
 #### Scenario: One summary source failing does not block the other
 - **WHEN** the Radarr summary data fails to load

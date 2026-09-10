@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -338,15 +339,16 @@ func TestListSonarrMonitoredSeries_Search(t *testing.T) {
 
 func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
 	db := setupTestDB(t)
+	sonarrMatchCache.clear()
 
 	const catalogSize = 45 // larger than one page (radarrSonarrDefaultPageSize=20)
-	const matchedCount = 30
+	const radarrMatchedCount = 30
 
 	// Matched movies use a distinct year (2000) with matching TVDB ids seeded
 	// locally; unmatched movies use a different year (1975) with no local
 	// counterpart at all, so fuzzy title+year matching can't accidentally cross
 	// the two groups.
-	for i := 1; i <= matchedCount; i++ {
+	for i := 1; i <= radarrMatchedCount; i++ {
 		tvdbID := 10000 + i
 		movie := models.Movie{
 			TMDBID:    90000 + i,
@@ -360,7 +362,7 @@ func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
 	}
 
 	radarrMovies := make([]radarr.Movie, catalogSize)
-	for i := 0; i < matchedCount; i++ {
+	for i := 0; i < radarrMatchedCount; i++ {
 		radarrMovies[i] = radarr.Movie{
 			ID:        i + 1,
 			Title:     fmt.Sprintf("Alpha Movie %d", i+1),
@@ -369,7 +371,7 @@ func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
 			Monitored: true,
 		}
 	}
-	for i := matchedCount; i < catalogSize; i++ {
+	for i := radarrMatchedCount; i < catalogSize; i++ {
 		radarrMovies[i] = radarr.Movie{
 			ID:        i + 1,
 			Title:     fmt.Sprintf("Beta Movie %d", i+1),
@@ -385,11 +387,27 @@ func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
 	}))
 	defer radarrServer.Close()
 
-	var episodeCalls int64
-	sonarrSeries := make([]sonarr.Series, 7)
+	const sonarrCatalogSize = 7
+	const sonarrMatchedCount = 4 // series 1-4 have a local matched episode, 5-7 don't
+
+	sonarrSeries := make([]sonarr.Series, sonarrCatalogSize)
 	for i := range sonarrSeries {
 		sonarrSeries[i] = sonarr.Series{ID: i + 1, Title: fmt.Sprintf("Series %d", i+1), TvdbID: 5000 + i, Monitored: true}
 	}
+
+	// Seed a local monitored episode for each of the first sonarrMatchedCount
+	// series so their aggregate match status resolves to "matched", while the
+	// remaining series (no local counterpart) resolve to "unmatched".
+	for i := 0; i < sonarrMatchedCount; i++ {
+		season, episode := 1, 1
+		tvdbID := 5000 + i
+		show := models.TVShow{TMDBID: 80000 + i, TVDBID: &tvdbID, TMDBTitle: fmt.Sprintf("Series %d", i+1), Season: &season, Episode: &episode}
+		if err := db.Create(&show).Error; err != nil {
+			t.Fatalf("failed to seed local tv show episode: %v", err)
+		}
+	}
+
+	var episodeCalls int64
 	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -397,7 +415,7 @@ func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
 			json.NewEncoder(w).Encode(sonarrSeries)
 		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
 			atomic.AddInt64(&episodeCalls, 1)
-			json.NewEncoder(w).Encode([]sonarr.Episode{})
+			json.NewEncoder(w).Encode([]sonarr.Episode{{SeasonNumber: 1, EpisodeNumber: 1, Monitored: true}})
 		default:
 			t.Errorf("unexpected sonarr path %s", r.URL.Path)
 		}
@@ -426,21 +444,184 @@ func TestListRadarrSonarrStats_FullCatalogCounts(t *testing.T) {
 	if resp.RadarrMatched == nil {
 		t.Fatalf("expected radarr_matched to be set, got nil")
 	}
-	if *resp.RadarrMatched != matchedCount {
-		t.Errorf("expected radarr_matched %d, got %d", matchedCount, *resp.RadarrMatched)
+	if *resp.RadarrMatched != radarrMatchedCount {
+		t.Errorf("expected radarr_matched %d, got %d", radarrMatchedCount, *resp.RadarrMatched)
 	}
 	if resp.RadarrError != "" {
 		t.Errorf("expected no radarr error, got %q", resp.RadarrError)
 	}
-	if resp.SonarrMonitored == nil || *resp.SonarrMonitored != len(sonarrSeries) {
-		t.Errorf("expected sonarr_monitored %d, got %v", len(sonarrSeries), resp.SonarrMonitored)
+	if resp.SonarrMonitored == nil || *resp.SonarrMonitored != sonarrCatalogSize {
+		t.Errorf("expected sonarr_monitored %d, got %v", sonarrCatalogSize, resp.SonarrMonitored)
+	}
+	if resp.SonarrMatched == nil {
+		t.Fatalf("expected sonarr_matched to be set, got nil")
+	}
+	if *resp.SonarrMatched != sonarrMatchedCount {
+		t.Errorf("expected sonarr_matched %d, got %d", sonarrMatchedCount, *resp.SonarrMatched)
 	}
 	if resp.SonarrError != "" {
 		t.Errorf("expected no sonarr error, got %q", resp.SonarrError)
 	}
 
-	if calls := atomic.LoadInt64(&episodeCalls); calls != 0 {
-		t.Errorf("expected no per-series episode fetches when computing sonarr_monitored, got %d", calls)
+	if calls := atomic.LoadInt64(&episodeCalls); calls != int64(sonarrCatalogSize) {
+		t.Errorf("expected one per-series episode fetch on a cold cache to compute sonarr_matched (%d), got %d", sonarrCatalogSize, calls)
+	}
+}
+
+// TestListRadarrSonarrStats_SonarrPerSeriesFetchFailureFailsSonarrSection
+// verifies the all-or-nothing behavior decided in design.md: if any single
+// series' matchedStatus lookup fails while computing sonarr_matched, the
+// entire Sonarr section reports sonarr_unreachable (both sonarr_monitored and
+// sonarr_matched nil) instead of a partial count, while the Radarr section of
+// the same response is unaffected.
+func TestListRadarrSonarrStats_SonarrPerSeriesFetchFailureFailsSonarrSection(t *testing.T) {
+	db := setupTestDB(t)
+	sonarrMatchCache.clear()
+
+	tvdbID := 30001
+	movie := models.Movie{TMDBID: 70001, TVDBID: &tvdbID, TMDBTitle: "Solo Movie", TMDBYear: 2020}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to seed local movie: %v", err)
+	}
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "Solo Movie", Year: 2020, TvdbID: 30001, Monitored: true},
+	}
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	// Series 501 answers episode fetches normally; series 502 fails every
+	// episode fetch, forcing the whole Sonarr section to fail.
+	sonarrSeries := []sonarr.Series{
+		{ID: 501, Title: "Healthy Series", TvdbID: 6001, Monitored: true},
+		{ID: 502, Title: "Failing Series", TvdbID: 6002, Monitored: true},
+	}
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v3/series":
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(sonarrSeries)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			if r.URL.Query().Get("seriesId") == "502" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]sonarr.Episode{})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, sonarrServer.URL)
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", "/api/v1/radarr-sonarr/stats", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp RadarrSonarrStatsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.RadarrMonitored == nil || *resp.RadarrMonitored != 1 {
+		t.Errorf("expected radarr_monitored 1 despite the sonarr per-series failure, got %v", resp.RadarrMonitored)
+	}
+	if resp.RadarrMatched == nil || *resp.RadarrMatched != 1 {
+		t.Errorf("expected radarr_matched 1, got %v", resp.RadarrMatched)
+	}
+	if resp.RadarrError != "" {
+		t.Errorf("expected no radarr error, got %q", resp.RadarrError)
+	}
+
+	if resp.SonarrError != "sonarr_unreachable" {
+		t.Errorf("expected sonarr_error sonarr_unreachable, got %q", resp.SonarrError)
+	}
+	if resp.SonarrMonitored != nil {
+		t.Errorf("expected sonarr_monitored nil on a per-series fetch failure, got %v", resp.SonarrMonitored)
+	}
+	if resp.SonarrMatched != nil {
+		t.Errorf("expected sonarr_matched nil on a per-series fetch failure, got %v", resp.SonarrMatched)
+	}
+}
+
+// TestListRadarrSonarrStats_WarmCacheAvoidsEpisodeFetches verifies a warm
+// sonarrMatchCache (populated here directly, mirroring how a prior filtered
+// listing request would populate it) is reused by the stats endpoint without
+// any additional GetEpisodesBySeriesID calls.
+func TestListRadarrSonarrStats_WarmCacheAvoidsEpisodeFetches(t *testing.T) {
+	db := setupTestDB(t)
+	sonarrMatchCache.clear()
+
+	sonarrSeries := []sonarr.Series{
+		{ID: 601, Title: "Series A", TvdbID: 7001, Monitored: true},
+		{ID: 602, Title: "Series B", TvdbID: 7002, Monitored: true},
+	}
+
+	var episodeCalls int64
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v3/series":
+			json.NewEncoder(w).Encode(sonarrSeries)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			atomic.AddInt64(&episodeCalls, 1)
+			json.NewEncoder(w).Encode([]sonarr.Episode{})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	sonarrClient := sonarr.New(sonarr.Config{BaseURL: sonarrServer.URL})
+	for _, series := range sonarrSeries {
+		if _, err := sonarrMatchCache.matchedStatus(context.Background(), sonarrClient, db, series); err != nil {
+			t.Fatalf("failed to pre-warm cache for series %d: %v", series.ID, err)
+		}
+	}
+
+	callsAfterWarm := atomic.LoadInt64(&episodeCalls)
+	if callsAfterWarm != int64(len(sonarrSeries)) {
+		t.Fatalf("expected %d episode fetches while pre-warming the cache, got %d", len(sonarrSeries), callsAfterWarm)
+	}
+
+	req, _ := http.NewRequest("GET", "/api/v1/radarr-sonarr/stats", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp RadarrSonarrStatsResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.SonarrError != "" {
+		t.Errorf("expected no sonarr error, got %q", resp.SonarrError)
+	}
+	if resp.SonarrMonitored == nil || *resp.SonarrMonitored != len(sonarrSeries) {
+		t.Errorf("expected sonarr_monitored %d, got %v", len(sonarrSeries), resp.SonarrMonitored)
+	}
+	if resp.SonarrMatched == nil || *resp.SonarrMatched != 0 {
+		t.Errorf("expected sonarr_matched 0 (no local episodes seeded), got %v", resp.SonarrMatched)
+	}
+
+	if calls := atomic.LoadInt64(&episodeCalls); calls != callsAfterWarm {
+		t.Errorf("expected the stats endpoint to reuse the warm cache without additional episode fetches; calls before=%d, after=%d", callsAfterWarm, calls)
 	}
 }
 

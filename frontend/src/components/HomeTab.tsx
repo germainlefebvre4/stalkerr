@@ -94,6 +94,12 @@ export function HomeTab({
     ? Math.round((radarrMatched / radarrMonitored) * 100)
     : 0;
 
+  const sonarrMonitored = radarrSonarrStats?.sonarr_monitored ?? null;
+  const sonarrMatched = radarrSonarrStats?.sonarr_matched ?? null;
+  const sonarrMatchedRatio = sonarrMonitored && sonarrMonitored > 0 && sonarrMatched !== null
+    ? Math.round((sonarrMatched / sonarrMonitored) * 100)
+    : 0;
+
   const catalogSuccessPercent = stats ? parsePercent(getDownloadSuccessRatio()) : 0;
 
   return (
@@ -218,7 +224,15 @@ export function HomeTab({
               ) : sonarrLoading ? (
                 <div className="home-card-loading">{t('radarrSonarr.loading')}</div>
               ) : (
-                <div><strong>{radarrSonarrStats?.sonarr_monitored ?? '-'}</strong> {t('radarrSonarr.monitored')}</div>
+                <>
+                  <div>
+                    <strong>{sonarrMonitored ?? '-'}</strong> {t('radarrSonarr.monitored')}, {' '}
+                    <strong>{sonarrMatched ?? '-'}</strong> {t('radarrSonarr.matched')}
+                  </div>
+                  <Progress.Root value={sonarrMatchedRatio} className="progress-root">
+                    <Progress.Indicator className="progress-indicator" style={{ width: `${sonarrMatchedRatio}%` }} />
+                  </Progress.Root>
+                </>
               )}
             </div>
           </div>
