@@ -69,14 +69,14 @@ func TestProcessConfiguredSources_MissingFileSkippedPresentFileProcessed(t *test
 		{Name: "provider-present", FilePath: baseFilePath, Download: config.M3UDownloadConfig{ArchiveDir: archiveDir}},
 	}
 
-	presentDest, _ := m3udownloader.SourcePaths(baseFilePath, archiveDir, "provider-present", false)
+	presentDest, _ := m3udownloader.SourcePaths(baseFilePath, archiveDir, "provider-present")
 	writeTestM3U(t, filepath.Dir(presentDest), filepath.Base(presentDest), "#EXTM3U\n#EXTINF:-1,Present Movie\nhttp://example.com/present.mkv")
 	// provider-missing's resolved destination is intentionally never written.
 
 	log := logger.NewWithLevelAndFormat("info", "text")
 	opts := processor.ProcessOptions{SkipTMDB: true, BatchSize: 100, ProgressInterval: 1000}
 
-	if hadError := processConfiguredSources(sources, false, opts, log); hadError {
+	if hadError := processConfiguredSources(sources, opts, log); hadError {
 		t.Error("expected no hard failure - a missing source file should only be skipped with a warning")
 	}
 

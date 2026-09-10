@@ -26,7 +26,10 @@ var configCmd = &cobra.Command{
 			fmt.Printf("Database Password: ********\n")
 		}
 		fmt.Printf("Database SSL Mode: %s\n", cfg.Database.SSLMode)
-		fmt.Printf("\nM3U File Path: %s\n", cfg.M3U.FilePath)
+		fmt.Println("\nM3U Sources:")
+		for _, source := range cfg.M3U.Sources {
+			fmt.Printf("  %s: %s\n", source.Name, source.FilePath)
+		}
 		fmt.Printf("\nLogging Level: %s\n", cfg.Logging.Level)
 		fmt.Printf("Logging Format: %s\n", cfg.Logging.Format)
 	},

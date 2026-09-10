@@ -63,7 +63,7 @@ func TestDownloadAllSources_OneFailsOthersStillRun(t *testing.T) {
 		t.Errorf("expected exactly 1 failure, got %d", failures)
 	}
 
-	// Non-implicit sources download under a per-source subdirectory (see
+	// Every source downloads under its own per-source subdirectory (see
 	// SourcePaths), so provider-a's file lives at <tmpDir>/provider-a/provider-a.m3u.
 	if _, err := os.Stat(filepath.Join(tmpDir, "provider-a", "provider-a.m3u")); !os.IsNotExist(err) {
 		t.Error("expected provider-a's file to not exist after a failed download")
@@ -123,40 +123,5 @@ func TestSourceArchives_MultipleSourcesUseSeparateDirectories(t *testing.T) {
 			t.Errorf("expected distinct archive directories per source, got duplicate %q", r.ArchiveDir)
 		}
 		seenDirs[r.ArchiveDir] = true
-	}
-}
-
-func TestDownloadAllSources_LegacyImplicitSourceKeepsUnchangedPath(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("#EXTM3U\n#EXTINF:-1,Channel\nhttp://example.com/stream\n"))
-	}))
-	defer server.Close()
-
-	destPath := filepath.Join(tmpDir, "playlist.m3u")
-
-	cfg := &config.Config{
-		M3U: config.M3UConfig{
-			FilePath: destPath,
-			Download: config.M3UDownloadConfig{
-				URL:            server.URL,
-				ArchiveDir:     filepath.Join(tmpDir, "archives"),
-				RetentionCount: 5,
-				MaxFileSizeMB:  10,
-				TimeoutSeconds: 5,
-				RetryAttempts:  1,
-			},
-		},
-	}
-
-	log := logger.NewWithLevelAndFormat("info", "text")
-	if failures := downloadAllSources(cfg, log, "", true); failures != 0 {
-		t.Fatalf("expected no failures, got %d", failures)
-	}
-
-	if _, err := os.Stat(destPath); err != nil {
-		t.Errorf("expected legacy destination path unchanged and present, got: %v", err)
 	}
 }

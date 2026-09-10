@@ -76,8 +76,10 @@ database:
   sslmode: disable
 
 m3u:
-  file_path: /path/to/your/playlist.m3u
   update_interval: 3600
+  sources:
+    - name: default
+      file_path: /path/to/your/playlist.m3u
 
 logging:
   level: debug
@@ -87,14 +89,13 @@ api:
   port: 8080
 ```
 
-> To ingest more than one M3U provider, configure `m3u.sources` instead of the singular `m3u.file_path` block above - see [M3U-DOWNLOAD.md](M3U-DOWNLOAD.md#multiple-sources).
+`m3u.sources` is required and must be a non-empty list - see [M3U-DOWNLOAD.md](M3U-DOWNLOAD.md) for the full source configuration reference (download settings, multiple providers, archiving).
 
-Alternatively, use environment variables:
+Alternatively, use environment variables for everything except `m3u.sources` (config-file only):
 ```bash
 export STALKEER_DATABASE_USER=stalkeer
 export STALKEER_DATABASE_PASSWORD=your_password
 export STALKEER_DATABASE_DBNAME=stalkeer
-export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ```
 
 ## Build the Application

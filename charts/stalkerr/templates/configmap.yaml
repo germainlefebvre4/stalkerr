@@ -24,27 +24,7 @@ data:
     
     # M3U playlist configuration
     m3u:
-      file_path: {{ .Values.config.m3u.file_path }}
       update_interval: {{ .Values.config.m3u.update_interval }}
-      download:
-        enabled: {{ .Values.config.m3u.download.enabled }}
-        {{- if .Values.config.m3u.download.url }}
-        url: {{ .Values.config.m3u.download.url | quote }}
-        {{- end }}
-        archive_dir: {{ .Values.config.m3u.download.archive_dir }}
-        retention_count: {{ .Values.config.m3u.download.retention_count }}
-        max_file_size_mb: {{ .Values.config.m3u.download.max_file_size_mb }}
-        timeout_seconds: {{ .Values.config.m3u.download.timeout_seconds }}
-        retry_attempts: {{ .Values.config.m3u.download.retry_attempts }}
-        {{- if .Values.config.m3u.download.auth_username }}
-        auth_username: {{ .Values.config.m3u.download.auth_username | quote }}
-        {{- end }}
-        {{- if .Values.config.m3u.download.auth_password }}
-        auth_password: {{ .Values.config.m3u.download.auth_password | quote }}
-        {{- end }}
-        schedule_enabled: {{ .Values.config.m3u.download.schedule_enabled }}
-        interval_hours: {{ .Values.config.m3u.download.interval_hours }}
-      {{- if .Values.config.m3u.sources }}
       sources:
         {{- range .Values.config.m3u.sources }}
         - name: {{ .name }}
@@ -66,7 +46,6 @@ data:
             auth_password: {{ .download.auth_password | quote }}
             {{- end }}
         {{- end }}
-      {{- end }}
 
     # Filter configuration
     filter:

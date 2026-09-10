@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/dryrun"
 	"github.com/glefebvre/stalkeer/internal/models"
@@ -648,8 +647,7 @@ func (s *Server) getStats(c *gin.Context) {
 
 // executeDryRun executes a dry-run analysis
 func (s *Server) executeDryRun(c *gin.Context) {
-	cfg := config.Get()
-	filePath := cfg.M3U.FilePath
+	var filePath string
 
 	var req struct {
 		FilePath *string `json:"file_path,omitempty"`

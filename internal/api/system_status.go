@@ -15,6 +15,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
+	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
@@ -111,7 +112,9 @@ func (s *Server) getSystemStatus(c *gin.Context) {
 
 // configuredStoragePaths lists the app's configured storage paths for disk
 // usage reporting. The temp dir is omitted when unset (falls back to the OS
-// default) rather than reported as its own entry.
+// default) rather than reported as its own entry. Every configured M3U
+// source contributes its own "archive:<name>" entry, using its effective
+// (per-source subdirectory) archive path.
 func configuredStoragePaths(cfg *config.Config) []downloader.NamedPath {
 	var paths []downloader.NamedPath
 	if cfg.Downloads.MoviesPath != "" {
@@ -123,8 +126,12 @@ func configuredStoragePaths(cfg *config.Config) []downloader.NamedPath {
 	if cfg.Downloads.TempDir != "" {
 		paths = append(paths, downloader.NamedPath{Label: "temp", Path: cfg.Downloads.TempDir})
 	}
-	if cfg.M3U.Download.ArchiveDir != "" {
-		paths = append(paths, downloader.NamedPath{Label: "archive", Path: cfg.M3U.Download.ArchiveDir})
+	for _, source := range cfg.M3U.Sources {
+		if source.Download.ArchiveDir == "" {
+			continue
+		}
+		_, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name)
+		paths = append(paths, downloader.NamedPath{Label: "archive:" + source.Name, Path: archiveDir})
 	}
 	return paths
 }

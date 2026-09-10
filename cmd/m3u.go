@@ -17,10 +17,9 @@ var downloadM3UCmd = &cobra.Command{
 	Use:   "m3u-download",
 	Short: "Download M3U playlist from remote URL",
 	Long: `Download M3U playlist file(s) from the configured URL(s) and save them to the
-configured file path(s). Every configured source (see m3u.sources, or the legacy
-m3u.file_path/download.* fields) is downloaded and archived independently within
-this single run: a failure on one source is logged and does not prevent the
-other sources from being attempted.`,
+configured file path(s). Every configured source (see m3u.sources) is downloaded
+and archived independently within this single run: a failure on one source is
+logged and does not prevent the other sources from being attempted.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Load configuration
 		if err := config.Load(); err != nil {
@@ -51,8 +50,7 @@ other sources from being attempted.`,
 // sources that failed, so the caller can decide the process exit code only
 // after every source has been attempted.
 func downloadAllSources(cfg *config.Config, log *logger.Logger, urlOverride string, noArchive bool) int {
-	sources := cfg.M3U.ResolvedSources()
-	implicit := cfg.M3U.UsesImplicitSource()
+	sources := cfg.M3U.Sources
 	failures := 0
 
 	for i := range sources {
@@ -71,7 +69,7 @@ func downloadAllSources(cfg *config.Config, log *logger.Logger, urlOverride stri
 			continue
 		}
 
-		destPath, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name, implicit)
+		destPath, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name)
 		if destPath == "" {
 			fmt.Fprintf(os.Stderr, "Error: M3U file path must be configured for source %q\n", source.Name)
 			failures++
@@ -176,13 +174,12 @@ type sourceArchives struct {
 // listAllSourceArchives lists archived M3U files for every configured
 // source, each under its own per-source archive subdirectory.
 func listAllSourceArchives(cfg *config.Config, log *logger.Logger) []sourceArchives {
-	sources := cfg.M3U.ResolvedSources()
-	implicit := cfg.M3U.UsesImplicitSource()
+	sources := cfg.M3U.Sources
 	results := make([]sourceArchives, 0, len(sources))
 
 	for i := range sources {
 		source := &sources[i]
-		_, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name, implicit)
+		_, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name)
 		archiveManager := m3udownloader.NewArchiveManager(archiveDir, log)
 		archives, err := archiveManager.ListArchiveFiles()
 		results = append(results, sourceArchives{
@@ -226,8 +223,7 @@ var cleanupM3UArchivesCmd = &cobra.Command{
 // and does not prevent the remaining sources from being attempted. Returns
 // the number of sources that failed to rotate.
 func cleanupAllSourceArchives(cfg *config.Config, log *logger.Logger, retentionOverride int) int {
-	sources := cfg.M3U.ResolvedSources()
-	implicit := cfg.M3U.UsesImplicitSource()
+	sources := cfg.M3U.Sources
 	failures := 0
 
 	for i := range sources {
@@ -237,7 +233,7 @@ func cleanupAllSourceArchives(cfg *config.Config, log *logger.Logger, retentionO
 			retentionCount = retentionOverride
 		}
 
-		_, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name, implicit)
+		_, archiveDir := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name)
 		archiveManager := m3udownloader.NewArchiveManager(archiveDir, log)
 
 		archives, err := archiveManager.ListArchiveFiles()

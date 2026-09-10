@@ -22,7 +22,7 @@ Stores original M3U playlist lines with polymorphic relationships to content typ
 | `id` | INTEGER | PRIMARY KEY | Unique identifier |
 | `line_content` | TEXT | NOT NULL | Original M3U EXTINF line |
 | `line_url` | TEXT | NULLABLE | Stream URL from M3U |
-| `source_name` | VARCHAR(100) | NOT NULL, DEFAULT 'default', part of composite unique | Name of the configured M3U source this line was parsed from (see [M3U Download](M3U-DOWNLOAD.md#multiple-sources)) |
+| `source_name` | VARCHAR(100) | NOT NULL, DEFAULT 'default', part of composite unique | Name of the configured M3U source this line was parsed from (see [M3U Download](M3U-DOWNLOAD.md#configuration-options)) |
 | `line_hash` | VARCHAR(64) | NOT NULL, part of composite unique | SHA-256 hash for deduplication, scoped per source |
 | `line_number` | INTEGER | NOT NULL, DEFAULT 0 | Line number in the source M3U file |
 | `tvg_name` | VARCHAR(255) | NOT NULL | Original TVG name from M3U |
@@ -333,7 +333,7 @@ The `processed_lines` table uses nullable foreign keys to establish relationship
 
 ### Deduplication Strategy
 
-1. **M3U lines**: SHA-256 hash (`line_hash`) prevents duplicate playlist entries, scoped per `source_name` - a true duplicate within the same source's file is rejected, but two different sources producing an identical-looking entry are both kept as separate rows (redundancy across M3U providers is intentional, see [M3U Download](M3U-DOWNLOAD.md#multiple-sources))
+1. **M3U lines**: SHA-256 hash (`line_hash`) prevents duplicate playlist entries, scoped per `source_name` - a true duplicate within the same source's file is rejected, but two different sources producing an identical-looking entry are both kept as separate rows (redundancy across M3U providers is intentional, see [M3U Download](M3U-DOWNLOAD.md#configuration-options))
 2. **Movies**: Unique constraint on `(tmdb_title, tmdb_year)` prevents duplicate TMDB entries
 3. **TV Shows**: Deduplication of `(tmdb_title, tmdb_year, season, episode)` is enforced in application logic (no DB-level composite unique constraint)
 4. **Manual mappings**: Unique constraint on `(tvg_name, group_title)` prevents duplicate overrides

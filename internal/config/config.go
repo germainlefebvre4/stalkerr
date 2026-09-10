@@ -35,11 +35,9 @@ type DatabaseConfig struct {
 
 // M3UConfig holds M3U playlist settings
 type M3UConfig struct {
-	FilePath       string            `mapstructure:"file_path"`
-	UpdateInterval int               `mapstructure:"update_interval"`
-	Download       M3UDownloadConfig `mapstructure:"download"`
-	// Sources, when non-empty, lists multiple M3U sources to download/process
-	// in a single run instead of the singular FilePath/Download fields above.
+	UpdateInterval int `mapstructure:"update_interval"`
+	// Sources lists every M3U source to download/process in a single run.
+	// It is required and must be non-empty (enforced in validate()).
 	Sources []M3USourceConfig `mapstructure:"sources"`
 }
 
@@ -49,31 +47,6 @@ type M3USourceConfig struct {
 	Name     string            `mapstructure:"name"`
 	FilePath string            `mapstructure:"file_path"`
 	Download M3UDownloadConfig `mapstructure:"download"`
-}
-
-// ResolvedSources returns the effective list of M3U sources: the explicit
-// Sources list when configured, or a single implicit source named "default"
-// synthesized from the legacy FilePath/Download fields otherwise. This is a
-// plain either/or - when Sources is non-empty, the singular fields are
-// ignored entirely.
-func (c *M3UConfig) ResolvedSources() []M3USourceConfig {
-	if len(c.Sources) > 0 {
-		return c.Sources
-	}
-	return []M3USourceConfig{
-		{
-			Name:     "default",
-			FilePath: c.FilePath,
-			Download: c.Download,
-		},
-	}
-}
-
-// UsesImplicitSource reports whether ResolvedSources is synthesizing the
-// legacy single-source configuration (true) rather than using an explicit
-// Sources list (false).
-func (c *M3UConfig) UsesImplicitSource() bool {
-	return len(c.Sources) == 0
 }
 
 // M3UDownloadConfig holds M3U download settings
@@ -224,17 +197,7 @@ func Load() error {
 	bindEnvWithAlternatives("database.dbname", "DB_NAME")
 	bindEnvWithAlternatives("database.sslmode", "DB_SSLMODE")
 
-	bindEnvWithAlternatives("m3u.file_path", "M3U_FILE_PATH")
 	viper.BindEnv("m3u.update_interval")
-	viper.BindEnv("m3u.download.enabled")
-	bindEnvWithAlternatives("m3u.download.url", "M3U_DOWNLOAD_URL")
-	viper.BindEnv("m3u.download.archive_dir")
-	viper.BindEnv("m3u.download.retention_count")
-	viper.BindEnv("m3u.download.max_file_size_mb")
-	viper.BindEnv("m3u.download.timeout_seconds")
-	viper.BindEnv("m3u.download.retry_attempts")
-	viper.BindEnv("m3u.download.auth_username")
-	viper.BindEnv("m3u.download.auth_password")
 	// m3u.sources is a list of structured entries and is config-file-only;
 	// there is no equivalent flat env var binding for it.
 
@@ -389,7 +352,9 @@ func validate() error {
 	if cfg.Database.DBName == "" {
 		return fmt.Errorf("database.dbname is required")
 	}
-	// m3u.file_path is optional - can be provided via CLI
+	if len(cfg.M3U.Sources) == 0 {
+		return fmt.Errorf("m3u.sources must be a non-empty list")
+	}
 
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	validFormats := map[string]bool{"json": true, "text": true}

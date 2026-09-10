@@ -10,52 +10,39 @@ database:
   sslmode: disable
 
 m3u:
-  file_path: /path/to/playlist.m3u  # Optional if provided via CLI argument
   update_interval: 3600  # seconds
-  
-  # M3U playlist download settings
-  download:
-    enabled: false  # Enable automatic M3U playlist downloads
-    url: ""  # Remote M3U playlist URL (HTTP/HTTPS)
-    archive_dir: ./m3u_playlist  # Directory to store archived M3U files
-    retention_count: 5  # Number of archived M3U files to keep
-    max_file_size_mb: 500  # Maximum M3U file size in megabytes
-    timeout_seconds: 300  # Download timeout in seconds (5 minutes)
-    retry_attempts: 3  # Number of retry attempts on download failure
-    
-    # Optional: HTTP authentication
-    # auth_username: ""
-    # auth_password: ""
 
-  # Optional: configure multiple M3U sources instead of the single file_path/download
-  # block above. When set to a non-empty list, it takes precedence and the singular
-  # fields above are ignored entirely (no migration needed - leave "sources" unset
-  # to keep using the singular block). Each entry has the same shape as the singular
-  # download block, plus a required unique 'name'. Each source's effective download
-  # destination and archive directory automatically get its name inserted as a
-  # subdirectory (e.g. archive_dir: ./m3u_playlist becomes ./m3u_playlist/provider-a),
-  # so two sources never collide even if their configured paths look the same.
-  # sources:
-  #   - name: provider-a
-  #     file_path: /path/to/provider-a.m3u
-  #     download:
-  #       enabled: true
-  #       url: "https://provider-a.example.com/playlist.m3u"
-  #       archive_dir: ./m3u_playlist
-  #       retention_count: 5
-  #       max_file_size_mb: 500
-  #       timeout_seconds: 300
-  #       retry_attempts: 3
-  #   - name: provider-b
-  #     file_path: /path/to/provider-b.m3u
-  #     download:
-  #       enabled: true
-  #       url: "https://provider-b.example.com/playlist.m3u"
-  #       archive_dir: ./m3u_playlist
-  #       retention_count: 5
-  #       max_file_size_mb: 500
-  #       timeout_seconds: 300
-  #       retry_attempts: 3
+  # M3U sources: required, must be a non-empty list. Each entry has a unique
+  # 'name' plus its own file_path and download settings. Each source's
+  # effective download destination and archive directory automatically get
+  # its name inserted as a subdirectory (e.g. archive_dir: ./m3u_playlist
+  # becomes ./m3u_playlist/provider-a), so two sources never collide even if
+  # their configured paths look the same.
+  sources:
+    - name: provider-a
+      file_path: /path/to/provider-a.m3u
+      download:
+        enabled: true
+        url: "https://provider-a.example.com/playlist.m3u"
+        archive_dir: ./m3u_playlist
+        retention_count: 5
+        max_file_size_mb: 500
+        timeout_seconds: 300
+        retry_attempts: 3
+
+        # Optional: HTTP authentication
+        # auth_username: ""
+        # auth_password: ""
+    - name: provider-b
+      file_path: /path/to/provider-b.m3u
+      download:
+        enabled: true
+        url: "https://provider-b.example.com/playlist.m3u"
+        archive_dir: ./m3u_playlist
+        retention_count: 5
+        max_file_size_mb: 500
+        timeout_seconds: 300
+        retry_attempts: 3
 
 # File-based filters (can be overridden by runtime filters)
 filter:

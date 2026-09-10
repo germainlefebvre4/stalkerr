@@ -314,19 +314,8 @@ func TestValidateM3UContent(t *testing.T) {
 	}
 }
 
-func TestSourcePaths_Implicit(t *testing.T) {
-	destPath, archiveDir := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "default", true)
-
-	if destPath != "/data/m3u/playlist.m3u" {
-		t.Errorf("expected unchanged legacy dest path, got %q", destPath)
-	}
-	if archiveDir != "/data/m3u" {
-		t.Errorf("expected unchanged legacy archive dir, got %q", archiveDir)
-	}
-}
-
 func TestSourcePaths_ConfiguredSource(t *testing.T) {
-	destPath, archiveDir := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-a", false)
+	destPath, archiveDir := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-a")
 
 	expectedDest := "/data/m3u/provider-a/playlist.m3u"
 	expectedArchive := "/data/m3u/provider-a"
@@ -340,8 +329,8 @@ func TestSourcePaths_ConfiguredSource(t *testing.T) {
 }
 
 func TestSourcePaths_DifferentSourcesDoNotCollide(t *testing.T) {
-	destA, archiveA := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-a", false)
-	destB, archiveB := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-b", false)
+	destA, archiveA := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-a")
+	destB, archiveB := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-b")
 
 	if destA == destB {
 		t.Errorf("expected different dest paths for different sources, both got %q", destA)

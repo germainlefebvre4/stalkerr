@@ -17,11 +17,10 @@ var processCmd = &cobra.Command{
 	Short: "Process M3U file and store to database",
 	Long: `Parse M3U playlist file, classify content, and store entries to the database.
 This command performs full processing including content type detection and metadata
-extraction. With no [m3u-file] argument, every configured M3U source (see m3u.sources,
-or the legacy m3u.file_path/download.* fields) is processed in turn, each tagged with
-its own source name; a missing source file is skipped with a warning rather than
-aborting the run. Passing [m3u-file] bypasses the configured source list entirely for
-a manual one-off run against that explicit file.`,
+extraction. With no [m3u-file] argument, every configured M3U source (see m3u.sources)
+is processed in turn, each tagged with its own source name; a missing source file is
+skipped with a warning rather than aborting the run. Passing [m3u-file] bypasses the
+configured source list entirely for a manual one-off run against that explicit file.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Load configuration
@@ -100,9 +99,9 @@ a manual one-off run against that explicit file.`,
 			return
 		}
 
-		// Otherwise, process every configured source (or the single implicit
-		// legacy source), isolating each source's failure from the others.
-		if processConfiguredSources(cfg.M3U.ResolvedSources(), cfg.M3U.UsesImplicitSource(), opts, log) {
+		// Otherwise, process every configured source, isolating each source's
+		// failure from the others.
+		if processConfiguredSources(cfg.M3U.Sources, opts, log) {
 			os.Exit(1)
 		}
 
@@ -124,16 +123,12 @@ func runProcessTarget(filePath, sourceName string, opts processor.ProcessOptions
 // than aborting the run; a source that fails to process is logged and does
 // not prevent the remaining sources from being attempted. Returns true if
 // any source failed to process (a missing file is skipped, not a failure).
-//
-// implicit must match config.M3UConfig.UsesImplicitSource() for the given
-// sources, so the file path resolved here matches the destination
-// m3u-download actually wrote to (see m3udownloader.SourcePaths).
-func processConfiguredSources(sources []config.M3USourceConfig, implicit bool, opts processor.ProcessOptions, log *logger.Logger) bool {
+func processConfiguredSources(sources []config.M3USourceConfig, opts processor.ProcessOptions, log *logger.Logger) bool {
 	hadError := false
 
 	for i := range sources {
 		source := &sources[i]
-		filePath, _ := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name, implicit)
+		filePath, _ := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name)
 
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "Warning: file '%s' for source %q does not exist, skipping\n", filePath, source.Name)

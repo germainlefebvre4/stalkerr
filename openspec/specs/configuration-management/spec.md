@@ -10,7 +10,7 @@ The chart SHALL create a ConfigMap containing all non-sensitive application conf
 - **WHEN** Chart is installed
 - **THEN** ConfigMap is created with application settings
 - **THEN** ConfigMap includes database config (host, port, name, sslmode)
-- **THEN** ConfigMap includes m3u settings (file path, download config)
+- **THEN** ConfigMap includes the `m3u.sources` list (each entry's name, file path, and download config)
 - **THEN** ConfigMap includes download settings (paths, timeouts, parallelism)
 - **THEN** ConfigMap includes logging config (format, levels)
 
@@ -89,14 +89,17 @@ The chart SHALL require user to provide sensitive values (no insecure defaults).
 - **THEN** secrets.sonarrApiKey is empty string
 - **THEN** Installation fails or warns if required keys are missing
 
-### Requirement: ConfigMap renders multiple M3U sources
-The chart SHALL allow rendering an `m3u.sources` list into the generated `config.yml`, in addition to the existing singular `m3u` block, when the chart user configures more than one M3U source via values.
+### Requirement: ConfigMap renders the M3U sources list
+The chart SHALL require the chart user to configure `values.config.m3u.sources` as a non-empty list, and SHALL render it as the `m3u.sources` list in the generated `config.yml`. The chart SHALL NOT render a singular `m3u.file_path` / `m3u.download` block.
 
 #### Scenario: Multiple sources rendered in ConfigMap
-- **WHEN** `values.config.m3u.sources` is set to a non-empty list, each entry providing a `name`, `file_path`, and `download` block
+- **WHEN** `values.config.m3u.sources` is set to a list with more than one entry, each providing a `name`, `file_path`, and `download` block
 - **THEN** the generated `config.yml` SHALL include an `m3u.sources` list with one entry per configured source, each carrying its own `file_path` and `download` settings
 
-#### Scenario: Single-source configuration is unaffected
-- **WHEN** `values.config.m3u.sources` is not set
-- **THEN** the generated `config.yml` SHALL contain only the existing singular `m3u` block, unchanged from today's behavior
+#### Scenario: A single configured source is still a sources list
+- **WHEN** `values.config.m3u.sources` is set to a list with exactly one entry
+- **THEN** the generated `config.yml` SHALL render that single entry under `m3u.sources`, and SHALL NOT render a separate singular `m3u.file_path` / `m3u.download` block
 
+#### Scenario: Missing or empty sources value fails validation
+- **WHEN** `values.config.m3u.sources` is not set, or is set to an empty list
+- **THEN** chart installation/templating SHALL fail schema validation, since `m3u.sources` is a required, non-empty field

@@ -82,7 +82,6 @@ STALKEER_DATABASE_PORT
 STALKEER_DATABASE_USER
 STALKEER_DATABASE_PASSWORD
 STALKEER_DATABASE_DBNAME
-STALKEER_M3U_FILE_PATH
 STALKEER_LOGGING_LEVEL
 STALKEER_API_PORT
 DATABASE_URL  # Alternative: postgres://user:password@host:port/dbname
@@ -311,18 +310,19 @@ cp config.yml.example config.yml
 # Edit config.yml
 ./bin/stalkeer
 
-# Using environment variables
+# Using environment variables (m3u.sources still requires a config file - see below)
 export STALKEER_DATABASE_USER=stalkeer
 export STALKEER_DATABASE_PASSWORD=secret
 export STALKEER_DATABASE_DBNAME=stalkeer
-export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ./bin/stalkeer
 
 # Using DATABASE_URL
 export DATABASE_URL="postgres://user:pass@localhost:5432/stalkeer"
-export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ./bin/stalkeer
 ```
+
+`m3u.sources` is required, must be a non-empty list, and is config-file only (no
+environment variable equivalent) - see [M3U-DOWNLOAD.md](M3U-DOWNLOAD.md).
 
 ### Development
 

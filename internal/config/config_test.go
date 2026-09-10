@@ -5,17 +5,50 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
+// withM3USourcesConfig writes a temp config.yaml containing a minimal
+// m3u.sources list, chdirs into that directory for the duration of the test,
+// and restores the original working directory on cleanup. This satisfies the
+// m3u.sources non-empty requirement for tests that don't otherwise care about
+// M3U configuration.
+func withM3USourcesConfig(t *testing.T) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	configContent := `
+m3u:
+  sources:
+    - name: default
+      file_path: /tmp/test.m3u
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write test config file: %v", err)
+	}
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Chdir(origWd)
+	})
+}
+
 func TestLoad_WithDefaults(t *testing.T) {
+	withM3USourcesConfig(t)
+
 	// Set required environment variables
 	os.Setenv("STALKEER_DATABASE_USER", "testuser")
 	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
-	os.Setenv("STALKEER_M3U_FILE_PATH", "/tmp/test.m3u")
 	defer func() {
 		os.Unsetenv("STALKEER_DATABASE_USER")
 		os.Unsetenv("STALKEER_DATABASE_DBNAME")
-		os.Unsetenv("STALKEER_M3U_FILE_PATH")
 	}()
 
 	// Reset cfg to nil to force reload
@@ -66,14 +99,14 @@ func TestLoad_WithDefaults(t *testing.T) {
 }
 
 func TestLoad_MinFileSizeMBOverride(t *testing.T) {
+	withM3USourcesConfig(t)
+
 	os.Setenv("STALKEER_DATABASE_USER", "testuser")
 	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
-	os.Setenv("STALKEER_M3U_FILE_PATH", "/tmp/test.m3u")
 	os.Setenv("STALKEER_DOWNLOADS_MIN_FILE_SIZE_MB", "5")
 	defer func() {
 		os.Unsetenv("STALKEER_DATABASE_USER")
 		os.Unsetenv("STALKEER_DATABASE_DBNAME")
-		os.Unsetenv("STALKEER_M3U_FILE_PATH")
 		os.Unsetenv("STALKEER_DOWNLOADS_MIN_FILE_SIZE_MB")
 	}()
 
@@ -144,64 +177,37 @@ m3u:
 	}
 }
 
-func TestM3UConfig_ResolvedSources_LegacyFallback(t *testing.T) {
-	m3u := M3UConfig{
-		FilePath: "/data/legacy.m3u",
-		Download: M3UDownloadConfig{URL: "http://legacy.example.com/playlist.m3u"},
-	}
+func TestLoad_EmptySourcesRejected(t *testing.T) {
+	// Reset viper's global state so no m3u.sources config leaks in from a
+	// config file read by an earlier test in this package.
+	viper.Reset()
 
-	sources := m3u.ResolvedSources()
-	if len(sources) != 1 {
-		t.Fatalf("expected 1 implicit source, got %d", len(sources))
-	}
-	if sources[0].Name != "default" {
-		t.Errorf("expected implicit source name 'default', got %s", sources[0].Name)
-	}
-	if sources[0].FilePath != "/data/legacy.m3u" {
-		t.Errorf("expected implicit source to use legacy file path, got %s", sources[0].FilePath)
-	}
-	if sources[0].Download.URL != "http://legacy.example.com/playlist.m3u" {
-		t.Errorf("expected implicit source to use legacy download URL, got %s", sources[0].Download.URL)
-	}
-	if !m3u.UsesImplicitSource() {
-		t.Error("expected UsesImplicitSource to return true for legacy-only config")
-	}
-}
+	os.Setenv("STALKEER_DATABASE_USER", "testuser")
+	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
+	defer func() {
+		os.Unsetenv("STALKEER_DATABASE_USER")
+		os.Unsetenv("STALKEER_DATABASE_DBNAME")
+	}()
 
-func TestM3UConfig_ResolvedSources_ExplicitSourcesIgnoreLegacyFields(t *testing.T) {
-	m3u := M3UConfig{
-		FilePath: "/data/legacy.m3u",
-		Download: M3UDownloadConfig{URL: "http://legacy.example.com/playlist.m3u"},
-		Sources: []M3USourceConfig{
-			{Name: "provider-a", FilePath: "/data/a.m3u", Download: M3UDownloadConfig{URL: "http://a.example.com"}},
-			{Name: "provider-b", FilePath: "/data/b.m3u", Download: M3UDownloadConfig{URL: "http://b.example.com"}},
-		},
+	cfg = nil
+	err := Load()
+	if err == nil {
+		t.Fatalf("expected error when m3u.sources is absent, got nil")
 	}
-
-	sources := m3u.ResolvedSources()
-	if len(sources) != 2 {
-		t.Fatalf("expected 2 configured sources, got %d", len(sources))
-	}
-	if sources[0].Name != "provider-a" || sources[0].FilePath != "/data/a.m3u" {
-		t.Errorf("expected first configured source preserved, got %+v", sources[0])
-	}
-	if sources[1].Name != "provider-b" || sources[1].FilePath != "/data/b.m3u" {
-		t.Errorf("expected second configured source preserved, got %+v", sources[1])
-	}
-	if m3u.UsesImplicitSource() {
-		t.Error("expected UsesImplicitSource to return false when sources are configured")
+	if !strings.Contains(err.Error(), "m3u.sources must be a non-empty list") {
+		t.Errorf("expected error about m3u.sources, got: %s", err.Error())
 	}
 }
 
 func TestValidate_InvalidLogLevel(t *testing.T) {
+	withM3USourcesConfig(t)
+
 	os.Setenv("STALKEER_DATABASE_USER", "testuser")
 	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
-	os.Setenv("STALKEER_M3U_FILE_PATH", "/tmp/test.m3u")
 	os.Setenv("STALKEER_LOGGING_LEVEL", "invalid")
 	defer func() {
 		os.Unsetenv("STALKEER_DATABASE_USER")
 		os.Unsetenv("STALKEER_DATABASE_DBNAME")
-		os.Unsetenv("STALKEER_M3U_FILE_PATH")
 		os.Unsetenv("STALKEER_LOGGING_LEVEL")
 	}()
 
@@ -352,6 +358,9 @@ func TestValidate_ModularLogLevels(t *testing.T) {
 				Database: DatabaseConfig{
 					User:   "testuser",
 					DBName: "testdb",
+				},
+				M3U: M3UConfig{
+					Sources: []M3USourceConfig{{Name: "default", FilePath: "/tmp/test.m3u"}},
 				},
 				Logging: LoggingConfig{
 					App:      LogLevelConfig{Level: tt.appLevel},

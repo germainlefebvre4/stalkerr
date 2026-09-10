@@ -45,15 +45,21 @@ Or upgrade the release with values:
 {{- end }}
 {{- end }}
 
-{{- if not .Values.config.m3u.download.url }}
+{{- $missingURLSources := list }}
+{{- range .Values.config.m3u.sources }}
+{{- if not .download.url }}
+{{- $missingURLSources = append $missingURLSources .name }}
+{{- end }}
+{{- end }}
+{{- if $missingURLSources }}
 
-⚠️  WARNING: M3U download URL is not configured!
+⚠️  WARNING: M3U download URL is not configured for source(s): {{ join ", " $missingURLSources }}!
 
-Set the M3U playlist URL:
+Set each source's M3U playlist URL, e.g.:
   helm upgrade {{ $releaseName }} . \
-    --set config.m3u.download.url="https://example.com/playlist.m3u"
+    --set config.m3u.sources[0].download.url="https://example.com/playlist.m3u"
 {{- else }}
-✅ M3U download URL is configured: {{ .Values.config.m3u.download.url }}
+✅ M3U download URL is configured for all sources.
 ✅ TMDB API key is configured.
 ✅ Radarr/Sonarr API keys are configured.
 {{- end }}

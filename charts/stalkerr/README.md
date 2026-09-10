@@ -68,11 +68,14 @@ secrets:
   radarrApiKey: "your-radarr-api-key"
   sonarrApiKey: "your-sonarr-api-key"
 
-# M3U Playlist URL (required)
+# M3U Sources (required, non-empty list)
 config:
   m3u:
-    download:
-      url: "https://example.com/playlist.m3u"
+    sources:
+      - name: provider-a
+        file_path: /data/m3u/provider-a.m3u
+        download:
+          url: "https://example.com/playlist.m3u"
 ```
 
 ### Content Filtering Configuration
@@ -119,26 +122,30 @@ config:
 
 ### M3U Download Configuration
 
-Configure automatic M3U playlist downloads with archiving:
+Configure automatic M3U playlist downloads with archiving. `sources` is required and
+must be a non-empty list; each entry's effective download destination and archive
+directory automatically get its `name` inserted as a subdirectory (e.g. `archive_dir:
+/data/m3u` becomes `/data/m3u/provider-a`), so two sources never collide even if their
+configured paths look the same:
 
 ```yaml
 config:
   m3u:
-    file_path: /data/m3u/playlist.m3u
     update_interval: 3600
-    download:
-      enabled: true
-      url: "https://provider.com/playlist.m3u"
-      archive_dir: /data/m3u
-      retention_count: 5                  # Keep last 5 downloads
-      max_file_size_mb: 1024
-      timeout_seconds: 300
-      retry_attempts: 3
-      # Optional HTTP authentication
-      auth_username: ""
-      auth_password: ""
-      schedule_enabled: true
-      interval_hours: 24
+    sources:
+      - name: provider-a
+        file_path: /data/m3u/provider-a.m3u
+        download:
+          enabled: true
+          url: "https://provider.com/playlist.m3u"
+          archive_dir: /data/m3u
+          retention_count: 5                  # Keep last 5 downloads
+          max_file_size_mb: 1024
+          timeout_seconds: 300
+          retry_attempts: 3
+          # Optional HTTP authentication
+          auth_username: ""
+          auth_password: ""
 ```
 
 ### Common Configuration Scenarios
@@ -231,10 +238,10 @@ The Helm chart maintains **1:1 compatibility** with Docker Compose `config.yml` 
 |----------------------|------------------|
 | `database.host` | `config.database.host` (auto-set if `postgresql.enabled=true`) |
 | `database.dbname` | `config.database.dbname` |
-| `m3u.file_path` | `config.m3u.file_path` |
-| `m3u.download.url` | `config.m3u.download.url` |
-| `m3u.download.archive_dir` | `config.m3u.download.archive_dir` |
-| `m3u.download.retention_count` | `config.m3u.download.retention_count` |
+| `m3u.sources[].file_path` | `config.m3u.sources[].file_path` |
+| `m3u.sources[].download.url` | `config.m3u.sources[].download.url` |
+| `m3u.sources[].download.archive_dir` | `config.m3u.sources[].download.archive_dir` |
+| `m3u.sources[].download.retention_count` | `config.m3u.sources[].download.retention_count` |
 | `filter.group_title.include_patterns` | `config.filter.group_title.include_patterns` |
 | `filter.group_title.exclude_patterns` | `config.filter.group_title.exclude_patterns` |
 | `filter.tvg_name.include_patterns` | `config.filter.tvg_name.include_patterns` |
@@ -292,7 +299,9 @@ helm install stalkerr charts/stalkerr \
   --namespace media \
   --set secrets.existingSecret=stalkerr-secrets \
   --set storage.media.existingClaim=jellyfin-media \
-  --set config.m3u.download.url="YOUR_M3U_URL"
+  --set config.m3u.sources[0].name=provider-a \
+  --set config.m3u.sources[0].file_path=/data/m3u/provider-a.m3u \
+  --set config.m3u.sources[0].download.url="YOUR_M3U_URL"
 ```
 
 ## Storage Paths and Media Organization

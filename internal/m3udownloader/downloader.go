@@ -339,15 +339,10 @@ func (d *Downloader) GetArchiveManager() *ArchiveManager {
 }
 
 // SourcePaths computes the effective download destination and archive
-// directory for a configured M3U source. Every source other than the legacy
-// implicit one gets its name inserted as a path segment, so that two
-// sources' downloaded files or archives never collide. The implicit legacy
-// source keeps its configured paths unchanged, so existing single-source
-// deployments see no on-disk layout change.
-func SourcePaths(filePath, archiveDir, sourceName string, implicit bool) (destPath, effectiveArchiveDir string) {
-	if implicit {
-		return filePath, archiveDir
-	}
+// directory for a configured M3U source. Every source gets its name inserted
+// as a path segment, so that two sources' downloaded files or archives never
+// collide.
+func SourcePaths(filePath, archiveDir, sourceName string) (destPath, effectiveArchiveDir string) {
 	destPath = filepath.Join(filepath.Dir(filePath), sourceName, filepath.Base(filePath))
 	effectiveArchiveDir = filepath.Join(archiveDir, sourceName)
 	return destPath, effectiveArchiveDir

@@ -67,53 +67,26 @@ config:
   
   # M3U playlist configuration
   m3u:
-    file_path: /data/m3u/playlist.m3u  # Note: snake_case to match config.yaml
     update_interval: 3600
-    download:
-      enabled: true
-      url: ""  # Required: URL to download M3U playlist
-      archive_dir: /data/m3u
-      retention_count: 5
-      max_file_size_mb: 1024
-      timeout_seconds: 300
-      retry_attempts: 3
-      auth_username: ""
-      auth_password: ""
-      schedule_enabled: true
-      interval_hours: 24
-    # Optional: configure multiple M3U sources instead of the single file_path/download
-    # block above. When set to a non-empty list, it takes precedence and the singular
-    # fields above are ignored entirely (they still need a value to satisfy
-    # values.schema.json's required file_path, even though they go unused). Each
-    # entry has the same shape as the singular download block, plus a required
-    # unique 'name'. Each source's effective download destination and archive
-    # directory automatically get its name inserted as a subdirectory (e.g.
-    # archive_dir: /data/m3u becomes /data/m3u/provider-a), so two sources never
-    # collide even if their configured paths look the same.
-    # sources:
-    #   - name: provider-a
-    #     file_path: /data/m3u/provider-a.m3u
-    #     download:
-    #       enabled: true
-    #       url: "https://provider-a.example.com/playlist.m3u"
-    #       archive_dir: /data/m3u
-    #       retention_count: 5
-    #       max_file_size_mb: 1024
-    #       timeout_seconds: 300
-    #       retry_attempts: 3
-    #       auth_username: ""
-    #       auth_password: ""
-    #   - name: provider-b
-    #     file_path: /data/m3u/provider-b.m3u
-    #     download:
-    #       enabled: true
-    #       url: "https://provider-b.example.com/playlist.m3u"
-    #       archive_dir: /data/m3u
-    #       retention_count: 5
-    #       max_file_size_mb: 1024
-    #       timeout_seconds: 300
-    #       retry_attempts: 3
-    sources: []
+    # M3U sources: required, must be a non-empty list. Each entry has a unique
+    # 'name' plus its own file_path and download settings. Each source's
+    # effective download destination and archive directory automatically get
+    # its name inserted as a subdirectory (e.g. archive_dir: /data/m3u becomes
+    # /data/m3u/provider-a), so two sources never collide even if their
+    # configured paths look the same.
+    sources:
+      - name: provider-a
+        file_path: /data/m3u/provider-a.m3u
+        download:
+          enabled: true
+          url: ""  # Required: URL to download M3U playlist
+          archive_dir: /data/m3u
+          retention_count: 5
+          max_file_size_mb: 1024
+          timeout_seconds: 300
+          retry_attempts: 3
+          auth_username: ""
+          auth_password: ""
 
   # Filter configuration (include/exclude patterns for content classification)
   filter:

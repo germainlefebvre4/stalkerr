@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/dryrun"
 	"github.com/spf13/cobra"
 )
@@ -20,12 +19,8 @@ database changes. Useful for validating content before full processing.`,
 		if len(args) > 0 {
 			filePath = args[0]
 		} else {
-			cfg := config.Get()
-			filePath = cfg.M3U.FilePath
-			if filePath == "" {
-				fmt.Fprintln(os.Stderr, "Error: m3u file path must be provided")
-				os.Exit(1)
-			}
+			fmt.Fprintln(os.Stderr, "Error: a file path is required")
+			os.Exit(1)
 		}
 
 		limit, _ := cmd.Flags().GetInt("limit")

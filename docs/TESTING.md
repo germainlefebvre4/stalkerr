@@ -176,7 +176,15 @@ For integration tests that require a full PostgreSQL database:
    export STALKEER_DATABASE_USER=stalkeer
    export STALKEER_DATABASE_PASSWORD=stalkeer
    export STALKEER_DATABASE_DBNAME=stalkeer_test
-   export STALKEER_M3U_FILE_PATH=/tmp/test.m3u
+   ```
+
+   `m3u.sources` is config-file only (no environment variable equivalent) and is
+   required to be a non-empty list - add a minimal `config.yaml` alongside it:
+   ```yaml
+   m3u:
+     sources:
+       - name: default
+         file_path: /tmp/test.m3u
    ```
 
 3. Run integration tests:

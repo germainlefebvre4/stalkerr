@@ -6,16 +6,16 @@ Defines how the system configures, downloads, archives, and processes more than 
 
 ## Requirements
 
-### Requirement: Configurable list of M3U sources with legacy fallback
-The system SHALL support an optional `m3u.sources` configuration list, where each entry has a unique `name` and its own `file_path` and `download` settings (same shape as the existing singular `m3u.download` block). When `m3u.sources` is absent or empty, the system SHALL treat the existing singular `m3u.file_path` / `m3u.download.*` configuration as a single implicit source, so existing configurations keep working without any migration.
+### Requirement: Configurable list of M3U sources
+The system SHALL support an `m3u.sources` configuration list, where each entry has a unique `name` and its own `file_path` and `download` settings. `m3u.sources` SHALL be required and MUST be a non-empty list; the system SHALL fail to load configuration with a clear error when `m3u.sources` is absent or empty.
 
-#### Scenario: Legacy single-source configuration keeps working unchanged
-- **WHEN** a configuration file sets only `m3u.file_path` and `m3u.download.*` and does not set `m3u.sources`
-- **THEN** the system SHALL behave exactly as before, treating the configured file/URL as one implicit source
-
-#### Scenario: Configured sources list takes precedence
+#### Scenario: Sources list defines every M3U source
 - **WHEN** a configuration file sets a non-empty `m3u.sources` list
-- **THEN** the system SHALL use only the entries in `m3u.sources` and SHALL ignore the singular `m3u.file_path` / `m3u.download.*` keys
+- **THEN** the system SHALL use every entry in `m3u.sources`, each identified by its own `name`, `file_path`, and `download` settings
+
+#### Scenario: Missing or empty sources list is rejected
+- **WHEN** a configuration file omits `m3u.sources` or sets it to an empty list
+- **THEN** the system SHALL fail to load configuration and SHALL report a clear error indicating that at least one M3U source must be configured
 
 ### Requirement: Per-source download and archive isolation
 The `m3u-download` command SHALL attempt the download and archive step for every configured source independently within a single run. A failure downloading or archiving one source SHALL be logged and SHALL NOT prevent the remaining sources from being attempted. The command SHALL exit with a non-zero status if at least one source failed, but only after every configured source has been attempted. Each source SHALL download and archive into its own subdirectory (named after the source) so that two sources' files or archives never overwrite each other.
@@ -28,8 +28,8 @@ The `m3u-download` command SHALL attempt the download and archive step for every
 - **WHEN** two configured sources are downloaded and archived in the same run
 - **THEN** each source's downloaded file and archive copies SHALL be written under a path segment specific to that source's `name`
 
-### Requirement: Per-source processing and provenance tagging
-The `process` command SHALL iterate every configured source (or the single implicit legacy source) and process each source's downloaded file independently within a single run. Every `ProcessedLine` created or updated during processing SHALL be tagged with the `name` of the source it was parsed from, in a `source_name` field. When a source's downloaded file is missing (for example, because a prior `m3u-download` run failed for that source), the system SHALL skip that source with a warning and SHALL still process the remaining sources.
+### Requirement: Per-source M3U processing and provenance tagging
+The `process` command SHALL iterate every configured source and process each source's downloaded file independently within a single run. Every `ProcessedLine` created or updated during processing SHALL be tagged with the `name` of the source it was parsed from, in a `source_name` field. When a source's downloaded file is missing (for example, because a prior `m3u-download` run failed for that source), the system SHALL skip that source with a warning and SHALL still process the remaining sources.
 
 #### Scenario: Processed lines are tagged with their source
 - **WHEN** `process` runs with two configured sources, `provider-a` and `provider-b`
@@ -38,10 +38,6 @@ The `process` command SHALL iterate every configured source (or the single impli
 #### Scenario: Missing source file does not abort the run
 - **WHEN** `process` runs and one configured source has no downloaded file on disk
 - **THEN** the system SHALL log a warning for that source, SHALL skip it, and SHALL still process every other configured source
-
-#### Scenario: Legacy single-source processing keeps its implicit tag
-- **WHEN** `process` runs against the legacy singular configuration (no `m3u.sources` set)
-- **THEN** every `ProcessedLine` SHALL be tagged with the same implicit source name, consistent across runs
 
 ### Requirement: Per-source dedup scoping
 The uniqueness constraint used to detect duplicate `ProcessedLine` entries SHALL be scoped to the combination of `source_name` and the existing content hash, rather than the content hash alone. Two entries with an identical hash but different `source_name` SHALL both be retained as distinct `ProcessedLine` records.

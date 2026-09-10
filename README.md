@@ -90,8 +90,10 @@ database:
   dbname: stalkeer
 
 m3u:
-  file_path: /path/to/playlist.m3u
   update_interval: 3600
+  sources:
+    - name: default
+      file_path: /path/to/playlist.m3u
 
 tmdb:
   enabled: true
@@ -102,12 +104,11 @@ api:
   port: 8080
 ```
 
-Or use environment variables:
+Or use environment variables (`m3u.sources` is config-file only - see [docs/M3U-DOWNLOAD.md](docs/M3U-DOWNLOAD.md)):
 ```bash
 export STALKEER_DATABASE_USER=stalkeer
 export STALKEER_DATABASE_PASSWORD=your_password
 export STALKEER_DATABASE_DBNAME=stalkeer
-export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ```
 
 ### Running
@@ -177,7 +178,7 @@ Flags:
 The m3u-download command:
 - Downloads M3U playlist from the configured URL or --url flag
 - Validates M3U format before saving
-- Saves to the configured m3u.file_path atomically
+- Saves to each configured source's effective file path atomically
 - Creates a timestamped archive copy (unless --no-archive)
 - Automatically rotates old archives based on retention settings
 
@@ -631,7 +632,7 @@ GET /api/v1/tmdb/search   # Proxy a TMDB search query
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `m3u.file_path` | string | - | Path to M3U playlist file (required) |
+| `m3u.sources` | list | - | List of M3U sources (required, non-empty); see [docs/M3U-DOWNLOAD.md](docs/M3U-DOWNLOAD.md) |
 | `m3u.update_interval` | int | `3600` | Update interval in seconds |
 
 ### Logging Configuration
@@ -721,16 +722,17 @@ File-based filters applied to `group_title` and `tvg_name` fields (can be overri
 
 ## Environment Variables
 
-All configuration options can be overridden with environment variables using the `STALKEER_` prefix:
+Most configuration options can be overridden with environment variables using the `STALKEER_` prefix:
 
 - `STALKEER_DATABASE_HOST`
 - `STALKEER_DATABASE_PORT`
 - `STALKEER_DATABASE_USER`
 - `STALKEER_DATABASE_PASSWORD`
 - `STALKEER_DATABASE_DBNAME`
-- `STALKEER_M3U_FILE_PATH`
 - `STALKEER_LOGGING_LEVEL`
 - `STALKEER_API_PORT`
+
+`m3u.sources` is the exception: it's a structured list and is config-file only, with no environment variable equivalent (see [docs/M3U-DOWNLOAD.md](docs/M3U-DOWNLOAD.md)).
 
 Or use a PostgreSQL connection string:
 ```bash
