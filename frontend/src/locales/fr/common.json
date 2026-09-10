@@ -32,6 +32,9 @@
     "en": "Anglais",
     "fr": "Français"
   },
+  "systemStatus": {
+    "iconLabel": "État du système"
+  },
   "errors": {
     "not_found": "La ressource demandée n'a pas été trouvée.",
     "invalid_request": "La requête est invalide.",

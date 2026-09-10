@@ -276,6 +276,54 @@ func (c *Client) GetTVShowExternalIDs(tvShowID int) (*ExternalIDs, error) {
 	return &externalIDs, nil
 }
 
+// StatusError wraps a non-2xx HTTP response so callers can distinguish an
+// authorization failure (401) from other reachability failures without
+// parsing message strings. StatusCode() satisfies the structural
+// `interface{ StatusCode() int }` the aggregation endpoint's classifier
+// checks for, without that package needing to import tmdb.
+type StatusError struct {
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("unexpected status code %d: %s", e.Code, e.Body)
+}
+
+// StatusCode returns the HTTP status code that produced this error.
+func (e *StatusError) StatusCode() int {
+	return e.Code
+}
+
+// SystemStatus performs a lightweight reachability check against TMDB by
+// requesting the configuration endpoint, which validates the API key without
+// consuming search quota. Unlike makeRequest, it bypasses the client's cache,
+// rate limiter, circuit breaker, and retry: a diagnostic check must reflect
+// live connectivity under the caller's ctx deadline, not a cached or retried
+// result.
+func (c *Client) SystemStatus(ctx context.Context) error {
+	requestURL := fmt.Sprintf("%s/configuration?api_key=%s", baseURL, c.apiKey)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", requestURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return &StatusError{Code: resp.StatusCode, Body: string(body)}
+	}
+
+	return nil
+}
+
 // makeRequest performs an HTTP request to the TMDB API with caching, rate limiting,
 // circuit breaker, and retry.
 func (c *Client) makeRequest(endpoint string, params url.Values, result interface{}) error {

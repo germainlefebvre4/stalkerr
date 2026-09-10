@@ -339,6 +339,50 @@ func (c *Client) UpdateEpisode(ctx context.Context, episode *Episode) error {
 	return nil
 }
 
+// StatusError wraps a non-2xx HTTP response so callers can distinguish an
+// authorization failure (401) from other reachability failures without
+// parsing message strings. StatusCode() satisfies the structural
+// `interface{ StatusCode() int }` the aggregation endpoint's classifier
+// checks for, without that package needing to import sonarr.
+type StatusError struct {
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("unexpected status code %d: %s", e.Code, e.Body)
+}
+
+// StatusCode returns the HTTP status code that produced this error.
+func (e *StatusError) StatusCode() int {
+	return e.Code
+}
+
+// SystemStatus performs a lightweight, unretried reachability check against
+// Sonarr's own system/status endpoint - the same call Sonarr's UI uses to
+// confirm connectivity. Unlike the other client methods, it does not go
+// through retry.Do: a diagnostic check must fail fast under the caller's ctx
+// deadline rather than retry like a real data fetch.
+func (c *Client) SystemStatus(ctx context.Context) error {
+	req, err := c.newRequest(ctx, "GET", "/api/v3/system/status", nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return &StatusError{Code: resp.StatusCode, Body: string(body)}
+	}
+
+	return nil
+}
+
 func (c *Client) getSeries(ctx context.Context, endpoint string) ([]Series, error) {
 	req, err := c.newRequest(ctx, "GET", endpoint, nil)
 	if err != nil {

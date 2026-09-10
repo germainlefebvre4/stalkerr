@@ -82,5 +82,35 @@
     "currentSeasonEpisodeLabel": "Season/Episode:",
     "overrideByLabel": "Corrected by:",
     "overrideAtLabel": "Corrected on:"
+  },
+  "systemStatus": {
+    "title": "System Status",
+    "refresh": "Refresh",
+    "close": "Close",
+    "loading": "Checking status...",
+    "error": "Failed to load system status.",
+    "rows": {
+      "database": "Database",
+      "radarr": "Radarr",
+      "sonarr": "Sonarr",
+      "tmdb": "TMDB"
+    },
+    "states": {
+      "ok": "OK",
+      "ko": "KO",
+      "not_configured": "Not configured"
+    },
+    "reasons": {
+      "unreachable": "Unreachable",
+      "unauthorized": "Invalid credentials",
+      "timeout": "Timed out",
+      "unavailable": "Unavailable"
+    },
+    "disk": {
+      "title": "Disk usage",
+      "used": "Used",
+      "available": "available",
+      "empty": "No storage paths configured"
+    }
   }
 }

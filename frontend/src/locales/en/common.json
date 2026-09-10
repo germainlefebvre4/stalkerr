@@ -32,6 +32,9 @@
     "en": "English",
     "fr": "French"
   },
+  "systemStatus": {
+    "iconLabel": "System status"
+  },
   "errors": {
     "not_found": "The requested resource was not found.",
     "invalid_request": "The request was invalid.",

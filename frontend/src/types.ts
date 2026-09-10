@@ -223,6 +223,31 @@ export interface RadarrSonarrStats {
   sonarr_error?: string;
 }
 
+export type ServiceStatusState = 'ok' | 'ko' | 'not_configured';
+
+export interface ServiceStatus {
+  status: ServiceStatusState;
+  reason?: string;
+}
+
+export interface DiskUsageEntry {
+  paths: string[];
+  available?: number;
+  free?: number;
+  total?: number;
+  used_pct?: number;
+  unavailable?: boolean;
+  reason?: string;
+}
+
+export interface SystemStatusResponse {
+  database: ServiceStatus;
+  radarr: ServiceStatus;
+  sonarr: ServiceStatus;
+  tmdb: ServiceStatus;
+  disk: DiskUsageEntry[];
+}
+
 export interface TMDBSearchResult {
   id: number;
   title: string;

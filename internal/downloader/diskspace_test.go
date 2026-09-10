@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -154,6 +155,123 @@ func TestCheckDiskSpaceBeforeDownload(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeviceID_SameFilesystem(t *testing.T) {
+	tempDir := t.TempDir()
+	subDirA := filepath.Join(tempDir, "a")
+	subDirB := filepath.Join(tempDir, "b")
+	require.NoError(t, os.MkdirAll(subDirA, 0o755))
+	require.NoError(t, os.MkdirAll(subDirB, 0o755))
+
+	deviceA, err := DeviceID(subDirA)
+	require.NoError(t, err)
+	deviceB, err := DeviceID(subDirB)
+	require.NoError(t, err)
+
+	assert.Equal(t, deviceA, deviceB)
+}
+
+func TestDeviceID_NonExistentPath(t *testing.T) {
+	tempDir := t.TempDir()
+	nonExistent := filepath.Join(tempDir, "does", "not", "exist")
+
+	device, err := DeviceID(nonExistent)
+	require.NoError(t, err)
+	assert.Greater(t, device, uint64(0))
+}
+
+// fakeDiskSpaceLookup returns canned device ids/disk space per path, so the
+// grouping/merge logic in groupDiskUsage can be tested against a controlled
+// set of "volumes" instead of depending on the test host's real mount layout.
+type fakeDiskSpaceLookup struct {
+	devices map[string]uint64
+	errs    map[string]error
+}
+
+func (f *fakeDiskSpaceLookup) deviceID(path string) (uint64, error) {
+	if err, ok := f.errs[path]; ok {
+		return 0, err
+	}
+	return f.devices[path], nil
+}
+
+func (f *fakeDiskSpaceLookup) diskSpace(path string) (*DiskSpace, error) {
+	if err, ok := f.errs[path]; ok {
+		return nil, err
+	}
+	return &DiskSpace{Available: 100, Free: 100, Total: 200, UsedPct: 50}, nil
+}
+
+func TestGroupDiskUsage_SharedVolumeMerged(t *testing.T) {
+	fake := &fakeDiskSpaceLookup{devices: map[string]uint64{
+		"/movies":  1,
+		"/tvshows": 1,
+	}}
+
+	entries := groupDiskUsage([]NamedPath{
+		{Label: "movies", Path: "/movies"},
+		{Label: "tvshows", Path: "/tvshows"},
+	}, fake.deviceID, fake.diskSpace)
+
+	require.Len(t, entries, 1)
+	assert.Equal(t, []string{"movies", "tvshows"}, entries[0].Labels)
+	assert.False(t, entries[0].Unavailable)
+	require.NotNil(t, entries[0].Space)
+}
+
+func TestGroupDiskUsage_DistinctVolumesSeparate(t *testing.T) {
+	fake := &fakeDiskSpaceLookup{devices: map[string]uint64{
+		"/movies":  1,
+		"/archive": 2,
+	}}
+
+	entries := groupDiskUsage([]NamedPath{
+		{Label: "movies", Path: "/movies"},
+		{Label: "archive", Path: "/archive"},
+	}, fake.deviceID, fake.diskSpace)
+
+	require.Len(t, entries, 2)
+	assert.Equal(t, []string{"movies"}, entries[0].Labels)
+	assert.Equal(t, []string{"archive"}, entries[1].Labels)
+}
+
+func TestGroupDiskUsage_MissingPathIsUnavailable(t *testing.T) {
+	fake := &fakeDiskSpaceLookup{
+		devices: map[string]uint64{"/movies": 1},
+		errs:    map[string]error{"/missing": fmt.Errorf("no such file or directory")},
+	}
+
+	entries := groupDiskUsage([]NamedPath{
+		{Label: "movies", Path: "/movies"},
+		{Label: "archive", Path: "/missing"},
+	}, fake.deviceID, fake.diskSpace)
+
+	require.Len(t, entries, 2)
+	archiveEntry := entries[1]
+	assert.Equal(t, []string{"archive"}, archiveEntry.Labels)
+	assert.True(t, archiveEntry.Unavailable)
+	assert.NotEmpty(t, archiveEntry.Reason)
+	assert.Nil(t, archiveEntry.Space)
+}
+
+func TestGroupDiskUsage_RealPaths(t *testing.T) {
+	tempDir := t.TempDir()
+	subDirA := filepath.Join(tempDir, "movies")
+	subDirB := filepath.Join(tempDir, "tvshows")
+	require.NoError(t, os.MkdirAll(subDirA, 0o755))
+	require.NoError(t, os.MkdirAll(subDirB, 0o755))
+
+	entries := GroupDiskUsage([]NamedPath{
+		{Label: "movies", Path: subDirA},
+		{Label: "tvshows", Path: subDirB},
+	})
+
+	require.Len(t, entries, 1)
+	assert.ElementsMatch(t, []string{"movies", "tvshows"}, entries[0].Labels)
+	assert.False(t, entries[0].Unavailable)
+	require.NotNil(t, entries[0].Space)
+	assert.Greater(t, entries[0].Space.Total, uint64(0))
 }
 
 func TestCheckDiskSpaceBeforeDownload_NonExistentPath(t *testing.T) {

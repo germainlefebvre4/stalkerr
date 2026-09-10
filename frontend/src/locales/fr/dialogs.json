@@ -82,5 +82,35 @@
     "currentSeasonEpisodeLabel": "Saison/Épisode :",
     "overrideByLabel": "Corrigé par :",
     "overrideAtLabel": "Corrigé le :"
+  },
+  "systemStatus": {
+    "title": "État du système",
+    "refresh": "Rafraîchir",
+    "close": "Fermer",
+    "loading": "Vérification en cours...",
+    "error": "Échec du chargement de l'état du système.",
+    "rows": {
+      "database": "Base de données",
+      "radarr": "Radarr",
+      "sonarr": "Sonarr",
+      "tmdb": "TMDB"
+    },
+    "states": {
+      "ok": "OK",
+      "ko": "KO",
+      "not_configured": "Non configuré"
+    },
+    "reasons": {
+      "unreachable": "Injoignable",
+      "unauthorized": "Identifiants invalides",
+      "timeout": "Délai dépassé",
+      "unavailable": "Indisponible"
+    },
+    "disk": {
+      "title": "Espace disque",
+      "used": "Utilisé",
+      "available": "disponible",
+      "empty": "Aucun chemin de stockage configuré"
+    }
   }
 }

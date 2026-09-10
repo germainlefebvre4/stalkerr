@@ -5,7 +5,11 @@ const LANGUAGES: { code: 'en' | 'fr'; labelKey: string }[] = [
   { code: 'fr', labelKey: 'language.fr' },
 ];
 
-export function FloatingHeader() {
+interface FloatingHeaderProps {
+  onOpenSystemStatus: () => void;
+}
+
+export function FloatingHeader({ onOpenSystemStatus }: FloatingHeaderProps) {
   const { t, i18n } = useTranslation();
   const activeLanguage = i18n.language.startsWith('fr') ? 'fr' : 'en';
 
@@ -20,6 +24,27 @@ export function FloatingHeader() {
         </p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <button
+          type="button"
+          aria-label={t('systemStatus.iconLabel')}
+          title={t('systemStatus.iconLabel')}
+          onClick={onOpenSystemStatus}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '2rem',
+            height: '2rem',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--primary-slate)',
+            background: 'var(--bg-app)',
+            color: 'var(--text-secondary)',
+            fontSize: '1rem',
+            lineHeight: 1,
+          }}
+        >
+          📶
+        </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
           <select
             aria-label={t('language.label')}

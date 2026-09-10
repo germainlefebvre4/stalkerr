@@ -16,7 +16,8 @@ import {
   RadarrMovieMatchesResponse,
   SonarrSeriesEpisodesResponse,
   RadarrSonarrStats,
-  MatchStatusFilter
+  MatchStatusFilter,
+  SystemStatusResponse
 } from '../types';
 
 export class ApiError extends Error {
@@ -336,6 +337,12 @@ export const api = {
 
   async getItem(id: number): Promise<PlaylistItem> {
     const res = await fetch(`/api/v1/items/${id}`);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getSystemStatus(): Promise<SystemStatusResponse> {
+    const res = await fetch('/api/v1/system/status');
     if (!res.ok) return throwApiError(res);
     return res.json();
   }

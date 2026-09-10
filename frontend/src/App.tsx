@@ -57,6 +57,7 @@ import { MoveFolderDialog } from './components/MoveFolderDialog';
 import { RenameFolderDialog } from './components/RenameFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 import { RunItemsDialog } from './components/RunItemsDialog';
+import { SystemStatusDialog } from './components/SystemStatusDialog';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -127,6 +128,7 @@ export default function App() {
   const overrideExtraSuccessRef = useRef<(() => void) | null>(null);
   const [isRunItemsOpen, setIsRunItemsOpen] = useState(false);
   const [selectedRunLog, setSelectedRunLog] = useState<ProcessingLog | null>(null);
+  const [isSystemStatusOpen, setIsSystemStatusOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('stalkeer_active_tab', activeTab);
@@ -263,7 +265,7 @@ export default function App() {
         </div>
       )}
 
-      <FloatingHeader />
+      <FloatingHeader onOpenSystemStatus={() => setIsSystemStatusOpen(true)} />
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="segmented-tabs-list">
@@ -381,6 +383,8 @@ export default function App() {
         isOpen={isRunItemsOpen} onOpenChange={setIsRunItemsOpen} log={selectedRunLog}
         onOpenOverride={handleOpenOverride} onResetPipeline={handleResetPipeline}
       />
+
+      <SystemStatusDialog isOpen={isSystemStatusOpen} onOpenChange={setIsSystemStatusOpen} />
     </div>
   );
 }

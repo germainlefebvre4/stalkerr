@@ -160,5 +160,8 @@ func (s *Server) setupRoutes() {
 		v1.POST("/downloads/:id/resync-path", s.resyncDownloadPath)
 		v1.POST("/downloads/:id/cancel", s.cancelDownload)
 		v1.GET("/config/paths", s.getConfigPaths)
+
+		// System status endpoint
+		v1.GET("/system/status", s.getSystemStatus)
 	}
 }

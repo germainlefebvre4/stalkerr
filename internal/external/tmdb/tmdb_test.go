@@ -1,6 +1,8 @@
 package tmdb
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -309,6 +311,68 @@ func TestSearchMovies(t *testing.T) {
 	if results[1].ID != 604 || results[1].Title != "The Matrix Reloaded" {
 		t.Errorf("unexpected second result: %+v", results[1])
 	}
+}
+
+func TestSystemStatus(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/configuration" {
+				t.Errorf("expected path /configuration, got %s", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"images":{}}`))
+		}))
+		defer server.Close()
+
+		client := newTestClient(server.URL, 0)
+
+		if err := client.SystemStatus(context.Background()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := newTestClient(server.URL, 0)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+
+		err := client.SystemStatus(ctx)
+		if err == nil {
+			t.Fatal("expected timeout error")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("expected a context.DeadlineExceeded error, got %v", err)
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"status_message":"Invalid API key"}`))
+		}))
+		defer server.Close()
+
+		client := newTestClient(server.URL, 0)
+
+		err := client.SystemStatus(context.Background())
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+		var statusErr *StatusError
+		if !errors.As(err, &statusErr) {
+			t.Fatalf("expected a *StatusError, got %T: %v", err, err)
+		}
+		if statusErr.StatusCode() != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", statusErr.StatusCode())
+		}
+	})
 }
 
 func TestSearchTVShows(t *testing.T) {

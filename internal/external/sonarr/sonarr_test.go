@@ -3,6 +3,7 @@ package sonarr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -701,6 +702,76 @@ func TestFindEpisodeByTVDBID(t *testing.T) {
 		}
 		if gotSeries != nil || gotEpisode != nil {
 			t.Fatalf("expected not found, got series=%+v episode=%+v", gotSeries, gotEpisode)
+		}
+	})
+}
+
+func TestSystemStatus(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/v3/system/status" {
+				t.Errorf("expected path /api/v3/system/status, got %s", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"version":"4.0.0"}`))
+		}))
+		defer server.Close()
+
+		client := New(Config{BaseURL: server.URL, APIKey: "test-key", Timeout: 5 * time.Second})
+
+		if err := client.SystemStatus(context.Background()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := New(Config{BaseURL: server.URL, APIKey: "test-key", Timeout: 5 * time.Second})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+
+		err := client.SystemStatus(ctx)
+		if err == nil {
+			t.Fatal("expected timeout error")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("expected a context.DeadlineExceeded error, got %v", err)
+		}
+	})
+
+	t.Run("connection refused", func(t *testing.T) {
+		client := New(Config{BaseURL: "http://127.0.0.1:1", APIKey: "test-key", Timeout: 5 * time.Second})
+
+		if err := client.SystemStatus(context.Background()); err == nil {
+			t.Fatal("expected connection error")
+		}
+	})
+
+	t.Run("unauthorized", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"message":"Unauthorized"}`))
+		}))
+		defer server.Close()
+
+		client := New(Config{BaseURL: server.URL, APIKey: "bad-key", Timeout: 5 * time.Second})
+
+		err := client.SystemStatus(context.Background())
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+		var statusErr *StatusError
+		if !errors.As(err, &statusErr) {
+			t.Fatalf("expected a *StatusError, got %T: %v", err, err)
+		}
+		if statusErr.StatusCode() != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", statusErr.StatusCode())
 		}
 	})
 }
