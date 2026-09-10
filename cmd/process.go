@@ -7,6 +7,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/logger"
+	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/processor"
 	"github.com/spf13/cobra"
 )
@@ -16,7 +17,11 @@ var processCmd = &cobra.Command{
 	Short: "Process M3U file and store to database",
 	Long: `Parse M3U playlist file, classify content, and store entries to the database.
 This command performs full processing including content type detection and metadata
-extraction.`,
+extraction. With no [m3u-file] argument, every configured M3U source (see m3u.sources,
+or the legacy m3u.file_path/download.* fields) is processed in turn, each tagged with
+its own source name; a missing source file is skipped with a warning rather than
+aborting the run. Passing [m3u-file] bypasses the configured source list entirely for
+a manual one-off run against that explicit file.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Load configuration
@@ -35,24 +40,6 @@ extraction.`,
 			log.Warn("Using deprecated 'logging.level' configuration. Please migrate to 'logging.app.level' and 'logging.database.level' for better control.")
 		}
 
-		// Determine file path
-		var filePath string
-		if len(args) > 0 {
-			filePath = args[0]
-		} else {
-			filePath = cfg.M3U.FilePath
-			if filePath == "" {
-				fmt.Fprintln(os.Stderr, "Error: m3u file path must be provided either as CLI argument or in config file")
-				os.Exit(1)
-			}
-		}
-
-		// Check if file exists
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Error: file '%s' does not exist\n", filePath)
-			os.Exit(1)
-		}
-
 		force, _ := cmd.Flags().GetBool("force")
 		limit, _ := cmd.Flags().GetInt("limit")
 		batchSize, _ := cmd.Flags().GetInt("batch-size")
@@ -60,7 +47,15 @@ extraction.`,
 		skipTMDB, _ := cmd.Flags().GetBool("skip-tmdb")
 		tmdbLanguage, _ := cmd.Flags().GetString("tmdb-language")
 
-		fmt.Printf("Processing M3U file: %s\n", filePath)
+		opts := processor.ProcessOptions{
+			Force:            force,
+			Limit:            limit,
+			BatchSize:        batchSize,
+			ProgressInterval: progress,
+			SkipTMDB:         skipTMDB,
+			TMDBLanguage:     tmdbLanguage,
+		}
+
 		if force {
 			fmt.Println("Force mode: will re-process existing entries")
 		}
@@ -81,72 +76,134 @@ extraction.`,
 		}
 		defer database.Close()
 
-		// Create processor
-		proc, err := processor.NewProcessor(filePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating processor: %v\n", err)
+		// A single positional file path bypasses the configured source list
+		// entirely for a manual one-off run against an explicit file, unchanged
+		// from before multi-source support existed.
+		if len(args) > 0 {
+			filePath := args[0]
+
+			if _, err := os.Stat(filePath); os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Error: file '%s' does not exist\n", filePath)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Processing M3U file: %s\n", filePath)
+
+			stats, err := runProcessTarget(filePath, "default", opts)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error processing file: %v\n", err)
+				os.Exit(1)
+			}
+
+			printProcessStats("default", stats, skipTMDB)
+			fmt.Println("\nProcessing completed successfully!")
+			return
+		}
+
+		// Otherwise, process every configured source (or the single implicit
+		// legacy source), isolating each source's failure from the others.
+		if processConfiguredSources(cfg.M3U.ResolvedSources(), cfg.M3U.UsesImplicitSource(), opts, log) {
 			os.Exit(1)
-		}
-
-		// Process the file
-		opts := processor.ProcessOptions{
-			Force:            force,
-			Limit:            limit,
-			BatchSize:        batchSize,
-			ProgressInterval: progress,
-			SkipTMDB:         skipTMDB,
-			TMDBLanguage:     tmdbLanguage,
-		}
-
-		stats, err := proc.Process(opts)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error processing file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Display statistics
-		fmt.Printf("\n=== Processing Complete ===\n")
-		fmt.Printf("Total lines in file:  %d\n", stats.TotalLines)
-		fmt.Printf("Successfully processed: %d\n", stats.Processed)
-		fmt.Printf("Duplicates skipped:   %d\n", stats.DuplicatesFound)
-		fmt.Printf("Filtered out:         %d\n", stats.FilteredOut)
-		fmt.Printf("Errors:               %d\n", stats.Errors)
-		fmt.Printf("\nContent breakdown:\n")
-		fmt.Printf("  Movies:        %d\n", stats.Movies)
-		fmt.Printf("  TV Shows:      %d\n", stats.TVShows)
-		fmt.Printf("  Channels:      %d\n", stats.Channels)
-		fmt.Printf("  Uncategorized: %d\n", stats.Uncategorized)
-
-		if !skipTMDB {
-			fmt.Printf("\nTMDB Enrichment:\n")
-			fmt.Printf("  Matched:       %d\n", stats.TMDBMatched)
-			fmt.Printf("  Not found:     %d\n", stats.TMDBNotFound)
-			fmt.Printf("  Errors:        %d\n", stats.TMDBErrors)
-			if stats.TMDBMatched+stats.TMDBNotFound > 0 {
-				matchRate := float64(stats.TMDBMatched) / float64(stats.TMDBMatched+stats.TMDBNotFound) * 100
-				fmt.Printf("  Match rate:    %.1f%%\n", matchRate)
-			}
-			if stats.MetadataBackfilled > 0 || stats.MetadataBackfillErrors > 0 {
-				fmt.Printf("  Metadata backfilled: %d\n", stats.MetadataBackfilled)
-				fmt.Printf("  Metadata backfill errors: %d\n", stats.MetadataBackfillErrors)
-			}
-		}
-
-		fmt.Printf("\nProcessing time: %v\n", stats.Duration)
-
-		if stats.Errors > 0 {
-			fmt.Printf("\nErrors encountered:\n")
-			for i, msg := range stats.ErrorMessages {
-				if i >= 10 {
-					fmt.Printf("  ... and %d more errors\n", len(stats.ErrorMessages)-10)
-					break
-				}
-				fmt.Printf("  - %s\n", msg)
-			}
 		}
 
 		fmt.Println("\nProcessing completed successfully!")
 	},
+}
+
+// runProcessTarget creates a Processor for the given file/source and runs it.
+func runProcessTarget(filePath, sourceName string, opts processor.ProcessOptions) (*processor.Statistics, error) {
+	proc, err := processor.NewProcessor(filePath, sourceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create processor: %w", err)
+	}
+	return proc.Process(opts)
+}
+
+// processConfiguredSources processes every configured source independently.
+// A source whose downloaded file is missing is skipped with a warning rather
+// than aborting the run; a source that fails to process is logged and does
+// not prevent the remaining sources from being attempted. Returns true if
+// any source failed to process (a missing file is skipped, not a failure).
+//
+// implicit must match config.M3UConfig.UsesImplicitSource() for the given
+// sources, so the file path resolved here matches the destination
+// m3u-download actually wrote to (see m3udownloader.SourcePaths).
+func processConfiguredSources(sources []config.M3USourceConfig, implicit bool, opts processor.ProcessOptions, log *logger.Logger) bool {
+	hadError := false
+
+	for i := range sources {
+		source := &sources[i]
+		filePath, _ := m3udownloader.SourcePaths(source.FilePath, source.Download.ArchiveDir, source.Name, implicit)
+
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: file '%s' for source %q does not exist, skipping\n", filePath, source.Name)
+			log.WithFields(map[string]interface{}{
+				"source": source.Name,
+				"file":   filePath,
+			}).Warn("source file missing, skipping")
+			continue
+		}
+
+		fmt.Printf("Processing M3U file: %s (source: %s)\n", filePath, source.Name)
+
+		stats, err := runProcessTarget(filePath, source.Name, opts)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error processing source %q: %v\n", source.Name, err)
+			log.WithFields(map[string]interface{}{
+				"source": source.Name,
+				"error":  err,
+			}).Error("failed to process source", err)
+			hadError = true
+			continue
+		}
+
+		printProcessStats(source.Name, stats, opts.SkipTMDB)
+	}
+
+	return hadError
+}
+
+// printProcessStats prints the processing summary for one source.
+func printProcessStats(sourceName string, stats *processor.Statistics, skipTMDB bool) {
+	fmt.Printf("\n=== Processing Complete (source: %s) ===\n", sourceName)
+	fmt.Printf("Total lines in file:  %d\n", stats.TotalLines)
+	fmt.Printf("Successfully processed: %d\n", stats.Processed)
+	fmt.Printf("Duplicates skipped:   %d\n", stats.DuplicatesFound)
+	fmt.Printf("Filtered out:         %d\n", stats.FilteredOut)
+	fmt.Printf("Errors:               %d\n", stats.Errors)
+	fmt.Printf("\nContent breakdown:\n")
+	fmt.Printf("  Movies:        %d\n", stats.Movies)
+	fmt.Printf("  TV Shows:      %d\n", stats.TVShows)
+	fmt.Printf("  Channels:      %d\n", stats.Channels)
+	fmt.Printf("  Uncategorized: %d\n", stats.Uncategorized)
+
+	if !skipTMDB {
+		fmt.Printf("\nTMDB Enrichment:\n")
+		fmt.Printf("  Matched:       %d\n", stats.TMDBMatched)
+		fmt.Printf("  Not found:     %d\n", stats.TMDBNotFound)
+		fmt.Printf("  Errors:        %d\n", stats.TMDBErrors)
+		if stats.TMDBMatched+stats.TMDBNotFound > 0 {
+			matchRate := float64(stats.TMDBMatched) / float64(stats.TMDBMatched+stats.TMDBNotFound) * 100
+			fmt.Printf("  Match rate:    %.1f%%\n", matchRate)
+		}
+		if stats.MetadataBackfilled > 0 || stats.MetadataBackfillErrors > 0 {
+			fmt.Printf("  Metadata backfilled: %d\n", stats.MetadataBackfilled)
+			fmt.Printf("  Metadata backfill errors: %d\n", stats.MetadataBackfillErrors)
+		}
+	}
+
+	fmt.Printf("\nProcessing time: %v\n", stats.Duration)
+
+	if stats.Errors > 0 {
+		fmt.Printf("\nErrors encountered:\n")
+		for i, msg := range stats.ErrorMessages {
+			if i >= 10 {
+				fmt.Printf("  ... and %d more errors\n", len(stats.ErrorMessages)-10)
+				break
+			}
+			fmt.Printf("  - %s\n", msg)
+		}
+	}
 }
 
 func init() {

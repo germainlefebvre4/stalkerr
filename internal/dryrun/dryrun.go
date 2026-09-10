@@ -63,7 +63,7 @@ func (a *Analyzer) Analyze(filePath string) (*Result, error) {
 	}
 
 	// Parse M3U file
-	p := parser.NewParser(filePath)
+	p := parser.NewParser(filePath, "default")
 	lines, err := p.Parse()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse M3U file: %w", err)

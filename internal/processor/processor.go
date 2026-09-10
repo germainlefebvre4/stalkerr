@@ -55,6 +55,7 @@ type Statistics struct {
 // Processor handles M3U playlist processing
 type Processor struct {
 	filePath   string
+	sourceName string
 	parser     *parser.Parser
 	classifier *classifier.Classifier
 	filter     *filter.Manager
@@ -63,8 +64,8 @@ type Processor struct {
 	db         *gorm.DB
 }
 
-// NewProcessor creates a new processor instance
-func NewProcessor(filePath string) (*Processor, error) {
+// NewProcessor creates a new processor instance for the given source name
+func NewProcessor(filePath, sourceName string) (*Processor, error) {
 	log := logger.AppLogger()
 
 	db := database.Get()
@@ -72,7 +73,7 @@ func NewProcessor(filePath string) (*Processor, error) {
 		return nil, fmt.Errorf("database not initialized")
 	}
 
-	p := parser.NewParserWithLogger(filePath, log)
+	p := parser.NewParserWithLogger(filePath, sourceName, log)
 	c := classifier.New()
 	f := filter.NewManager()
 
@@ -98,6 +99,7 @@ func NewProcessor(filePath string) (*Processor, error) {
 
 	return &Processor{
 		filePath:   filePath,
+		sourceName: sourceName,
 		parser:     p,
 		classifier: c,
 		filter:     f,
@@ -161,7 +163,7 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 
 		// Check for duplicate
 		if !opts.Force {
-			exists, err := p.checkDuplicate(line.LineHash)
+			exists, err := p.checkDuplicate(line.SourceName, line.LineHash)
 			if err != nil {
 				stats.Errors++
 				errMsg := fmt.Sprintf("error checking duplicate for line %d: %v", i+1, err)
@@ -263,10 +265,10 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 	return stats, nil
 }
 
-// checkDuplicate checks if a line with the given hash already exists
-func (p *Processor) checkDuplicate(lineHash string) (bool, error) {
+// checkDuplicate checks if a line with the given source name and hash already exists
+func (p *Processor) checkDuplicate(sourceName, lineHash string) (bool, error) {
 	var count int64
-	err := p.db.Model(&models.ProcessedLine{}).Where("line_hash = ?", lineHash).Count(&count).Error
+	err := p.db.Model(&models.ProcessedLine{}).Where("source_name = ? AND line_hash = ?", sourceName, lineHash).Count(&count).Error
 	return count > 0, err
 }
 
@@ -657,7 +659,7 @@ func (p *Processor) saveBatch(batch []*models.ProcessedLine, stats *Statistics, 
 
 			// Check if entry exists and handle based on force mode
 			var existing models.ProcessedLine
-			err := tx.Where("line_hash = ?", line.LineHash).First(&existing).Error
+			err := tx.Where("source_name = ? AND line_hash = ?", line.SourceName, line.LineHash).First(&existing).Error
 
 			if err == nil {
 				// Entry exists - update it

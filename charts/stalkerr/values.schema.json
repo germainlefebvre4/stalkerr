@@ -204,6 +204,66 @@
                   "description": "Download interval in hours"
                 }
               }
+            },
+            "sources": {
+              "type": "array",
+              "description": "Optional list of multiple M3U sources. When non-empty, takes precedence over file_path/download above.",
+              "items": {
+                "type": "object",
+                "required": ["name", "file_path"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Unique name identifying this M3U source"
+                  },
+                  "file_path": {
+                    "type": "string",
+                    "description": "Path to this source's M3U playlist file"
+                  },
+                  "download": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "Enable M3U download"
+                      },
+                      "url": {
+                        "type": "string",
+                        "description": "URL to download M3U playlist"
+                      },
+                      "archive_dir": {
+                        "type": "string",
+                        "description": "Archive directory for old playlists"
+                      },
+                      "retention_count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Number of old playlists to keep"
+                      },
+                      "max_file_size_mb": {
+                        "type": "integer",
+                        "description": "Maximum file size in MB"
+                      },
+                      "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Download timeout in seconds"
+                      },
+                      "retry_attempts": {
+                        "type": "integer",
+                        "description": "Number of retry attempts"
+                      },
+                      "auth_username": {
+                        "type": "string",
+                        "description": "HTTP authentication username"
+                      },
+                      "auth_password": {
+                        "type": "string",
+                        "description": "HTTP authentication password"
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },

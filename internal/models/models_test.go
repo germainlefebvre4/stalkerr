@@ -75,6 +75,7 @@ func TestProcessedLine_Creation(t *testing.T) {
 		LineContent: "#EXTINF:-1 tvg-name=\"Test Movie\" group-title=\"Movies\",Test Movie",
 		LineURL:     &lineURL,
 		LineHash:    "abc123",
+		SourceName:  "provider-a",
 		TvgName:     "Test Movie",
 		GroupTitle:  "Movies",
 		ProcessedAt: now,
@@ -92,6 +93,9 @@ func TestProcessedLine_Creation(t *testing.T) {
 	}
 	if line.State != StateProcessed {
 		t.Errorf("expected State processed, got %s", line.State)
+	}
+	if line.SourceName != "provider-a" {
+		t.Errorf("expected SourceName 'provider-a', got %s", line.SourceName)
 	}
 }
 

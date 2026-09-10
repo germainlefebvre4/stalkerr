@@ -44,7 +44,30 @@ data:
         {{- end }}
         schedule_enabled: {{ .Values.config.m3u.download.schedule_enabled }}
         interval_hours: {{ .Values.config.m3u.download.interval_hours }}
-    
+      {{- if .Values.config.m3u.sources }}
+      sources:
+        {{- range .Values.config.m3u.sources }}
+        - name: {{ .name }}
+          file_path: {{ .file_path }}
+          download:
+            enabled: {{ .download.enabled }}
+            {{- if .download.url }}
+            url: {{ .download.url | quote }}
+            {{- end }}
+            archive_dir: {{ .download.archive_dir }}
+            retention_count: {{ .download.retention_count }}
+            max_file_size_mb: {{ .download.max_file_size_mb }}
+            timeout_seconds: {{ .download.timeout_seconds }}
+            retry_attempts: {{ .download.retry_attempts }}
+            {{- if .download.auth_username }}
+            auth_username: {{ .download.auth_username | quote }}
+            {{- end }}
+            {{- if .download.auth_password }}
+            auth_password: {{ .download.auth_password | quote }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+
     # Filter configuration
     filter:
       group_title:

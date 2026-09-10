@@ -67,7 +67,7 @@ func TestNewProcessor(t *testing.T) {
 
 	tmpFile := createTestM3U(t, "#EXTM3U\n#EXTINF:-1,Test\nhttp://example.com/test.mkv")
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -102,7 +102,7 @@ http://example.com/movie2.mp4`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -147,7 +147,7 @@ http://example.com/3.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -184,7 +184,7 @@ http://example.com/movie.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -203,7 +203,7 @@ http://example.com/movie.mkv`
 	}
 
 	// Second processing with fresh processor instance (should detect duplicate in DB)
-	proc2, err := NewProcessor(tmpFile)
+	proc2, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -233,7 +233,7 @@ http://example.com/movie.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -252,7 +252,7 @@ http://example.com/movie.mkv`
 	}
 
 	// Second processing with force on a fresh processor instance (should process again)
-	proc2, err := NewProcessor(tmpFile)
+	proc2, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -289,7 +289,7 @@ http://example.com/movie.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -339,7 +339,7 @@ http://example.com/movie.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -386,7 +386,7 @@ http://example.com/movie.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -409,7 +409,7 @@ http://example.com/movie.mkv`
 		t.Fatalf("failed to load first processing log: %v", err)
 	}
 
-	proc2, err := NewProcessor(tmpFile)
+	proc2, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -453,7 +453,7 @@ http://example.com/movie.mkv`
 
 	tmpFile := createTestM3U(t, content)
 
-	proc, err := NewProcessor(tmpFile)
+	proc, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -477,7 +477,7 @@ http://example.com/movie.mkv`
 	}
 
 	// Second, non-forced run should skip the line as a duplicate.
-	proc2, err := NewProcessor(tmpFile)
+	proc2, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -512,7 +512,7 @@ func TestProcessNewItemsCountOnlyCountsCreatedLines(t *testing.T) {
 #EXTINF:-1 tvg-name="Existing Movie" group-title="Movies",Existing Movie
 http://example.com/existing.mkv`
 
-	proc, err := NewProcessor(createTestM3U(t, firstContent))
+	proc, err := NewProcessor(createTestM3U(t, firstContent), "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -529,7 +529,7 @@ http://example.com/existing.mkv
 #EXTINF:-1 tvg-name="New Movie" group-title="Movies",New Movie
 http://example.com/new.mkv`
 
-	proc2, err := NewProcessor(createTestM3U(t, secondContent))
+	proc2, err := NewProcessor(createTestM3U(t, secondContent), "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -563,7 +563,7 @@ http://example.com/movie1.mkv
 #EXTINF:-1 tvg-name="Show One S01E01" group-title="ANIMATION",Show One S01E01
 http://example.com/show1.mkv`
 
-	proc, err := NewProcessor(createTestM3U(t, content))
+	proc, err := NewProcessor(createTestM3U(t, content), "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -627,7 +627,7 @@ func TestProcessingLogPersistsPartialStatisticsOnFailure(t *testing.T) {
 #EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
 http://example.com/movie1.mkv`
 
-	proc, err := NewProcessor(createTestM3U(t, content))
+	proc, err := NewProcessor(createTestM3U(t, content), "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -691,7 +691,7 @@ func TestProcessNoItemsProcessedRecordsEmptyGroupTitlesAndZeroCounts(t *testing.
 #EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
 http://example.com/movie1.mkv`
 
-	proc, err := NewProcessor(createTestM3U(t, content))
+	proc, err := NewProcessor(createTestM3U(t, content), "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -702,7 +702,7 @@ http://example.com/movie1.mkv`
 	}
 
 	// Second, non-forced run over the same content: every line is a duplicate and skipped.
-	proc2, err := NewProcessor(createTestM3U(t, content))
+	proc2, err := NewProcessor(createTestM3U(t, content), "default")
 	if err != nil {
 		t.Fatalf("NewProcessor failed: %v", err)
 	}
@@ -1108,7 +1108,7 @@ func TestProcessWithManualMapping(t *testing.T) {
 
 	tmpFile := createTestM3U(t, "#EXTM3U\n#EXTINF:-1 tvg-name=\"FR: INCEPTION (2010)\" group-title=\"FR: FILMS ACTION\",FR: INCEPTION (2010)\nhttp://example.com/inception.mkv")
 
-	p, err := NewProcessor(tmpFile)
+	p, err := NewProcessor(tmpFile, "default")
 	if err != nil {
 		t.Fatalf("failed to create processor: %v", err)
 	}

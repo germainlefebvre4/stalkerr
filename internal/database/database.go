@@ -137,6 +137,15 @@ func runMigrations() error {
 	migrations := []string{
 		"ALTER TABLE processed_lines DROP COLUMN IF EXISTS overrides_id",
 		"ALTER TABLE processed_lines DROP COLUMN IF EXISTS overrides_at",
+		// Replace the single-column unique index on line_hash with a composite
+		// (source_name, line_hash) index so multi-source deployments can retain
+		// identical-looking entries from different sources. AutoMigrate never
+		// drops an existing index on its own, so the old index is dropped
+		// explicitly here (covering both index names GORM may have produced
+		// for the original bare `uniqueIndex` tag).
+		"DROP INDEX IF EXISTS idx_processed_lines_line_hash",
+		"DROP INDEX IF EXISTS idx_processed_lines_hash",
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_processed_lines_source_hash ON processed_lines (source_name, line_hash)",
 	}
 	for _, stmt := range migrations {
 		if err := db.Exec(stmt).Error; err != nil {

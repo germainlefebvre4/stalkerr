@@ -746,6 +746,7 @@ func toItemResponse(item models.ProcessedLine) ItemResponse {
 		LineContent:     item.LineContent,
 		LineURL:         item.LineURL,
 		LineHash:        item.LineHash,
+		SourceName:      item.SourceName,
 		LineNumber:      item.LineNumber,
 		ProcessingLogID: item.ProcessingLogID,
 		ProcessedAt:     item.ProcessedAt.Format("2006-01-02T15:04:05Z07:00"),

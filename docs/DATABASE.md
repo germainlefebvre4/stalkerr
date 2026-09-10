@@ -22,7 +22,8 @@ Stores original M3U playlist lines with polymorphic relationships to content typ
 | `id` | INTEGER | PRIMARY KEY | Unique identifier |
 | `line_content` | TEXT | NOT NULL | Original M3U EXTINF line |
 | `line_url` | TEXT | NULLABLE | Stream URL from M3U |
-| `line_hash` | VARCHAR(64) | NOT NULL, UNIQUE | SHA-256 hash for deduplication |
+| `source_name` | VARCHAR(100) | NOT NULL, DEFAULT 'default', part of composite unique | Name of the configured M3U source this line was parsed from (see [M3U Download](M3U-DOWNLOAD.md#multiple-sources)) |
+| `line_hash` | VARCHAR(64) | NOT NULL, part of composite unique | SHA-256 hash for deduplication, scoped per source |
 | `line_number` | INTEGER | NOT NULL, DEFAULT 0 | Line number in the source M3U file |
 | `tvg_name` | VARCHAR(255) | NOT NULL | Original TVG name from M3U |
 | `group_title` | VARCHAR(255) | NOT NULL | Original group title from M3U |
@@ -45,7 +46,7 @@ Stores original M3U playlist lines with polymorphic relationships to content typ
 | `updated_at` | TIMESTAMP | NOT NULL | Record update time |
 
 **Indexes:**
-- `idx_processed_lines_hash` (unique) on `line_hash`
+- `idx_processed_lines_source_hash` (unique) on `(source_name, line_hash)` - replaces the old single-column unique index on `line_hash`, so identical-looking entries from two different sources are both retained instead of one being rejected as a duplicate
 - `idx_processed_lines_content` on `(content_type, state)`
 - `idx_processed_lines_m3u` on `(group_title, tvg_name)`
 - `idx_processed_lines_download` on `download_info_id`
@@ -306,7 +307,7 @@ The `processed_lines` table uses nullable foreign keys to establish relationship
 
 ### Deduplication Strategy
 
-1. **M3U lines**: SHA-256 hash (`line_hash`) prevents duplicate playlist entries
+1. **M3U lines**: SHA-256 hash (`line_hash`) prevents duplicate playlist entries, scoped per `source_name` - a true duplicate within the same source's file is rejected, but two different sources producing an identical-looking entry are both kept as separate rows (redundancy across M3U providers is intentional, see [M3U Download](M3U-DOWNLOAD.md#multiple-sources))
 2. **Movies**: Unique constraint on `(tmdb_title, tmdb_year)` prevents duplicate TMDB entries
 3. **TV Shows**: Deduplication of `(tmdb_title, tmdb_year, season, episode)` is enforced in application logic (no DB-level composite unique constraint)
 4. **Manual mappings**: Unique constraint on `(tvg_name, group_title)` prevents duplicate overrides
@@ -345,11 +346,19 @@ AND t.season = 1
 ORDER BY t.episode;
 ```
 
-**Check for duplicate lines:**
+**Check for duplicate lines within the same source:**
 ```sql
-SELECT line_hash, COUNT(*) FROM processed_lines
-GROUP BY line_hash
+SELECT source_name, line_hash, COUNT(*) FROM processed_lines
+GROUP BY source_name, line_hash
 HAVING COUNT(*) > 1;
+```
+
+**Find redundant candidates for the same content across sources (by hash, ignoring source):**
+```sql
+SELECT line_hash, COUNT(DISTINCT source_name) AS source_count, array_agg(DISTINCT source_name) AS sources
+FROM processed_lines
+GROUP BY line_hash
+HAVING COUNT(DISTINCT source_name) > 1;
 ```
 
 ## Best Practices

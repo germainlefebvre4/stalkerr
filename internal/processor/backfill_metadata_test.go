@@ -247,7 +247,8 @@ func TestProcess_BackfillSkippedWhenSkipTMDB(t *testing.T) {
 
 	p := &Processor{
 		filePath:   tmpFile,
-		parser:     parser.NewParserWithLogger(tmpFile, logger.AppLogger()),
+		sourceName: "default",
+		parser:     parser.NewParserWithLogger(tmpFile, "default", logger.AppLogger()),
 		classifier: classifier.New(),
 		filter:     f,
 		tmdbClient: client,

@@ -34,6 +34,7 @@ type ItemResponse struct {
 	LineContent     string                 `json:"line_content"`
 	LineURL         *string                `json:"line_url,omitempty"`
 	LineHash        string                 `json:"line_hash"`
+	SourceName      string                 `json:"source_name"`
 	LineNumber      int                    `json:"line_number"`
 	ProcessingLogID *uint                  `json:"processing_log_id,omitempty"`
 	ProcessedAt     string                 `json:"processed_at"`

@@ -40,15 +40,17 @@ type ParseStats struct {
 // Parser handles M3U playlist parsing
 type Parser struct {
 	filePath   string
+	sourceName string
 	logger     *logger.Logger
 	seenHashes map[string]bool
 	stats      ParseStats
 }
 
-// NewParser creates a new parser instance
-func NewParser(filePath string) *Parser {
+// NewParser creates a new parser instance for the given source name
+func NewParser(filePath, sourceName string) *Parser {
 	return &Parser{
 		filePath:   filePath,
+		sourceName: sourceName,
 		logger:     logger.AppLogger(),
 		seenHashes: make(map[string]bool),
 		stats: ParseStats{
@@ -57,10 +59,11 @@ func NewParser(filePath string) *Parser {
 	}
 }
 
-// NewParserWithLogger creates a new parser instance with a custom logger
-func NewParserWithLogger(filePath string, log *logger.Logger) *Parser {
+// NewParserWithLogger creates a new parser instance for the given source name with a custom logger
+func NewParserWithLogger(filePath, sourceName string, log *logger.Logger) *Parser {
 	return &Parser{
 		filePath:   filePath,
+		sourceName: sourceName,
 		logger:     log,
 		seenHashes: make(map[string]bool),
 		stats: ParseStats{
@@ -143,14 +146,16 @@ func (p *Parser) Parse() ([]models.ProcessedLine, error) {
 				continue
 			}
 
-			// Check for duplicates
-			if p.seenHashes[processedLine.LineHash] {
+			// Check for duplicates, scoped to this source so identical hashes
+			// from different sources are never treated as duplicates of each other
+			dedupKey := p.sourceName + "\x00" + processedLine.LineHash
+			if p.seenHashes[dedupKey] {
 				p.stats.SkippedDuplicates++
 				currentEntry = nil
 				continue
 			}
 
-			p.seenHashes[processedLine.LineHash] = true
+			p.seenHashes[dedupKey] = true
 			lines = append(lines, *processedLine)
 			p.stats.ParsedEntries++
 			currentEntry = nil
@@ -257,6 +262,7 @@ func (p *Parser) createProcessedLine(entry *M3UEntry) (*models.ProcessedLine, er
 		LineNumber:  entry.LineNumber,
 		TvgName:     entry.TvgName,
 		GroupTitle:  entry.GroupTitle,
+		SourceName:  p.sourceName,
 		State:       models.StatePending,
 		ContentType: models.ContentTypeUncategorized,
 	}, nil

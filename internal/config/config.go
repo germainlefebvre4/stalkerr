@@ -37,6 +37,42 @@ type M3UConfig struct {
 	FilePath       string            `mapstructure:"file_path"`
 	UpdateInterval int               `mapstructure:"update_interval"`
 	Download       M3UDownloadConfig `mapstructure:"download"`
+	// Sources, when non-empty, lists multiple M3U sources to download/process
+	// in a single run instead of the singular FilePath/Download fields above.
+	Sources []M3USourceConfig `mapstructure:"sources"`
+}
+
+// M3USourceConfig holds settings for a single M3U playlist source, used when
+// more than one source is configured via m3u.sources.
+type M3USourceConfig struct {
+	Name     string            `mapstructure:"name"`
+	FilePath string            `mapstructure:"file_path"`
+	Download M3UDownloadConfig `mapstructure:"download"`
+}
+
+// ResolvedSources returns the effective list of M3U sources: the explicit
+// Sources list when configured, or a single implicit source named "default"
+// synthesized from the legacy FilePath/Download fields otherwise. This is a
+// plain either/or - when Sources is non-empty, the singular fields are
+// ignored entirely.
+func (c *M3UConfig) ResolvedSources() []M3USourceConfig {
+	if len(c.Sources) > 0 {
+		return c.Sources
+	}
+	return []M3USourceConfig{
+		{
+			Name:     "default",
+			FilePath: c.FilePath,
+			Download: c.Download,
+		},
+	}
+}
+
+// UsesImplicitSource reports whether ResolvedSources is synthesizing the
+// legacy single-source configuration (true) rather than using an explicit
+// Sources list (false).
+func (c *M3UConfig) UsesImplicitSource() bool {
+	return len(c.Sources) == 0
 }
 
 // M3UDownloadConfig holds M3U download settings
@@ -191,6 +227,8 @@ func Load() error {
 	viper.BindEnv("m3u.download.retry_attempts")
 	viper.BindEnv("m3u.download.auth_username")
 	viper.BindEnv("m3u.download.auth_password")
+	// m3u.sources is a list of structured entries and is config-file-only;
+	// there is no equivalent flat env var binding for it.
 
 	bindEnvWithAlternatives("logging.level", "LOG_LEVEL")
 	viper.BindEnv("logging.format")
@@ -285,6 +323,7 @@ func setDefaults() {
 	viper.SetDefault("m3u.download.max_file_size_mb", 500)
 	viper.SetDefault("m3u.download.timeout_seconds", 300)
 	viper.SetDefault("m3u.download.retry_attempts", 3)
+	viper.SetDefault("m3u.sources", []M3USourceConfig{})
 
 	// Radarr defaults
 	viper.SetDefault("radarr.enabled", false)

@@ -1,16 +1,18 @@
 # M3U Playlist Download and Archive Management
 
-This feature enables automatic downloading of M3U playlist files from remote sources with built-in archiving and rotation capabilities.
+This feature enables automatic downloading of M3U playlist files from one or more remote sources with built-in archiving and rotation capabilities.
 
 ## Overview
 
 The M3U Download feature provides:
 
 - **Automated Downloads**: Download M3U playlists from HTTP/HTTPS URLs
+- **Multi-Source Support**: Configure more than one M3U provider; each is downloaded, archived, and processed independently within the same run
 - **Atomic Operations**: Safe, atomic file updates prevent corruption
 - **Validation**: Verify M3U format before accepting downloads
-- **Archive Management**: Automatic timestamped archiving of playlist versions
+- **Archive Management**: Automatic timestamped archiving of playlist versions, per source
 - **Rotation**: Keep only the N most recent archives to manage disk space
+- **Failure Isolation**: A failing source (download error, missing file) is logged and does not prevent the other configured sources from being attempted
 - **Error Handling**: Retry mechanism with circuit breaker for reliability
 - **Security**: File size limits, content validation, and HTTPS support
 
@@ -50,9 +52,47 @@ m3u:
 | `auth_username` | string | `""` | HTTP Basic Auth username (optional) |
 | `auth_password` | string | `""` | HTTP Basic Auth password (optional) |
 
+### Multiple Sources
+
+To ingest more than one M3U provider in a single run, configure `m3u.sources` instead of the singular `file_path`/`download` fields:
+
+```yaml
+m3u:
+  update_interval: 3600
+  sources:
+    - name: provider-a
+      file_path: /path/to/provider-a.m3u
+      download:
+        enabled: true
+        url: "https://provider-a.example.com/playlist.m3u"
+        archive_dir: ./m3u_playlist
+        retention_count: 5
+        max_file_size_mb: 500
+        timeout_seconds: 300
+        retry_attempts: 3
+    - name: provider-b
+      file_path: /path/to/provider-b.m3u
+      download:
+        enabled: true
+        url: "https://provider-b.example.com/playlist.m3u"
+        archive_dir: ./m3u_playlist
+        retention_count: 5
+        max_file_size_mb: 500
+        timeout_seconds: 300
+        retry_attempts: 3
+```
+
+Key points:
+
+- **Either/or, not a merge**: when `m3u.sources` is a non-empty list, it is used exclusively and the singular `file_path`/`download.*` fields are ignored entirely. Leave `sources` unset (or empty) to keep using the singular block - no migration needed for existing single-source configs.
+- **Unique `name` required**: each source needs a unique `name`. It tags every `ProcessedLine` parsed from that source (`source_name` field, also exposed as `source_name` in the `/api/v1/items` API response) and is used to namespace that source's files on disk.
+- **Per-source subdirectory, always**: regardless of what `file_path`/`archive_dir` you configure per source, the effective download destination and archive directory automatically get the source's `name` inserted as a subdirectory - e.g. `archive_dir: ./m3u_playlist` with `name: provider-a` becomes `./m3u_playlist/provider-a/`. This guarantees two sources never collide, even if their configured paths look identical. The legacy singular block is the only case that keeps its exact configured path (no subdirectory), so existing single-source deployments see no on-disk layout change.
+- **Dedup is scoped per source**: the uniqueness constraint that used to be a single global hash is now `(source_name, line_hash)`. Two sources that happen to produce an identical-looking entry (same `tvg_name` + URL) are both kept as separate, retained `ProcessedLine` rows rather than one being silently dropped as a duplicate - see [Database Schema](DATABASE.md#processed_lines) for details. A true duplicate within the *same* source's file is still deduplicated exactly as before.
+- **Redundancy, not ranking**: when a movie or episode is available from more than one source, all matching `ProcessedLine` candidates (one per source) feed into the existing quality/language download-fallback ordering unchanged - `source_name` is informational only and never used as a ranking factor. If one source's stream fails to download, the next candidate (possibly from another source) is tried automatically.
+
 ### Environment Variables
 
-You can also configure via environment variables:
+You can also configure the singular, single-source block via environment variables (`m3u.sources` is a structured list and is config-file-only - there is no flat environment variable equivalent for it):
 
 ```bash
 export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
@@ -66,24 +106,28 @@ export STALKEER_M3U_DOWNLOAD_RETENTION_COUNT=5
 
 ### Download M3U Playlist
 
-Download the M3U playlist from the configured URL:
+Download the M3U playlist(s) from the configured URL(s):
 
 ```bash
 stalkeer m3u-download
 ```
 
-This will:
+For a single (legacy) source, this will:
 1. Download the M3U file from the configured URL
 2. Validate the M3U format
 3. Save atomically to `m3u.file_path`
 4. Create a timestamped archive copy
 5. Rotate old archives based on retention settings
 
+**With `m3u.sources` configured**, every source is attempted independently in the same run: a source that fails to download (network error, invalid response) is logged and does not stop the remaining sources from being attempted. The command exits with a non-zero status if at least one source failed, but only after every configured source has been attempted.
+
 **With custom URL:**
 
 ```bash
 stalkeer m3u-download --url https://example.com/custom-playlist.m3u
 ```
+
+`--url` only applies when exactly one source is in effect (the legacy singular block, or a `sources` list with a single entry). With multiple configured sources it is ambiguous and is silently ignored in favor of each source's own configured URL.
 
 **Without archiving:**
 
@@ -93,15 +137,15 @@ stalkeer m3u-download --no-archive
 
 ### List Archived Playlists
 
-View all archived M3U files:
+View archived M3U files for every configured source:
 
 ```bash
 stalkeer m3u-list-archives
 ```
 
-Output example:
+Output example (single legacy source):
 ```
-Archived M3U files (./m3u_playlist):
+Archived M3U files for source "default" (./m3u_playlist):
 
 Filename                                 Size         Modified
 --------------------------------------------------------------------------------
@@ -114,21 +158,25 @@ playlist_20260131_160000.000000.m3u      40.93 MB     2026-01-31 16:00:00
 Total: 5 archived files
 ```
 
+With multiple configured sources, this lists each source's own archive subdirectory (e.g. `./m3u_playlist/provider-a`, `./m3u_playlist/provider-b`) in turn.
+
 ### Clean Up Old Archives
 
-Manually trigger archive rotation:
+Manually trigger archive rotation for every configured source:
 
 ```bash
-# Use configured retention count
+# Use each source's own configured retention count
 stalkeer m3u-cleanup-archives
 
-# Keep only 3 most recent
+# Override retention count for every source
 stalkeer m3u-cleanup-archives --retention 3
 ```
 
 ## How It Works
 
 ### Download Workflow
+
+The following runs independently for each configured source (or once, for the legacy singular block):
 
 1. **Request**: HTTP GET request to the configured URL
 2. **Validation**: 
@@ -137,11 +185,13 @@ stalkeer m3u-cleanup-archives --retention 3
    - Enforce file size limits
 3. **Content Validation**: Verify M3U format (`#EXTM3U` header)
 4. **Atomic Write**: 
-   - Download to temporary file
+   - Download to temporary file (in the per-source destination directory, created if missing)
    - Validate content
-   - Atomic rename to `m3u.file_path`
-5. **Archive**: Create timestamped copy in archive directory
-6. **Rotation**: Delete archives beyond retention count
+   - Atomic rename to the source's effective `file_path`
+5. **Archive**: Create timestamped copy in the source's archive directory
+6. **Rotation**: Delete archives beyond that source's retention count
+
+With multiple sources, each source's failure in any of these steps is caught and logged individually - it does not stop the remaining sources' workflow from running.
 
 ### Archive Filename Format
 
@@ -293,12 +343,16 @@ chmod 755 ./m3u_playlist
 After downloading an M3U playlist, process it:
 
 ```bash
-# Download latest playlist
+# Download the latest playlist(s) for every configured source
 stalkeer m3u-download
 
-# Process the downloaded playlist
+# Process every configured source's downloaded file, each tagged with its own source_name
 stalkeer process
 ```
+
+With `m3u.sources` configured, `process` resolves the same source list and processes each source's file independently, tagging every resulting `ProcessedLine` with that source's `name`. If a source's file is missing (for example, because its `m3u-download` attempt failed), `process` logs a warning, skips it, and still processes the other sources.
+
+A single positional file path (`stalkeer process /path/to/file.m3u`) still works exactly as before: it bypasses the configured source list entirely for a manual one-off run, tagging every resulting line with the legacy `default` source name.
 
 ## Best Practices
 
@@ -338,6 +392,7 @@ Planned features for future releases:
 ## Related Documentation
 
 - [Configuration Management](DEVELOPMENT.md#configuration)
+- [Database Schema](DATABASE.md#processed_lines) - `source_name` field and per-source dedup constraint
 - [Error Handling](ERROR-HANDLING.md)
 - [Logging System](LOGGING.md)
 

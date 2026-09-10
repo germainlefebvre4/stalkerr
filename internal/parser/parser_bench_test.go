@@ -13,7 +13,7 @@ func BenchmarkParse100(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		parser := NewParser(testFile)
+		parser := NewParser(testFile, "default")
 		_, err := parser.Parse()
 		if err != nil {
 			b.Fatalf("Parse failed: %v", err)
@@ -29,7 +29,7 @@ func BenchmarkParse1000(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		parser := NewParser(testFile)
+		parser := NewParser(testFile, "default")
 		_, err := parser.Parse()
 		if err != nil {
 			b.Fatalf("Parse failed: %v", err)
@@ -45,7 +45,7 @@ func BenchmarkParse10000(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		parser := NewParser(testFile)
+		parser := NewParser(testFile, "default")
 		_, err := parser.Parse()
 		if err != nil {
 			b.Fatalf("Parse failed: %v", err)
@@ -54,7 +54,7 @@ func BenchmarkParse10000(b *testing.B) {
 }
 
 func BenchmarkCalculateHash(b *testing.B) {
-	parser := NewParser("")
+	parser := NewParser("", "default")
 	title := "Test Movie Title"
 	url := "http://example.com/movie.mkv"
 
@@ -65,7 +65,7 @@ func BenchmarkCalculateHash(b *testing.B) {
 }
 
 func BenchmarkParseExtinf(b *testing.B) {
-	parser := NewParser("")
+	parser := NewParser("", "default")
 	line := `#EXTINF:-1 tvg-id="movie1" tvg-name="Test Movie" tvg-logo="http://example.com/logo.jpg" group-title="Movies",Test Movie`
 
 	b.ResetTimer()

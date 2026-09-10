@@ -314,6 +314,43 @@ func TestValidateM3UContent(t *testing.T) {
 	}
 }
 
+func TestSourcePaths_Implicit(t *testing.T) {
+	destPath, archiveDir := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "default", true)
+
+	if destPath != "/data/m3u/playlist.m3u" {
+		t.Errorf("expected unchanged legacy dest path, got %q", destPath)
+	}
+	if archiveDir != "/data/m3u" {
+		t.Errorf("expected unchanged legacy archive dir, got %q", archiveDir)
+	}
+}
+
+func TestSourcePaths_ConfiguredSource(t *testing.T) {
+	destPath, archiveDir := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-a", false)
+
+	expectedDest := "/data/m3u/provider-a/playlist.m3u"
+	expectedArchive := "/data/m3u/provider-a"
+
+	if destPath != expectedDest {
+		t.Errorf("expected dest path %q, got %q", expectedDest, destPath)
+	}
+	if archiveDir != expectedArchive {
+		t.Errorf("expected archive dir %q, got %q", expectedArchive, archiveDir)
+	}
+}
+
+func TestSourcePaths_DifferentSourcesDoNotCollide(t *testing.T) {
+	destA, archiveA := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-a", false)
+	destB, archiveB := SourcePaths("/data/m3u/playlist.m3u", "/data/m3u", "provider-b", false)
+
+	if destA == destB {
+		t.Errorf("expected different dest paths for different sources, both got %q", destA)
+	}
+	if archiveA == archiveB {
+		t.Errorf("expected different archive dirs for different sources, both got %q", archiveA)
+	}
+}
+
 func TestIsValidContentType(t *testing.T) {
 	downloader, _ := setupTestDownloader(t)
 

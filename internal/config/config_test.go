@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -76,6 +77,110 @@ func TestLoad_MinFileSizeMBOverride(t *testing.T) {
 	config := Get()
 	if config.Downloads.MinFileSizeMB != 5 {
 		t.Errorf("expected overridden min_file_size_mb 5, got %v", config.Downloads.MinFileSizeMB)
+	}
+}
+
+func TestLoad_M3USourcesFromYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `
+database:
+  user: testuser
+  dbname: testdb
+m3u:
+  sources:
+    - name: provider-a
+      file_path: /tmp/provider-a.m3u
+      download:
+        enabled: true
+        url: "http://provider-a.example.com/playlist.m3u"
+    - name: provider-b
+      file_path: /tmp/provider-b.m3u
+      download:
+        enabled: true
+        url: "http://provider-b.example.com/playlist.m3u"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write test config file: %v", err)
+	}
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer os.Chdir(origWd)
+
+	cfg = nil
+	if err := Load(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	config := Get()
+	if len(config.M3U.Sources) != 2 {
+		t.Fatalf("expected 2 sources, got %d", len(config.M3U.Sources))
+	}
+	if config.M3U.Sources[0].Name != "provider-a" {
+		t.Errorf("expected first source name 'provider-a', got %s", config.M3U.Sources[0].Name)
+	}
+	if config.M3U.Sources[0].FilePath != "/tmp/provider-a.m3u" {
+		t.Errorf("expected first source file path '/tmp/provider-a.m3u', got %s", config.M3U.Sources[0].FilePath)
+	}
+	if config.M3U.Sources[1].Name != "provider-b" {
+		t.Errorf("expected second source name 'provider-b', got %s", config.M3U.Sources[1].Name)
+	}
+	if config.M3U.Sources[1].Download.URL != "http://provider-b.example.com/playlist.m3u" {
+		t.Errorf("expected second source download URL, got %s", config.M3U.Sources[1].Download.URL)
+	}
+}
+
+func TestM3UConfig_ResolvedSources_LegacyFallback(t *testing.T) {
+	m3u := M3UConfig{
+		FilePath: "/data/legacy.m3u",
+		Download: M3UDownloadConfig{URL: "http://legacy.example.com/playlist.m3u"},
+	}
+
+	sources := m3u.ResolvedSources()
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 implicit source, got %d", len(sources))
+	}
+	if sources[0].Name != "default" {
+		t.Errorf("expected implicit source name 'default', got %s", sources[0].Name)
+	}
+	if sources[0].FilePath != "/data/legacy.m3u" {
+		t.Errorf("expected implicit source to use legacy file path, got %s", sources[0].FilePath)
+	}
+	if sources[0].Download.URL != "http://legacy.example.com/playlist.m3u" {
+		t.Errorf("expected implicit source to use legacy download URL, got %s", sources[0].Download.URL)
+	}
+	if !m3u.UsesImplicitSource() {
+		t.Error("expected UsesImplicitSource to return true for legacy-only config")
+	}
+}
+
+func TestM3UConfig_ResolvedSources_ExplicitSourcesIgnoreLegacyFields(t *testing.T) {
+	m3u := M3UConfig{
+		FilePath: "/data/legacy.m3u",
+		Download: M3UDownloadConfig{URL: "http://legacy.example.com/playlist.m3u"},
+		Sources: []M3USourceConfig{
+			{Name: "provider-a", FilePath: "/data/a.m3u", Download: M3UDownloadConfig{URL: "http://a.example.com"}},
+			{Name: "provider-b", FilePath: "/data/b.m3u", Download: M3UDownloadConfig{URL: "http://b.example.com"}},
+		},
+	}
+
+	sources := m3u.ResolvedSources()
+	if len(sources) != 2 {
+		t.Fatalf("expected 2 configured sources, got %d", len(sources))
+	}
+	if sources[0].Name != "provider-a" || sources[0].FilePath != "/data/a.m3u" {
+		t.Errorf("expected first configured source preserved, got %+v", sources[0])
+	}
+	if sources[1].Name != "provider-b" || sources[1].FilePath != "/data/b.m3u" {
+		t.Errorf("expected second configured source preserved, got %+v", sources[1])
+	}
+	if m3u.UsesImplicitSource() {
+		t.Error("expected UsesImplicitSource to return false when sources are configured")
 	}
 }
 

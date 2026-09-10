@@ -10,12 +10,15 @@ import (
 )
 
 func TestNewParser(t *testing.T) {
-	parser := NewParser("test.m3u")
+	parser := NewParser("test.m3u", "default")
 	if parser == nil {
 		t.Fatal("NewParser returned nil")
 	}
 	if parser.filePath != "test.m3u" {
 		t.Errorf("expected filePath to be 'test.m3u', got '%s'", parser.filePath)
+	}
+	if parser.sourceName != "default" {
+		t.Errorf("expected sourceName to be 'default', got '%s'", parser.sourceName)
 	}
 	if parser.seenHashes == nil {
 		t.Error("seenHashes map should be initialized")
@@ -35,7 +38,7 @@ http://example.com/movie2.mp4`
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -68,6 +71,9 @@ http://example.com/movie2.mp4`
 	if lines[0].ContentType != models.ContentTypeUncategorized {
 		t.Errorf("expected ContentType to be 'uncategorized', got '%s'", lines[0].ContentType)
 	}
+	if lines[0].SourceName != "default" {
+		t.Errorf("expected SourceName to be 'default', got '%s'", lines[0].SourceName)
+	}
 
 	// Verify second entry LineNumber
 	if lines[1].LineNumber != 4 {
@@ -91,7 +97,7 @@ http://example.com/movie.mkv`
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -120,7 +126,7 @@ http://example.com/movie.mkv`
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -141,6 +147,54 @@ http://example.com/movie.mkv`
 	}
 }
 
+func TestParseDuplicates_ScopedPerSource(t *testing.T) {
+	// Same entry, so identical LineHash across both files/sources.
+	content := `#EXTM3U
+#EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
+http://example.com/movie.mkv`
+
+	fileA := createTempM3U(t, content)
+	defer os.Remove(fileA)
+	fileB := createTempM3U(t, content)
+	defer os.Remove(fileB)
+
+	parserA := NewParser(fileA, "provider-a")
+	linesA, err := parserA.Parse()
+	if err != nil {
+		t.Fatalf("Parse failed for provider-a: %v", err)
+	}
+	if len(linesA) != 1 {
+		t.Fatalf("expected 1 line from provider-a, got %d", len(linesA))
+	}
+	if statsA := parserA.GetStats(); statsA.SkippedDuplicates != 0 {
+		t.Errorf("expected 0 duplicates for provider-a, got %d", statsA.SkippedDuplicates)
+	}
+
+	parserB := NewParser(fileB, "provider-b")
+	linesB, err := parserB.Parse()
+	if err != nil {
+		t.Fatalf("Parse failed for provider-b: %v", err)
+	}
+	if len(linesB) != 1 {
+		t.Fatalf("expected 1 line from provider-b, got %d", len(linesB))
+	}
+	if statsB := parserB.GetStats(); statsB.SkippedDuplicates != 0 {
+		t.Errorf("expected 0 duplicates for provider-b, got %d", statsB.SkippedDuplicates)
+	}
+
+	// Both entries hash identically but carry different SourceName - neither
+	// parser should have treated the other's entry as a duplicate.
+	if linesA[0].LineHash != linesB[0].LineHash {
+		t.Fatalf("expected identical hashes for identical entries, got %s and %s", linesA[0].LineHash, linesB[0].LineHash)
+	}
+	if linesA[0].SourceName != "provider-a" {
+		t.Errorf("expected provider-a entry SourceName 'provider-a', got '%s'", linesA[0].SourceName)
+	}
+	if linesB[0].SourceName != "provider-b" {
+		t.Errorf("expected provider-b entry SourceName 'provider-b', got '%s'", linesB[0].SourceName)
+	}
+}
+
 func TestParseMalformedEntries(t *testing.T) {
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Movie Without URL" group-title="Movies",Movie Without URL
@@ -153,7 +207,7 @@ http://example.com/another.mkv`
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -189,7 +243,7 @@ http://example.com/japanese.mkv`
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -220,7 +274,7 @@ http://example.com/movie.mkv`
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -243,7 +297,7 @@ func TestParseEmptyFile(t *testing.T) {
 	tempFile := createTempM3U(t, content)
 	defer os.Remove(tempFile)
 
-	parser := NewParser(tempFile)
+	parser := NewParser(tempFile, "default")
 	lines, err := parser.Parse()
 
 	if err != nil {
@@ -261,7 +315,7 @@ func TestParseEmptyFile(t *testing.T) {
 }
 
 func TestParseNonExistentFile(t *testing.T) {
-	parser := NewParser("/nonexistent/file.m3u")
+	parser := NewParser("/nonexistent/file.m3u", "default")
 	_, err := parser.Parse()
 
 	if err == nil {
@@ -270,7 +324,7 @@ func TestParseNonExistentFile(t *testing.T) {
 }
 
 func TestCalculateHash(t *testing.T) {
-	parser := NewParser("")
+	parser := NewParser("", "default")
 
 	hash1 := parser.calculateHash("Movie Title", "http://example.com/movie.mkv")
 	hash2 := parser.calculateHash("Movie Title", "http://example.com/movie.mkv")
@@ -328,7 +382,7 @@ func TestParseExtinf(t *testing.T) {
 		},
 	}
 
-	parser := NewParser("")
+	parser := NewParser("", "default")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			entry := parser.parseExtinf(tt.line, 1)
@@ -353,7 +407,7 @@ func TestParseExtinf(t *testing.T) {
 }
 
 func TestCreateProcessedLine(t *testing.T) {
-	parser := NewParser("")
+	parser := NewParser("", "default")
 
 	entry := &M3UEntry{
 		TvgID:      "movie1",
@@ -391,7 +445,7 @@ func TestCreateProcessedLine(t *testing.T) {
 }
 
 func TestCreateProcessedLineErrors(t *testing.T) {
-	parser := NewParser("")
+	parser := NewParser("", "default")
 
 	tests := []struct {
 		name    string
@@ -430,7 +484,7 @@ func TestCreateProcessedLineErrors(t *testing.T) {
 }
 
 func TestGetStats(t *testing.T) {
-	parser := NewParser("")
+	parser := NewParser("", "default")
 	parser.stats.ParsedEntries = 100
 	parser.stats.SkippedDuplicates = 5
 	parser.stats.MalformedEntries = 3
@@ -460,7 +514,7 @@ func TestParsePerformance(t *testing.T) {
 		t.Skip("test file not found, run generate_test_files.sh first")
 	}
 
-	parser := NewParser(testFile)
+	parser := NewParser(testFile, "default")
 	start := time.Now()
 	lines, err := parser.Parse()
 	duration := time.Since(start)

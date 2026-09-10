@@ -58,7 +58,7 @@ processed lines (either soft or hard mode), and clean up orphaned movie and TV s
 
 		// Parse the M3U file to extract active hashes
 		fmt.Println("Parsing active M3U playlist to collect current hashes...")
-		p := parser.NewParserWithLogger(filePath, log)
+		p := parser.NewParserWithLogger(filePath, "default", log)
 		lines, err := p.Parse()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing M3U: %v\n", err)

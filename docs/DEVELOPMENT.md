@@ -87,6 +87,8 @@ api:
   port: 8080
 ```
 
+> To ingest more than one M3U provider, configure `m3u.sources` instead of the singular `m3u.file_path` block above - see [M3U-DOWNLOAD.md](M3U-DOWNLOAD.md#multiple-sources).
+
 Alternatively, use environment variables:
 ```bash
 export STALKEER_DATABASE_USER=stalkeer

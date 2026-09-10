@@ -1009,6 +1009,41 @@ func TestGetConfigPaths(t *testing.T) {
 	}
 }
 
+func TestGetItem_IncludesSourceName(t *testing.T) {
+	db := setupTestDB(t)
+
+	line := models.ProcessedLine{
+		LineContent: "#EXTINF:-1,Provider A Movie",
+		LineHash:    "provider-a-hash",
+		SourceName:  "provider-a",
+		TvgName:     "Provider A Movie",
+		GroupTitle:  "Movies",
+		ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	db.Create(&line)
+
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/items/%d", line.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+
+	if raw["source_name"] != "provider-a" {
+		t.Errorf("Expected source_name 'provider-a', got %v", raw["source_name"])
+	}
+}
+
 func TestMoveMovieFolder(t *testing.T) {
 	db := setupTestDB(t)
 

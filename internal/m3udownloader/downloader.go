@@ -118,8 +118,15 @@ func (d *Downloader) downloadWithRetry(ctx context.Context, url, destPath string
 
 // downloadOnce performs a single download attempt
 func (d *Downloader) downloadOnce(ctx context.Context, url, destPath string) error {
+	// Ensure destination directory exists before creating the temp file in it
+	// (e.g. a per-source subdirectory that hasn't been written to yet).
+	destDir := filepath.Dir(destPath)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
 	// Create temporary file for atomic write
-	tempFile, err := os.CreateTemp(filepath.Dir(destPath), ".m3u_download_*")
+	tempFile, err := os.CreateTemp(destDir, ".m3u_download_*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
@@ -211,13 +218,7 @@ func (d *Downloader) downloadOnce(ctx context.Context, url, destPath string) err
 		return fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	// Ensure destination directory exists
-	destDir := filepath.Dir(destPath)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	// Atomic rename to destination
+	// Atomic rename to destination (destDir was already created above)
 	if err := os.Rename(tempPath, destPath); err != nil {
 		return fmt.Errorf("failed to rename temp file to destination: %w", err)
 	}
@@ -335,4 +336,19 @@ func (d *Downloader) DownloadAndArchive(ctx context.Context, url, destPath strin
 // GetArchiveManager returns the archive manager
 func (d *Downloader) GetArchiveManager() *ArchiveManager {
 	return d.archiveManager
+}
+
+// SourcePaths computes the effective download destination and archive
+// directory for a configured M3U source. Every source other than the legacy
+// implicit one gets its name inserted as a path segment, so that two
+// sources' downloaded files or archives never collide. The implicit legacy
+// source keeps its configured paths unchanged, so existing single-source
+// deployments see no on-disk layout change.
+func SourcePaths(filePath, archiveDir, sourceName string, implicit bool) (destPath, effectiveArchiveDir string) {
+	if implicit {
+		return filePath, archiveDir
+	}
+	destPath = filepath.Join(filepath.Dir(filePath), sourceName, filepath.Base(filePath))
+	effectiveArchiveDir = filepath.Join(archiveDir, sourceName)
+	return destPath, effectiveArchiveDir
 }
