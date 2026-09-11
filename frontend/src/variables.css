@@ -58,4 +58,68 @@
 
   /* Mobile responsive layout */
   --mobile-tab-bar-height: 64px;
+
+  /* Surfaces that need a translucent/tinted value per theme rather than a
+     plain solid color (glass header blur, tab-well recess, drawer shadow,
+     floating copy button) */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --tabs-well-bg: rgba(15, 23, 42, 0.04);
+  --tabs-well-border: rgba(15, 23, 42, 0.02);
+  --shadow-drawer: -4px 0 24px rgba(15, 23, 42, 0.15);
+  --copy-btn-bg: rgba(255, 255, 255, 0.95);
+}
+
+/* Dark theme token overrides, toggled via [data-theme="dark"] on <html>.
+   Every component already styles through var(--token), so mirroring the
+   :root custom property names here re-themes the whole app for free. */
+[data-theme="dark"] {
+  --bg-app: #0b1120;
+  --bg-card: #1e293b;
+  --bg-active: #253449;
+
+  --primary-slate: #f1f5f9;
+  --primary-accent: #818cf8;
+  --primary-accent-hover: #6366f1;
+  --accent-gradient: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+
+  --text-main: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --border-color: #263449;
+  --border-color-strong: #334155;
+  --border-focus: #475569;
+
+  --status-success-bg: rgba(52, 211, 153, 0.12);
+  --status-success-text: #34d399;
+  --status-success-border: rgba(52, 211, 153, 0.35);
+
+  --status-progress-bg: rgba(96, 165, 250, 0.12);
+  --status-progress-text: #60a5fa;
+  --status-progress-border: rgba(96, 165, 250, 0.35);
+
+  --status-failed-bg: rgba(248, 113, 113, 0.12);
+  --status-failed-text: #f87171;
+  --status-failed-border: rgba(248, 113, 113, 0.35);
+
+  --status-pending-bg: rgba(251, 191, 36, 0.12);
+  --status-pending-text: #fbbf24;
+  --status-pending-border: rgba(251, 191, 36, 0.35);
+
+  --status-neutral-bg: rgba(148, 163, 184, 0.12);
+  --status-neutral-text: #94a3b8;
+  --status-neutral-border: rgba(148, 163, 184, 0.35);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+
+  --glass-bg: rgba(15, 23, 42, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --tabs-well-bg: rgba(255, 255, 255, 0.04);
+  --tabs-well-border: rgba(255, 255, 255, 0.06);
+  --shadow-drawer: -4px 0 24px rgba(0, 0, 0, 0.5);
+  --copy-btn-bg: rgba(30, 41, 59, 0.9);
 }

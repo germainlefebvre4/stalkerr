@@ -11,7 +11,6 @@
   "tabs": {
     "home": "Home",
     "playlist": "Playlist",
-    "filters": "Filters",
     "logs": "Processing",
     "downloads": "Downloads",
     "radarrSonarr": "Arr-Suite",
@@ -26,14 +25,6 @@
   },
   "media": {
     "unnamed": "Media"
-  },
-  "language": {
-    "label": "Language",
-    "en": "English",
-    "fr": "French"
-  },
-  "systemStatus": {
-    "iconLabel": "System status"
   },
   "errors": {
     "not_found": "The requested resource was not found.",

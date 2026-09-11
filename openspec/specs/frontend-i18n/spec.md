@@ -18,15 +18,15 @@ The frontend SHALL support exactly two UI languages, English and French, and SHA
 - **THEN** the frontend SHALL still default to English rather than that browser language
 
 ### Requirement: Language Switching and Persistence
-The frontend SHALL provide a language switcher control in the dashboard header that lets the user choose between English and French, and SHALL persist the chosen language across sessions.
+The frontend SHALL provide a language switcher control within the Settings drawer's "Langue" section, reachable from the header's single settings icon, that lets the user choose between English and French, and SHALL persist the chosen language across sessions.
 
 #### Scenario: User switches the active language
-- **WHEN** the user selects "Français" from the language switcher in the header
+- **WHEN** the user opens the Settings drawer and selects "Français" from the language switcher in its "Langue" section
 - **THEN** the frontend SHALL immediately re-render all visible UI text in French, update the `<html lang>` attribute to `"fr"`, and store `"fr"` under the `stalkeer_language` key in `localStorage`
 
 #### Scenario: Returning visit with a stored preference
 - **WHEN** a user who previously selected French reopens the dashboard in a new browser session
-- **THEN** the frontend SHALL read `stalkeer_language` from `localStorage` and render the UI in French without requiring the user to switch again
+- **THEN** the frontend SHALL read `stalkeer_language` from `localStorage` and render the UI in French without requiring the user to switch again or open the Settings drawer
 
 ### Requirement: Translated Error Messages from Backend Error Codes
 The frontend SHALL resolve user-facing error messages (toasts and inline dialog errors) from the machine-readable `error` code returned by the backend's `ErrorResponse`, rather than from its free-text `message` field, and SHALL render a translated generic message for any `error` code that has no specific translation.

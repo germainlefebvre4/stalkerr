@@ -1,27 +1,42 @@
-import * as Tabs from '@radix-ui/react-tabs';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FilterConfig } from '../types';
 
-interface FiltersTabProps {
+interface FiltersSectionProps {
+  isExpanded: boolean;
   filters: FilterConfig[];
   filtersLoading: boolean;
+  onFetchFilters: () => void;
   onDeleteFilter: (id: number) => void;
   onOpenCreate: () => void;
 }
 
-export function FiltersTab({
+// Content for the drawer's "Filtres" disclosure. Fetches on first expand
+// only, mirroring the Système section's fetch-on-expand behavior.
+export function FiltersSection({
+  isExpanded,
   filters,
   filtersLoading,
+  onFetchFilters,
   onDeleteFilter,
   onOpenCreate
-}: FiltersTabProps) {
+}: FiltersSectionProps) {
   const { t } = useTranslation('filters');
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    onFetchFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded]);
+
+  if (!isExpanded) return null;
+
   return (
-    <Tabs.Content value="filters" className="card tab-panel">
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)' }}>{t('heading')}</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('subtitle')}</p>
+          <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary-slate)' }}>{t('heading')}</h4>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('subtitle')}</p>
         </div>
         <button onClick={onOpenCreate} className="btn-primary">
           {t('configureButton')}
@@ -29,9 +44,9 @@ export function FiltersTab({
       </div>
 
       {filtersLoading && filters.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>{t('loading')}</div>
+        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>{t('loading')}</div>
       ) : filters.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+        <div style={{ textAlign: 'center', padding: '2rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
           <p style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{t('emptyTitle')}</p>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.25rem' }}>{t('emptySubtitle')}</p>
         </div>
@@ -69,6 +84,6 @@ export function FiltersTab({
           ))}
         </div>
       )}
-    </Tabs.Content>
+    </div>
   );
 }
