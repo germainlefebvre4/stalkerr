@@ -16,7 +16,7 @@
 - [x] 3.2 Configure the backend build to push `germainlefebvre4/stalkerr:vX.Y.Z` and `germainlefebvre4/stalkerr:latest` for `linux/amd64,linux/arm64`, passing `VERSION`/`COMMIT`/`DATE` build args from the release tag, resolved commit SHA, and workflow run timestamp
 - [x] 3.3 Configure the frontend build to push `germainlefebvre4/stalkerr-frontend:vX.Y.Z` and `germainlefebvre4/stalkerr-frontend:latest` for the same two platforms
 - [x] 3.4 Add `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` as GitHub Actions repository secrets and wire them into the `docker/login-action` step
-- [ ] 3.5 Verify end-to-end by merging a release PR (or manually dispatching the workflow against an existing tag) and confirming both images and both architectures appear on Docker Hub under the new tag
+- [x] 3.5 Verify end-to-end by merging a release PR (or manually dispatching the workflow against an existing tag) and confirming both images and both architectures appear on Docker Hub under the new tag
 
 ## 4. Build version metadata
 

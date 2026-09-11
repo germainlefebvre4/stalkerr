@@ -60,3 +60,10 @@ The dialog SHALL provide a refresh action that re-fetches the aggregated system 
 #### Scenario: Refresh updates displayed state
 - **WHEN** the user triggers the refresh action while the dialog is open
 - **THEN** the dialog SHALL issue a new request and update its rows to reflect the response
+
+### Requirement: Dialog displays build version metadata
+The dialog SHALL display the running instance's version, commit, and build date as reported by the API.
+
+#### Scenario: Version metadata visible in dialog
+- **WHEN** the dialog displays a successful status response
+- **THEN** the version, commit, and build date SHALL be visible within the dialog

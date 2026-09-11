@@ -69,3 +69,10 @@ The disk usage section SHALL report available/used space for each of the app's c
 #### Scenario: Configured path is missing or unreadable
 - **WHEN** a configured storage path does not exist or its usage cannot be read
 - **THEN** the disk usage section SHALL report that entry as unavailable with a short reason, rather than failing the entire endpoint response
+
+### Requirement: Build version metadata in status response
+The aggregated status response SHALL include the running instance's version, commit, and build date, sourced from the embedded build metadata.
+
+#### Scenario: Status response includes build metadata
+- **WHEN** the status endpoint is called
+- **THEN** the response SHALL include the version, commit, and date of the running build
