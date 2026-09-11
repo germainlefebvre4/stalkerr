@@ -23,10 +23,7 @@ func errorHandlerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				c.JSON(500, ErrorResponse{
-					Error:   "internal server error",
-					Message: "an unexpected error occurred",
-				})
+				respondError(c, 500, "internal server error", "an unexpected error occurred")
 				c.Abort()
 			}
 		}()

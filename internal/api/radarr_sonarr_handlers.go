@@ -102,10 +102,7 @@ type SonarrSeriesEpisodesResponse struct {
 func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 	cfg := config.Get()
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "radarr_not_configured",
-			Message: "Radarr is not configured",
-		})
+		respondError(c, http.StatusServiceUnavailable, "radarr_not_configured", "Radarr is not configured")
 		return
 	}
 
@@ -123,10 +120,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 
 	allMovies, err := client.GetAllMovies(ctx)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, ErrorResponse{
-			Error:   "radarr_unreachable",
-			Message: "failed to reach Radarr",
-		})
+		respondError(c, http.StatusBadGateway, "radarr_unreachable", "failed to reach Radarr")
 		return
 	}
 
@@ -156,10 +150,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 	if filter != "" {
 		allMatches, err := matcher.MatchMoviesBatch(db, monitored)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
-				Message: "failed to compute playlist match status",
-			})
+			respondError(c, http.StatusInternalServerError, "database_error", "failed to compute playlist match status")
 			return
 		}
 
@@ -180,10 +171,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 
 		pageMatches, err := matcher.MatchMoviesBatch(db, pageMovies)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
-				Message: "failed to compute playlist match status",
-			})
+			respondError(c, http.StatusInternalServerError, "database_error", "failed to compute playlist match status")
 			return
 		}
 		matches = pageMatches
@@ -198,10 +186,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 	}
 	occurrenceCounts, err := matcher.CountMovieOccurrencesBatch(db, matchedMovieIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to compute playlist occurrence counts",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to compute playlist occurrence counts")
 		return
 	}
 
@@ -248,10 +233,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 	cfg := config.Get()
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "sonarr_not_configured",
-			Message: "Sonarr is not configured",
-		})
+		respondError(c, http.StatusServiceUnavailable, "sonarr_not_configured", "Sonarr is not configured")
 		return
 	}
 
@@ -274,10 +256,7 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 
 	allSeries, err := client.GetAllMonitoredSeries(ctx)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, ErrorResponse{
-			Error:   "sonarr_unreachable",
-			Message: "failed to reach Sonarr",
-		})
+		respondError(c, http.StatusBadGateway, "sonarr_unreachable", "failed to reach Sonarr")
 		return
 	}
 
@@ -321,10 +300,7 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		filtered := make([]sonarr.Series, 0, len(allSeries))
 		for i, series := range allSeries {
 			if statuses[i].err != nil {
-				c.JSON(http.StatusBadGateway, ErrorResponse{
-					Error:   "sonarr_unreachable",
-					Message: "failed to fetch episodes from Sonarr for one or more series",
-				})
+				respondError(c, http.StatusBadGateway, "sonarr_unreachable", "failed to fetch episodes from Sonarr for one or more series")
 				return
 			}
 			matched := statuses[i].matched
@@ -381,10 +357,7 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 	items := make([]SonarrSeriesListItem, len(pageSeries))
 	for i, series := range pageSeries {
 		if details[i].err != nil {
-			c.JSON(http.StatusBadGateway, ErrorResponse{
-				Error:   "sonarr_unreachable",
-				Message: "failed to fetch episodes from Sonarr for one or more series",
-			})
+			respondError(c, http.StatusBadGateway, "sonarr_unreachable", "failed to fetch episodes from Sonarr for one or more series")
 			return
 		}
 
@@ -546,19 +519,13 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 	cfg := config.Get()
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "radarr_not_configured",
-			Message: "Radarr is not configured",
-		})
+		respondError(c, http.StatusServiceUnavailable, "radarr_not_configured", "Radarr is not configured")
 		return
 	}
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid radarr movie id",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid radarr movie id")
 		return
 	}
 
@@ -574,20 +541,14 @@ func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 
 	movie, err := client.GetMovieDetails(ctx, id)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, ErrorResponse{
-			Error:   "radarr_unreachable",
-			Message: "failed to reach Radarr",
-		})
+		respondError(c, http.StatusBadGateway, "radarr_unreachable", "failed to reach Radarr")
 		return
 	}
 
 	db := database.Get()
 	matches, err := matcher.MatchMoviesBatch(db, []radarr.Movie{*movie})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to compute playlist match status",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to compute playlist match status")
 		return
 	}
 
@@ -599,10 +560,7 @@ func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 
 		occurrences, err := matcher.FindAllMovieOccurrences(db, result.Movie.ID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
-				Message: "failed to fetch playlist occurrences",
-			})
+			respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch playlist occurrences")
 			return
 		}
 		response.Occurrences = toOccurrenceResponses(occurrences)
@@ -617,19 +575,13 @@ func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
 	cfg := config.Get()
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "sonarr_not_configured",
-			Message: "Sonarr is not configured",
-		})
+		respondError(c, http.StatusServiceUnavailable, "sonarr_not_configured", "Sonarr is not configured")
 		return
 	}
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid sonarr series id",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid sonarr series id")
 		return
 	}
 
@@ -645,19 +597,13 @@ func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
 
 	series, err := client.GetSeriesDetails(ctx, id)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, ErrorResponse{
-			Error:   "sonarr_unreachable",
-			Message: "failed to reach Sonarr",
-		})
+		respondError(c, http.StatusBadGateway, "sonarr_unreachable", "failed to reach Sonarr")
 		return
 	}
 
 	episodes, err := client.GetEpisodesBySeriesID(ctx, series.ID)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, ErrorResponse{
-			Error:   "sonarr_unreachable",
-			Message: "failed to fetch episodes from Sonarr",
-		})
+		respondError(c, http.StatusBadGateway, "sonarr_unreachable", "failed to fetch episodes from Sonarr")
 		return
 	}
 
@@ -671,10 +617,7 @@ func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
 	db := database.Get()
 	details, err := matcher.MatchSeriesEpisodesDetail(db, series.TvdbID, monitored)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to compute episode match status",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to compute episode match status")
 		return
 	}
 

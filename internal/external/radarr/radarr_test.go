@@ -23,11 +23,11 @@ func TestNew(t *testing.T) {
 	if client == nil {
 		t.Fatal("expected non-nil client")
 	}
-	if client.baseURL != cfg.BaseURL {
-		t.Errorf("expected baseURL %s, got %s", cfg.BaseURL, client.baseURL)
+	if client.http.BaseURL != cfg.BaseURL {
+		t.Errorf("expected baseURL %s, got %s", cfg.BaseURL, client.http.BaseURL)
 	}
-	if client.apiKey != cfg.APIKey {
-		t.Errorf("expected apiKey %s, got %s", cfg.APIKey, client.apiKey)
+	if client.http.APIKey != cfg.APIKey {
+		t.Errorf("expected apiKey %s, got %s", cfg.APIKey, client.http.APIKey)
 	}
 }
 

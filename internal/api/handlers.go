@@ -55,10 +55,7 @@ func (s *Server) listItems(c *gin.Context) {
 		"tmdb_title":    true,
 	}
 	if !validSortFields[sortBy] {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_sort_field",
-			Message: fmt.Sprintf("invalid sort field: %s", sortBy),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_sort_field", fmt.Sprintf("invalid sort field: %s", sortBy))
 		return
 	}
 
@@ -69,10 +66,7 @@ func (s *Server) listItems(c *gin.Context) {
 		"desc": true,
 	}
 	if !validSortOrders[sortOrder] {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_sort_order",
-			Message: fmt.Sprintf("invalid sort order: %s", sortOrder),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_sort_order", fmt.Sprintf("invalid sort order: %s", sortOrder))
 		return
 	}
 
@@ -102,10 +96,7 @@ func (s *Server) listItems(c *gin.Context) {
 	// Count total
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count items",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count items")
 		return
 	}
 
@@ -135,10 +126,7 @@ func (s *Server) listItems(c *gin.Context) {
 	// Fetch items
 	var items []models.ProcessedLine
 	if err := query.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch items",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch items")
 		return
 	}
 
@@ -168,16 +156,10 @@ func (s *Server) getItem(c *gin.Context) {
 	var item models.ProcessedLine
 	if err := db.Preload("Movie").Preload("TVShow").First(&item, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("item with id %s not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("item with id %s not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch item",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch item")
 		return
 	}
 
@@ -191,26 +173,17 @@ func (s *Server) updateItem(c *gin.Context) {
 
 	var req UpdateItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
 	var item models.ProcessedLine
 	if err := db.First(&item, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("item with id %s not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("item with id %s not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch item",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch item")
 		return
 	}
 
@@ -220,10 +193,7 @@ func (s *Server) updateItem(c *gin.Context) {
 	}
 
 	if err := db.Save(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to update item",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to update item")
 		return
 	}
 
@@ -236,10 +206,7 @@ func (s *Server) searchItems(c *gin.Context) {
 
 	query := c.Query("q")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "query parameter 'q' is required",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "query parameter 'q' is required")
 		return
 	}
 
@@ -256,20 +223,14 @@ func (s *Server) searchItems(c *gin.Context) {
 	// Count total
 	var total int64
 	if err := dbQuery.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count results",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count results")
 		return
 	}
 
 	// Fetch results
 	var items []models.ProcessedLine
 	if err := dbQuery.Limit(limit).Offset(offset).Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to search items",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to search items")
 		return
 	}
 
@@ -297,19 +258,13 @@ func (s *Server) listMovies(c *gin.Context) {
 
 	var total int64
 	if err := db.Model(&models.Movie{}).Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count movies",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count movies")
 		return
 	}
 
 	var movies []models.Movie
 	if err := db.Limit(limit).Offset(offset).Find(&movies).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch movies",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch movies")
 		return
 	}
 
@@ -337,16 +292,10 @@ func (s *Server) getMovie(c *gin.Context) {
 	var movie models.Movie
 	if err := db.Preload("ProcessedLines").First(&movie, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("movie with id %s not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("movie with id %s not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch movie",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch movie")
 		return
 	}
 
@@ -360,19 +309,13 @@ func (s *Server) listTVShows(c *gin.Context) {
 
 	var total int64
 	if err := db.Model(&models.TVShow{}).Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count TV shows",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count TV shows")
 		return
 	}
 
 	var tvShows []models.TVShow
 	if err := db.Limit(limit).Offset(offset).Find(&tvShows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch TV shows",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch TV shows")
 		return
 	}
 
@@ -400,16 +343,10 @@ func (s *Server) getTVShow(c *gin.Context) {
 	var tvShow models.TVShow
 	if err := db.Preload("ProcessedLines").First(&tvShow, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("TV show with id %s not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("TV show with id %s not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch TV show",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch TV show")
 		return
 	}
 
@@ -422,10 +359,7 @@ func (s *Server) listFilters(c *gin.Context) {
 
 	var filters []models.FilterConfig
 	if err := db.Find(&filters).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch filters",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch filters")
 		return
 	}
 
@@ -445,19 +379,13 @@ func (s *Server) createFilter(c *gin.Context) {
 
 	var req CreateFilterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
 	// Validate attribute
 	if req.Attribute != "group_title" && req.Attribute != "tvg_name" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_attribute",
-			Message: "attribute must be 'group_title' or 'tvg_name'",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_attribute", "attribute must be 'group_title' or 'tvg_name'")
 		return
 	}
 
@@ -470,10 +398,7 @@ func (s *Server) createFilter(c *gin.Context) {
 	}
 
 	if err := db.Create(&filter).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "filter_create_failed",
-			Message: "failed to create filter",
-		})
+		respondError(c, http.StatusInternalServerError, "filter_create_failed", "failed to create filter")
 		return
 	}
 
@@ -487,26 +412,17 @@ func (s *Server) updateFilter(c *gin.Context) {
 
 	var req UpdateFilterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
 	var filter models.FilterConfig
 	if err := db.First(&filter, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("filter with id %s not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("filter with id %s not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch filter",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch filter")
 		return
 	}
 
@@ -516,10 +432,7 @@ func (s *Server) updateFilter(c *gin.Context) {
 	}
 	if req.Attribute != nil {
 		if *req.Attribute != "group_title" && *req.Attribute != "tvg_name" {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error:   "invalid_attribute",
-				Message: "attribute must be 'group_title' or 'tvg_name'",
-			})
+			respondError(c, http.StatusBadRequest, "invalid_attribute", "attribute must be 'group_title' or 'tvg_name'")
 			return
 		}
 		filter.Attribute = *req.Attribute
@@ -532,10 +445,7 @@ func (s *Server) updateFilter(c *gin.Context) {
 	}
 
 	if err := db.Save(&filter).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to update filter",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to update filter")
 		return
 	}
 
@@ -549,18 +459,12 @@ func (s *Server) deleteFilter(c *gin.Context) {
 
 	result := db.Delete(&models.FilterConfig{}, id)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to delete filter",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to delete filter")
 		return
 	}
 
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Error:   "not_found",
-			Message: fmt.Sprintf("filter with id %s not found", id),
-		})
+		respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("filter with id %s not found", id))
 		return
 	}
 
@@ -574,10 +478,7 @@ func (s *Server) clearRuntimeFilters(c *gin.Context) {
 	db := database.Get()
 
 	if err := db.Where("is_runtime = ?", true).Delete(&models.FilterConfig{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to clear runtime filters",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to clear runtime filters")
 		return
 	}
 
@@ -592,10 +493,7 @@ func (s *Server) getStats(c *gin.Context) {
 
 	var totalItems int64
 	if err := db.Model(&models.ProcessedLine{}).Count(&totalItems).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count items",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count items")
 		return
 	}
 
@@ -655,10 +553,7 @@ func (s *Server) executeDryRun(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
@@ -667,10 +562,7 @@ func (s *Server) executeDryRun(c *gin.Context) {
 	}
 
 	if filePath == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "missing_file_path",
-			Message: "M3U file path must be provided",
-		})
+		respondError(c, http.StatusBadRequest, "missing_file_path", "M3U file path must be provided")
 		return
 	}
 
@@ -685,10 +577,7 @@ func (s *Server) executeDryRun(c *gin.Context) {
 	analyzer := dryrun.NewAnalyzer(limit)
 	result, err := analyzer.Analyze(filePath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "analysis_failed",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "analysis_failed", err.Error())
 		return
 	}
 
@@ -819,26 +708,17 @@ func (s *Server) resetMovie(c *gin.Context) {
 
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid movie ID format",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid movie ID format")
 		return
 	}
 
 	rows, err := database.ResetMovie(db, uint(id))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("movie with id %d not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("movie with id %d not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to reset movie stream state",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to reset movie stream state")
 		return
 	}
 
@@ -855,26 +735,17 @@ func (s *Server) resetTVShow(c *gin.Context) {
 
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid TV show ID format",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid TV show ID format")
 		return
 	}
 
 	rows, err := database.ResetTVShow(db, uint(id))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("TV show with id %d not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("TV show with id %d not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to reset TV show stream state",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to reset TV show stream state")
 		return
 	}
 

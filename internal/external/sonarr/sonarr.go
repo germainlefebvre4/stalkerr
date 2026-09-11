@@ -1,26 +1,21 @@
 package sonarr
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/external/httpclient"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
 // Client represents a Sonarr API client
 type Client struct {
-	baseURL     string
-	apiKey      string
-	httpClient  *http.Client
-	retryConfig retry.Config
-	logger      *logger.Logger
+	http *httpclient.Client
 }
 
 // Config holds Sonarr client configuration
@@ -76,13 +71,7 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		baseURL: cfg.BaseURL,
-		apiKey:  cfg.APIKey,
-		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
-		},
-		retryConfig: cfg.RetryConfig,
-		logger:      cfg.Logger,
+		http: httpclient.New(cfg.BaseURL, cfg.APIKey, cfg.Timeout, cfg.RetryConfig, cfg.Logger),
 	}
 }
 
@@ -91,7 +80,7 @@ func (c *Client) GetMissingSeries(ctx context.Context) ([]Series, error) {
 	endpoint := "/api/v3/series"
 
 	var allSeries []Series
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		series, err := c.getSeries(ctx, endpoint)
 		if err != nil {
 			return err
@@ -126,7 +115,7 @@ func (c *Client) GetAllSeries(ctx context.Context) ([]Series, error) {
 	endpoint := "/api/v3/series"
 
 	var allSeries []Series
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		series, err := c.getSeries(ctx, endpoint)
 		if err != nil {
 			return err
@@ -167,7 +156,7 @@ func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) 
 	endpoint := fmt.Sprintf("/api/v3/series/%d", id)
 
 	var series Series
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		s, err := c.getSingleSeries(ctx, endpoint)
 		if err != nil {
 			return err
@@ -194,7 +183,7 @@ func (c *Client) GetMissingEpisodes(ctx context.Context, opts FetchOptions) ([]E
 
 		var records []Episode
 		var total int
-		err := retry.Do(ctx, c.retryConfig, func() error {
+		err := retry.Do(ctx, c.http.Retry, func() error {
 			r, t, err := c.getEpisodes(ctx, endpoint)
 			if err != nil {
 				return err
@@ -210,8 +199,8 @@ func (c *Client) GetMissingEpisodes(ctx context.Context, opts FetchOptions) ([]E
 
 		all = append(all, records...)
 
-		if c.logger != nil {
-			c.logger.Info(fmt.Sprintf("sonarr: fetched page %d (%d/%d episodes)", page, len(all), total))
+		if c.http.Logger != nil {
+			c.http.Logger.Info(fmt.Sprintf("sonarr: fetched page %d (%d/%d episodes)", page, len(all), total))
 		}
 
 		if opts.Limit > 0 && len(all) >= opts.Limit {
@@ -230,7 +219,7 @@ func (c *Client) GetEpisodeDetails(ctx context.Context, id int) (*Episode, error
 	endpoint := fmt.Sprintf("/api/v3/episode/%d", id)
 
 	var episode Episode
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		ep, err := c.getEpisode(ctx, endpoint)
 		if err != nil {
 			return err
@@ -254,7 +243,7 @@ func (c *Client) GetSeriesByTVDBID(ctx context.Context, tvdbID int) (*Series, er
 	endpoint := fmt.Sprintf("/api/v3/series?tvdbId=%d", tvdbID)
 
 	var series []Series
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		s, err := c.getSeries(ctx, endpoint)
 		if err != nil {
 			return err
@@ -280,7 +269,7 @@ func (c *Client) GetEpisodesBySeriesID(ctx context.Context, seriesID int) ([]Epi
 	endpoint := fmt.Sprintf("/api/v3/episode?seriesId=%d", seriesID)
 
 	var episodes []Episode
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		eps, err := c.getEpisodeList(ctx, endpoint)
 		if err != nil {
 			return err
@@ -328,7 +317,7 @@ func (c *Client) FindEpisodeByTVDBID(ctx context.Context, tvdbID, season, episod
 func (c *Client) UpdateEpisode(ctx context.Context, episode *Episode) error {
 	endpoint := fmt.Sprintf("/api/v3/episode/%d", episode.ID)
 
-	err := retry.Do(ctx, c.retryConfig, func() error {
+	err := retry.Do(ctx, c.http.Retry, func() error {
 		return c.putEpisode(ctx, endpoint, episode)
 	}, apperrors.IsRetryable)
 
@@ -369,7 +358,7 @@ func (c *Client) SystemStatus(ctx context.Context) error {
 		return err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.http.HTTP.Do(req)
 	if err != nil {
 		return err
 	}
@@ -384,173 +373,37 @@ func (c *Client) SystemStatus(ctx context.Context) error {
 }
 
 func (c *Client) getSeries(ctx context.Context, endpoint string) ([]Series, error) {
-	req, err := c.newRequest(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
-	}
-
-	var series []Series
-	if err := json.NewDecoder(resp.Body).Decode(&series); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return series, nil
+	return httpclient.Get[[]Series](ctx, c.http, endpoint)
 }
 
 func (c *Client) getSingleSeries(ctx context.Context, endpoint string) (*Series, error) {
-	req, err := c.newRequest(ctx, "GET", endpoint, nil)
+	series, err := httpclient.Get[Series](ctx, c.http, endpoint)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
-	}
-
-	var series Series
-	if err := json.NewDecoder(resp.Body).Decode(&series); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
 	return &series, nil
 }
 
 func (c *Client) getEpisodes(ctx context.Context, endpoint string) ([]Episode, int, error) {
-	req, err := c.newRequest(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, 0, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
-	}
-
-	var response struct {
-		TotalRecords int       `json:"totalRecords"`
-		Records      []Episode `json:"records"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, 0, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return response.Records, response.TotalRecords, nil
+	return httpclient.GetPage[Episode](ctx, c.http, endpoint)
 }
 
 func (c *Client) getEpisodeList(ctx context.Context, endpoint string) ([]Episode, error) {
-	req, err := c.newRequest(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
-	}
-
-	var episodes []Episode
-	if err := json.NewDecoder(resp.Body).Decode(&episodes); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return episodes, nil
+	return httpclient.Get[[]Episode](ctx, c.http, endpoint)
 }
 
 func (c *Client) getEpisode(ctx context.Context, endpoint string) (*Episode, error) {
-	req, err := c.newRequest(ctx, "GET", endpoint, nil)
+	episode, err := httpclient.Get[Episode](ctx, c.http, endpoint)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
-	}
-
-	var episode Episode
-	if err := json.NewDecoder(resp.Body).Decode(&episode); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
 	return &episode, nil
 }
 
 func (c *Client) putEpisode(ctx context.Context, endpoint string, episode *Episode) error {
-	req, err := c.newRequest(ctx, "PUT", endpoint, episode)
-	if err != nil {
-		return err
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	return httpclient.Put(ctx, c.http, endpoint, episode)
 }
 
 func (c *Client) newRequest(ctx context.Context, method, endpoint string, body interface{}) (*http.Request, error) {
-	url := c.baseURL + endpoint
-
-	var reqBody io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-		reqBody = bytes.NewReader(data)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("X-Api-Key", c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	return req, nil
+	return c.http.NewRequest(ctx, method, endpoint, body)
 }

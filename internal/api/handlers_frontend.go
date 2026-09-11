@@ -36,19 +36,13 @@ func (s *Server) listProcessingLogs(c *gin.Context) {
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count processing logs",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count processing logs")
 		return
 	}
 
 	var logs []models.ProcessingLog
 	if err := query.Order("created_at desc").Limit(limit).Offset(offset).Find(&logs).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch processing logs",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch processing logs")
 		return
 	}
 
@@ -76,19 +70,13 @@ func (s *Server) listDownloads(c *gin.Context) {
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count downloads",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count downloads")
 		return
 	}
 
 	var downloads []models.DownloadInfo
 	if err := query.Order("updated_at desc").Limit(limit).Offset(offset).Find(&downloads).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch downloads",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch downloads")
 		return
 	}
 
@@ -136,10 +124,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 			Preload("ProcessedLines.TVShow").
 			Order("download_info.updated_at desc").
 			Find(&downloads).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
-				Message: "failed to fetch downloads",
-			})
+			respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch downloads")
 			return
 		}
 
@@ -163,10 +148,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 		enriched = filtered[start:end]
 	} else {
 		if err := query.Count(&total).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
-				Message: "failed to count downloads",
-			})
+			respondError(c, http.StatusInternalServerError, "database_error", "failed to count downloads")
 			return
 		}
 
@@ -176,10 +158,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 			Order("download_info.updated_at desc").
 			Limit(limit).Offset(offset).
 			Find(&downloads).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "database_error",
-				Message: "failed to fetch downloads",
-			})
+			respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch downloads")
 			return
 		}
 
@@ -341,16 +320,10 @@ func (s *Server) moveMovieFolder(c *gin.Context) {
 	var movie models.Movie
 	if err := db.Preload("ProcessedLines").First(&movie, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: "Movie not found",
-			})
+			respondError(c, http.StatusNotFound, "not_found", "Movie not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "Failed to fetch movie",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "Failed to fetch movie")
 		return
 	}
 
@@ -370,19 +343,13 @@ func (s *Server) moveMovieFolder(c *gin.Context) {
 	}
 
 	if currentMovieDir == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "no_completed_downloads",
-			Message: "No completed downloads with valid file paths found for this movie",
-		})
+		respondError(c, http.StatusBadRequest, "no_completed_downloads", "No completed downloads with valid file paths found for this movie")
 		return
 	}
 
 	var req MoveDownloadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 
@@ -390,28 +357,19 @@ func (s *Server) moveMovieFolder(c *gin.Context) {
 	targetMovieDir := filepath.Join(req.DestinationParentDir, movieFolderName)
 
 	if filepath.Clean(currentMovieDir) == filepath.Clean(targetMovieDir) {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "same_directory",
-			Message: "Target movie directory is the same as the current directory",
-		})
+		respondError(c, http.StatusBadRequest, "same_directory", "Target movie directory is the same as the current directory")
 		return
 	}
 
 	// Ensure destination base folder exists
 	if err := os.MkdirAll(req.DestinationParentDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "fs_error",
-			Message: "Failed to create target base directory: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "fs_error", "Failed to create target base directory: "+err.Error())
 		return
 	}
 
 	// Execute physical movement on disk
 	if err := MoveDir(currentMovieDir, targetMovieDir); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "move_failed",
-			Message: "Failed to move physical folder: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "move_failed", "Failed to move physical folder: "+err.Error())
 		return
 	}
 
@@ -428,10 +386,7 @@ func (s *Server) moveMovieFolder(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_update_failed",
-			Message: "Directory moved successfully on disk, but database path updates failed: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "database_update_failed", "Directory moved successfully on disk, but database path updates failed: "+err.Error())
 		return
 	}
 
@@ -449,16 +404,10 @@ func (s *Server) moveTVShowFolder(c *gin.Context) {
 	var tvShow models.TVShow
 	if err := db.Preload("ProcessedLines").First(&tvShow, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: "TV show not found",
-			})
+			respondError(c, http.StatusNotFound, "not_found", "TV show not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "Failed to fetch TV show",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "Failed to fetch TV show")
 		return
 	}
 
@@ -485,19 +434,13 @@ func (s *Server) moveTVShowFolder(c *gin.Context) {
 	}
 
 	if seriesDir == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "no_completed_downloads",
-			Message: "No completed downloads with valid paths found for this TV show",
-		})
+		respondError(c, http.StatusBadRequest, "no_completed_downloads", "No completed downloads with valid paths found for this TV show")
 		return
 	}
 
 	var req MoveDownloadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 
@@ -505,28 +448,19 @@ func (s *Server) moveTVShowFolder(c *gin.Context) {
 	targetSeriesDir := filepath.Join(req.DestinationParentDir, seriesFolderName)
 
 	if filepath.Clean(seriesDir) == filepath.Clean(targetSeriesDir) {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "same_directory",
-			Message: "Target series directory is the same as the current directory",
-		})
+		respondError(c, http.StatusBadRequest, "same_directory", "Target series directory is the same as the current directory")
 		return
 	}
 
 	// Ensure destination base folder exists
 	if err := os.MkdirAll(req.DestinationParentDir, 0755); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "fs_error",
-			Message: "Failed to create target base directory: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "fs_error", "Failed to create target base directory: "+err.Error())
 		return
 	}
 
 	// Execute physical movement on disk
 	if err := MoveDir(seriesDir, targetSeriesDir); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "move_failed",
-			Message: "Failed to move physical TV show directory: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "move_failed", "Failed to move physical TV show directory: "+err.Error())
 		return
 	}
 
@@ -547,10 +481,7 @@ func (s *Server) moveTVShowFolder(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_update_failed",
-			Message: "Directory moved successfully on disk, but database path updates failed: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "database_update_failed", "Directory moved successfully on disk, but database path updates failed: "+err.Error())
 		return
 	}
 
@@ -767,67 +698,43 @@ func (s *Server) renameDownload(c *gin.Context) {
 	var dl models.DownloadInfo
 	if err := db.First(&dl, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: "Download not found",
-			})
+			respondError(c, http.StatusNotFound, "not_found", "Download not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "Failed to fetch download",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "Failed to fetch download")
 		return
 	}
 
 	if dl.DownloadPath == nil || *dl.DownloadPath == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "validation_error",
-			Message: "Download has no completed file to rename",
-		})
+		respondError(c, http.StatusBadRequest, "validation_error", "Download has no completed file to rename")
 		return
 	}
 
 	var req RenameDownloadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "validation_error",
-			Message: err.Error(),
-		})
+		respondError(c, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 
 	dest := computeRenameDestination(*dl.DownloadPath, req.NewName, req.DestinationParentDir)
 
 	if _, err := os.Stat(dest.NewFilePath); err == nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "rename_target_exists",
-			Message: "A file already exists at the destination path",
-		})
+		respondError(c, http.StatusBadRequest, "rename_target_exists", "A file already exists at the destination path")
 		return
 	} else if !os.IsNotExist(err) {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "fs_error",
-			Message: "Failed to check destination path: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "fs_error", "Failed to check destination path: "+err.Error())
 		return
 	}
 
 	if err := moveSingleFile(*dl.DownloadPath, dest.NewFilePath); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "rename_failed",
-			Message: "Failed to move physical file: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "rename_failed", "Failed to move physical file: "+err.Error())
 		return
 	}
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		return tx.Model(&models.DownloadInfo{}).Where("id = ?", dl.ID).Update("download_path", dest.NewFilePath).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_update_failed",
-			Message: "File moved successfully on disk, but database path update failed: " + err.Error(),
-		})
+		respondError(c, http.StatusInternalServerError, "database_update_failed", "File moved successfully on disk, but database path update failed: "+err.Error())
 		return
 	}
 
@@ -920,28 +827,19 @@ func removeDirIfEmpty(dir string) bool {
 // searchTMDBProxy queries movies or TV shows on TMDB safely from the backend.
 func (s *Server) searchTMDBProxy(c *gin.Context) {
 	if s.tmdbClient == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "tmdb_disabled",
-			Message: "TMDB integration is disabled or not configured",
-		})
+		respondError(c, http.StatusServiceUnavailable, "tmdb_disabled", "TMDB integration is disabled or not configured")
 		return
 	}
 
 	query := c.Query("query")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "query parameter is required",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "query parameter is required")
 		return
 	}
 
 	mediaType := c.Query("type")
 	if mediaType != "movie" && mediaType != "tvshow" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "type parameter must be either movie or tvshow",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "type parameter must be either movie or tvshow")
 		return
 	}
 
@@ -962,10 +860,7 @@ func (s *Server) searchTMDBProxy(c *gin.Context) {
 				c.JSON(http.StatusOK, []TMDBSearchResult{})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "tmdb_error",
-				Message: fmt.Sprintf("failed to search TMDB: %v", err),
-			})
+			respondError(c, http.StatusInternalServerError, "tmdb_error", fmt.Sprintf("failed to search TMDB: %v", err))
 			return
 		}
 
@@ -987,10 +882,7 @@ func (s *Server) searchTMDBProxy(c *gin.Context) {
 				c.JSON(http.StatusOK, []TMDBSearchResult{})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "tmdb_error",
-				Message: fmt.Sprintf("failed to search TMDB: %v", err),
-			})
+			respondError(c, http.StatusInternalServerError, "tmdb_error", fmt.Sprintf("failed to search TMDB: %v", err))
 			return
 		}
 
@@ -1013,20 +905,14 @@ func (s *Server) searchTMDBProxy(c *gin.Context) {
 // overrideItem manually associates a VOD item with a specific TMDB movie or TV show.
 func (s *Server) overrideItem(c *gin.Context) {
 	if s.tmdbClient == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "tmdb_disabled",
-			Message: "TMDB integration is disabled or not configured",
-		})
+		respondError(c, http.StatusServiceUnavailable, "tmdb_disabled", "TMDB integration is disabled or not configured")
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid item id",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid item id")
 		return
 	}
 
@@ -1034,25 +920,16 @@ func (s *Server) overrideItem(c *gin.Context) {
 	var item models.ProcessedLine
 	if err := db.Preload("Movie").Preload("TVShow").First(&item, uint(id)).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: "item not found",
-			})
+			respondError(c, http.StatusNotFound, "not_found", "item not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: fmt.Sprintf("failed to fetch item: %v", err),
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", fmt.Sprintf("failed to fetch item: %v", err))
 		return
 	}
 
 	var req OverrideItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: fmt.Sprintf("invalid override payload: %v", err),
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", fmt.Sprintf("invalid override payload: %v", err))
 		return
 	}
 
@@ -1062,10 +939,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 	if req.Type == "movie" {
 		details, err := s.tmdbClient.GetMovieDetails(req.TMDBID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "override_failed",
-				Message: fmt.Sprintf("failed to fetch TMDB movie details: %v", err),
-			})
+			respondError(c, http.StatusInternalServerError, "override_failed", fmt.Sprintf("failed to fetch TMDB movie details: %v", err))
 			return
 		}
 
@@ -1095,10 +969,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 		}
 
 		if err := db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).Attrs(attrs).FirstOrCreate(&movie).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "override_failed",
-				Message: fmt.Sprintf("failed to save movie details: %v", err),
-			})
+			respondError(c, http.StatusInternalServerError, "override_failed", fmt.Sprintf("failed to save movie details: %v", err))
 			return
 		}
 
@@ -1134,10 +1005,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 
 		details, err := s.tmdbClient.GetTVShowDetails(req.TMDBID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "override_failed",
-				Message: fmt.Sprintf("failed to fetch TMDB TV show details: %v", err),
-			})
+			respondError(c, http.StatusInternalServerError, "override_failed", fmt.Sprintf("failed to fetch TMDB TV show details: %v", err))
 			return
 		}
 
@@ -1180,10 +1048,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 		}
 
 		if err := query.Attrs(attrs).FirstOrCreate(&tvshow).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error:   "override_failed",
-				Message: fmt.Sprintf("failed to save TV show details: %v", err),
-			})
+			respondError(c, http.StatusInternalServerError, "override_failed", fmt.Sprintf("failed to save TV show details: %v", err))
 			return
 		}
 
@@ -1229,10 +1094,7 @@ func (s *Server) overrideItem(c *gin.Context) {
 	item.OverrideAt = &now
 
 	if err := db.Select("ContentType", "MovieID", "TVShowID", "ChannelID", "UncategorizedID", "OverrideBy", "OverrideAt").Save(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "override_failed",
-			Message: fmt.Sprintf("failed to save override association: %v", err),
-		})
+		respondError(c, http.StatusInternalServerError, "override_failed", fmt.Sprintf("failed to save override association: %v", err))
 		return
 	}
 

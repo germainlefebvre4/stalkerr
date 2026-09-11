@@ -180,10 +180,7 @@ func (s *Server) listItemGroups(c *gin.Context) {
 	var total int64
 	countSQL := fmt.Sprintf("SELECT COUNT(*) FROM (%s) AS grouped", unionSQL)
 	if err := db.Raw(countSQL, unionArgs...).Scan(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to count grouped items",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to count grouped items")
 		return
 	}
 
@@ -192,10 +189,7 @@ func (s *Server) listItemGroups(c *gin.Context) {
 
 	var rows []itemGroupRow
 	if err := db.Raw(dataSQL, dataArgs...).Scan(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch grouped items",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch grouped items")
 		return
 	}
 
