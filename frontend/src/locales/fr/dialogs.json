@@ -111,6 +111,12 @@
       "used": "Utilisé",
       "available": "disponible",
       "empty": "Aucun chemin de stockage configuré"
+    },
+    "build": {
+      "title": "Version installée",
+      "version": "Version",
+      "commit": "Commit",
+      "date": "Construit le"
     }
   }
 }

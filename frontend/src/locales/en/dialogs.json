@@ -111,6 +111,12 @@
       "used": "Used",
       "available": "available",
       "empty": "No storage paths configured"
+    },
+    "build": {
+      "title": "Build",
+      "version": "Version",
+      "commit": "Commit",
+      "date": "Built"
     }
   }
 }

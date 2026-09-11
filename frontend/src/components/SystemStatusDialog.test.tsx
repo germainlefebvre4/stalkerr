@@ -33,6 +33,9 @@ const response: SystemStatusResponse = {
   disk: [
     { paths: ['movies', 'tvshows'], available: 100, free: 100, total: 200, used_pct: 50 },
   ],
+  version: '1.2.3',
+  commit: 'abc1234',
+  date: '2026-09-10_12:00:00',
 };
 
 function renderDialog(isOpen: boolean) {
@@ -91,6 +94,10 @@ describe('SystemStatusDialog translations', () => {
     expect(screen.getByText('Unreachable')).toBeInTheDocument();
     expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
     expect(screen.getByText('Not configured')).toBeInTheDocument();
+    expect(screen.getByText('Build')).toBeInTheDocument();
+    expect(screen.getByText('Version: 1.2.3')).toBeInTheDocument();
+    expect(screen.getByText('Commit: abc1234')).toBeInTheDocument();
+    expect(screen.getByText('Built: 2026-09-10_12:00:00')).toBeInTheDocument();
     expect(screen.queryByText(/systemStatus\./)).not.toBeInTheDocument();
   });
 
@@ -104,6 +111,10 @@ describe('SystemStatusDialog translations', () => {
     expect(screen.getByText('Injoignable')).toBeInTheDocument();
     expect(screen.getByText('Identifiants invalides')).toBeInTheDocument();
     expect(screen.getByText('Non configuré')).toBeInTheDocument();
+    expect(screen.getByText('Version installée')).toBeInTheDocument();
+    expect(screen.getByText('Version: 1.2.3')).toBeInTheDocument();
+    expect(screen.getByText('Commit: abc1234')).toBeInTheDocument();
+    expect(screen.getByText('Construit le: 2026-09-10_12:00:00')).toBeInTheDocument();
     expect(screen.queryByText(/systemStatus\./)).not.toBeInTheDocument();
   });
 });

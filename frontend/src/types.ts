@@ -247,6 +247,9 @@ export interface SystemStatusResponse {
   sonarr: ServiceStatus;
   tmdb: ServiceStatus;
   disk: DiskUsageEntry[];
+  version: string;
+  commit: string;
+  date: string;
 }
 
 export interface TMDBSearchResult {

@@ -95,7 +95,7 @@ export function SystemStatusDialog({ isOpen, onOpenChange }: SystemStatusDialogP
                 <ServiceRow label={t('systemStatus.rows.tmdb')} status={status.tmdb} t={t} />
               </div>
 
-              <div>
+              <div style={{ marginBottom: '1.5rem' }}>
                 <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
                   {t('systemStatus.disk.title')}
                 </h3>
@@ -104,6 +104,17 @@ export function SystemStatusDialog({ isOpen, onOpenChange }: SystemStatusDialogP
                 ) : (
                   status.disk.map((entry, i) => <DiskUsageRow key={i} entry={entry} t={t} />)
                 )}
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  {t('systemStatus.build.title')}
+                </h3>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  <div>{t('systemStatus.build.version')}: {status.version}</div>
+                  <div>{t('systemStatus.build.commit')}: {status.commit}</div>
+                  <div>{t('systemStatus.build.date')}: {status.date}</div>
+                </div>
               </div>
             </>
           )}

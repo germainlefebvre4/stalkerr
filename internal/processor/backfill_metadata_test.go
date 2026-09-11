@@ -21,7 +21,6 @@ func TestBackfillRichMetadata_MovieBackfilled(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 	movie := models.Movie{TMDBID: 321, TMDBTitle: "Legacy Movie", TMDBYear: 2018}
@@ -74,7 +73,6 @@ func TestBackfillRichMetadata_NoOpWhenNothingNeedsBackfill(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 	poster := "/already-there.jpg"
@@ -113,7 +111,6 @@ func TestBackfillRichMetadata_TVShowDeduplication(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 	s1, s2 := 1, 2
@@ -166,7 +163,6 @@ func TestBackfillRichMetadata_PerRecordFailureIsolation(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 	movie1 := models.Movie{TMDBID: 111, TMDBTitle: "Error Movie", TMDBYear: 2019}
@@ -222,7 +218,6 @@ func TestProcess_BackfillSkippedWhenSkipTMDB(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 	movie := models.Movie{TMDBID: 999, TMDBTitle: "Legacy Movie", TMDBYear: 2017}

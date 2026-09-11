@@ -33,6 +33,9 @@ describe('useSystemStatus', () => {
       sonarr: { status: 'not_configured' as const },
       tmdb: { status: 'not_configured' as const },
       disk: [],
+      version: '1.2.3',
+      commit: 'abc1234',
+      date: '2026-09-10_12:00:00',
     };
     vi.mocked(api.getSystemStatus).mockResolvedValue(response);
 

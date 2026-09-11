@@ -14,33 +14,39 @@ import (
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func setupTestDB(t *testing.T) {
 	t.Helper()
 
-	// Load config. Database connection settings come from whatever STALKEER_DATABASE_*
-	// (or DB_*) environment variables are already set (see .github/workflows/ci.yml
-	// for CI, or export them locally to match your own Postgres instance).
-	if err := config.Load(); err != nil {
-		t.Fatalf("failed to load config: %v", err)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open in-memory sqlite database: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&models.Movie{},
+		&models.TVShow{},
+		&models.ProcessedLine{},
+		&models.ProcessingLog{},
+		&models.ManualMapping{},
+		&models.FilterConfig{},
+	); err != nil {
+		t.Fatalf("failed to migrate in-memory sqlite database: %v", err)
 	}
 
-	// Initialize database
-	if err := database.Initialize(); err != nil {
-		t.Fatalf("failed to initialize database: %v", err)
+	// A ":memory:" sqlite database is private per connection; cap the pool at
+	// one connection so the processor's queries see the same in-memory database
+	// this test seeded, instead of a fresh empty one from another connection.
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get underlying sql.DB: %v", err)
 	}
+	sqlDB.SetMaxOpenConns(1)
 
-	// Clean up tables
-	db := database.Get()
-	db.Exec("TRUNCATE TABLE processed_lines, processing_logs, movies, tvshows, manual_mappings CASCADE")
-}
-
-func teardownTestDB(t *testing.T) {
-	t.Helper()
-	if err := database.Close(); err != nil {
-		t.Errorf("failed to close database: %v", err)
-	}
+	database.SetDB(db)
+	config.SetConfig(&config.Config{})
 }
 
 func createTestM3U(t *testing.T, content string) string {
@@ -63,7 +69,6 @@ func TestNewProcessor(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	tmpFile := createTestM3U(t, "#EXTM3U\n#EXTINF:-1,Test\nhttp://example.com/test.mkv")
 
@@ -92,7 +97,6 @@ func TestProcessBasic(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -135,7 +139,6 @@ func TestProcessWithLimit(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Movie 1" group-title="Movies",Movie 1
@@ -176,7 +179,6 @@ func TestProcessDuplicates(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -225,7 +227,6 @@ func TestProcessWithForce(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -281,7 +282,6 @@ func TestProcessingLogCreation(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -331,7 +331,6 @@ func TestProcessAttributesLineToRun(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -378,7 +377,6 @@ func TestProcessWithForceReattributesLineToNewerRun(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -445,7 +443,6 @@ func TestProcessSkippedDuplicateKeepsOriginalAttribution(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Test Movie" group-title="Movies",Test Movie
@@ -506,7 +503,6 @@ func TestProcessNewItemsCountOnlyCountsCreatedLines(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	firstContent := `#EXTM3U
 #EXTINF:-1 tvg-name="Existing Movie" group-title="Movies",Existing Movie
@@ -555,7 +551,6 @@ func TestUpdateProcessingLogPersistsRunStatistics(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Movie One (2020)" group-title="ACTION-FR",Movie One (2020)
@@ -625,7 +620,6 @@ func TestUpdateProcessingLogPersistsMetadataBackfillCounts(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
@@ -675,7 +669,6 @@ func TestProcessingLogPersistsPartialStatisticsOnFailure(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
@@ -739,7 +732,6 @@ func TestProcessNoItemsProcessedRecordsEmptyGroupTitlesAndZeroCounts(t *testing.
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	content := `#EXTM3U
 #EXTINF:-1 tvg-name="Movie One" group-title="ACTION-FR",Movie One
@@ -1118,7 +1110,6 @@ func TestProcessWithManualMapping(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 

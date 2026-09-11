@@ -4,6 +4,7 @@
 
 # Variables
 BINARY_NAME=stalkeer
+IMAGE_NAME ?= stalkerr
 CONFIG_FILE=config.yml
 BIN_DIR=bin
 CMD_DIR=cmd
@@ -176,35 +177,35 @@ dev-backend: build
 ## docker-build: Docker build (if needed later)
 docker-build:
 	@echo "Building Docker images..."
-	@echo "Backend image: $(REGISTRY)/$(BINARY_NAME)"
-	docker build -t $(REGISTRY)/$(BINARY_NAME) .
+	@echo "Backend image: $(REGISTRY)/$(IMAGE_NAME)"
+	docker build -t $(REGISTRY)/$(IMAGE_NAME) .
 
-	@echo "Frontend image: $(REGISTRY)/$(BINARY_NAME)-frontend"
-	cd frontend/ && docker build -t $(REGISTRY)/$(BINARY_NAME)-frontend .
+	@echo "Frontend image: $(REGISTRY)/$(IMAGE_NAME)-frontend"
+	cd frontend/ && docker build -t $(REGISTRY)/$(IMAGE_NAME)-frontend .
 
 ## docker-build-versioned: Docker build with version
 docker-build-versioned:
-	docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(COMMIT) -t $(REGISTRY)/$(BINARY_NAME):latest .
+	docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(IMAGE_NAME):$(VERSION) -t $(REGISTRY)/$(IMAGE_NAME):$(COMMIT) -t $(REGISTRY)/$(IMAGE_NAME):latest .
 	echo "Docker images built:"
-	echo "  $(REGISTRY)/$(BINARY_NAME):$(VERSION)"
-	echo "  $(REGISTRY)/$(BINARY_NAME):$(COMMIT)"
-	echo "  $(REGISTRY)/$(BINARY_NAME):latest"
+	echo "  $(REGISTRY)/$(IMAGE_NAME):$(VERSION)"
+	echo "  $(REGISTRY)/$(IMAGE_NAME):$(COMMIT)"
+	echo "  $(REGISTRY)/$(IMAGE_NAME):latest"
 
-	cd frontend/ && docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(BINARY_NAME)-frontend:$(VERSION) -t $(REGISTRY)/$(BINARY_NAME)-frontend:$(COMMIT) -t $(REGISTRY)/$(BINARY_NAME)-frontend:latest .
+	cd frontend/ && docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION) -t $(REGISTRY)/$(IMAGE_NAME)-frontend:$(COMMIT) -t $(REGISTRY)/$(IMAGE_NAME)-frontend:latest .
 	echo "Docker images built for frontend:"
-	echo "  $(REGISTRY)/$(BINARY_NAME)-frontend:$(VERSION)"
-	echo "  $(REGISTRY)/$(BINARY_NAME)-frontend:$(COMMIT)"
-	echo "  $(REGISTRY)/$(BINARY_NAME)-frontend:latest"
+	echo "  $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION)"
+	echo "  $(REGISTRY)/$(IMAGE_NAME)-frontend:$(COMMIT)"
+	echo "  $(REGISTRY)/$(IMAGE_NAME)-frontend:latest"
 
 ## docker-push: Docker push to registry
 docker-push:
-	docker push $(REGISTRY)/$(BINARY_NAME):$(VERSION)
-	docker push $(REGISTRY)/$(BINARY_NAME):$(COMMIT)
-	docker push $(REGISTRY)/$(BINARY_NAME):latest
+	docker push $(REGISTRY)/$(IMAGE_NAME):$(VERSION)
+	docker push $(REGISTRY)/$(IMAGE_NAME):$(COMMIT)
+	docker push $(REGISTRY)/$(IMAGE_NAME):latest
 
-	docker push $(REGISTRY)/$(BINARY_NAME)-frontend:$(VERSION)
-	docker push $(REGISTRY)/$(BINARY_NAME)-frontend:$(COMMIT)
-	docker push $(REGISTRY)/$(BINARY_NAME)-frontend:latest
+	docker push $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION)
+	docker push $(REGISTRY)/$(IMAGE_NAME)-frontend:$(COMMIT)
+	docker push $(REGISTRY)/$(IMAGE_NAME)-frontend:latest
 
 ## docker-build-push: Docker build and push to registry
 docker-build-push: docker-build-versioned docker-push

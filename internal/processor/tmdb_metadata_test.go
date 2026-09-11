@@ -30,7 +30,6 @@ func TestEnrichMovieWithTMDBID_PersistsRichMetadata(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	srv := newTMDBTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -82,7 +81,6 @@ func TestEnrichMovieWithTMDBID_ExternalIDsUnavailable(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	srv := newTMDBTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "external_ids") {
@@ -126,7 +124,6 @@ func TestEnrichTVShowWithTMDBID_PersistsRichMetadata(t *testing.T) {
 	}
 
 	setupTestDB(t)
-	defer teardownTestDB(t)
 
 	srv := newTMDBTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

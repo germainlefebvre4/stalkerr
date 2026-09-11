@@ -8,6 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version, commit, and date are set via -ldflags "-X main.version=... -X
+// main.commit=... -X main.date=..." (see Dockerfile/Makefile); these defaults
+// apply to a plain local build.
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "stalkeer",
 	Short: "Stalkeer parses M3U playlists and downloads missing media items",
