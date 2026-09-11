@@ -43,7 +43,6 @@ func TestEnrichMissingTVDBIDs_MovieUpdated(t *testing.T) {
 	}
 
 	setupEnrichTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 
@@ -91,7 +90,6 @@ func TestEnrichMissingTVDBIDs_MovieSkippedNoTVDB(t *testing.T) {
 	}
 
 	setupEnrichTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 
@@ -132,7 +130,6 @@ func TestEnrichMissingTVDBIDs_APIErrorContinues(t *testing.T) {
 	}
 
 	setupEnrichTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 
@@ -175,7 +172,6 @@ func TestEnrichMissingTVDBIDs_TVShowDeduplication(t *testing.T) {
 	}
 
 	setupEnrichTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 
@@ -222,7 +218,6 @@ func TestEnrichMissingTVDBIDs_DryRun(t *testing.T) {
 	}
 
 	setupEnrichTestDB(t)
-	defer teardownTestDB(t)
 
 	db := database.Get()
 

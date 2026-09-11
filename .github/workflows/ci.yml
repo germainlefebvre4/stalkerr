@@ -10,21 +10,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: stalkeer
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: stalkeer_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
 
     steps:
     - uses: actions/checkout@v7
@@ -49,13 +34,6 @@ jobs:
       run: go mod verify
 
     - name: Run tests
-      env:
-        STALKEER_DATABASE_HOST: localhost
-        STALKEER_DATABASE_PORT: 5432
-        STALKEER_DATABASE_USER: stalkeer
-        STALKEER_DATABASE_PASSWORD: test_password
-        STALKEER_DATABASE_DBNAME: stalkeer_test
-        STALKEER_M3U_FILE_PATH: /tmp/test.m3u
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
     - name: Upload coverage to Codecov
