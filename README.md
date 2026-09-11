@@ -24,6 +24,12 @@
 - ⚠️ Dedicated downloads error tab with cancel, resync-path, and rename actions
 - 🗂️ Grouped playlist view with per-group filters and expandable latest-run details
 
+## Architecture
+
+Stalkeer bridges an IPTV/M3U playlist to Radarr/Sonarr: it figures out what those tools are still missing and downloads it straight from the M3U source over HTTP (no torrents involved, despite the repo's home). The diagrams below give the shape of the system before you dive into setup.
+
+For more information about architecture implementation, you can read the page [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+
 ## Quick Start
 
 ### Option 1: Docker (Recommended)
