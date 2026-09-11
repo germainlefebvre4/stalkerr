@@ -17,6 +17,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/notifier"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
 	"github.com/spf13/cobra"
@@ -56,6 +57,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		}
 
 		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+		notif := notifier.FromConfig(cfg.Notifications)
 
 		fmt.Println("=== Unified Download Command ===")
 		if dryRun {
@@ -138,6 +140,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 			MonitoredSeriesTVDBIDs: seriesMonitored,
 		})
 		if err != nil {
+			notifyBuildStreamsFailure(notif, err)
 			fmt.Fprintf(os.Stderr, "Error building streams: %v\n", err)
 			os.Exit(1)
 		}
@@ -163,6 +166,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		sched := scheduler.NewScheduler(streams, cfg.Downloads.ForceTierProbability)
 		stats := runDownloadWorkerPool(ctx, sched, dl, cfg, parallel, verbose)
 
+		notifyDownloadRunResult(notif, stats)
 		notifyJellyfin(ctx, cfg, stats.changedPaths)
 
 		fmt.Println("\n=== Download Summary ===")
@@ -359,6 +363,40 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 	}
 
 	return false, ""
+}
+
+// notifyBuildStreamsFailure sends a Critical notification identifying that
+// this download run aborted because Radarr and/or Sonarr could not be
+// reached while building the stream set. A delivery failure is logged and
+// never affects the run's exit status.
+func notifyBuildStreamsFailure(notif notifier.Notifier, err error) {
+	event := notifier.Event{
+		Severity: notifier.Critical,
+		Title:    "Stalkeer: download run failed",
+		Message:  fmt.Sprintf("Unable to reach Radarr/Sonarr while building the stream set: %v", err),
+	}
+	if notifyErr := notif.Notify(context.Background(), event); notifyErr != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{"error": notifyErr}).Warn("failed to send notification")
+	}
+}
+
+// notifyDownloadRunResult sends a Warning notification summarizing this
+// download run, only when at least one item failed to download. A run with
+// zero failures sends nothing. A delivery failure is logged and never
+// affects the run's exit status.
+func notifyDownloadRunResult(notif notifier.Notifier, stats *downloadStats) {
+	if stats.Failed == 0 {
+		return
+	}
+
+	event := notifier.Event{
+		Severity: notifier.Warning,
+		Title:    "Stalkeer: download run completed with failures",
+		Message:  fmt.Sprintf("Total: %d, Downloaded: %d, Failed: %d", stats.Total, stats.Downloaded, stats.Failed),
+	}
+	if err := notif.Notify(context.Background(), event); err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{"error": err}).Warn("failed to send notification")
+	}
 }
 
 // notifyJellyfin sends a single best-effort library-scan notification to

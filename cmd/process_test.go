@@ -76,7 +76,7 @@ func TestProcessConfiguredSources_MissingFileSkippedPresentFileProcessed(t *test
 	log := logger.NewWithLevelAndFormat("info", "text")
 	opts := processor.ProcessOptions{SkipTMDB: true, BatchSize: 100, ProgressInterval: 1000}
 
-	if hadError := processConfiguredSources(sources, opts, log); hadError {
+	if hadError := processConfiguredSources(sources, opts, log, &fakeNotifier{}); hadError {
 		t.Error("expected no hard failure - a missing source file should only be skipped with a warning")
 	}
 

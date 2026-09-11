@@ -10,6 +10,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
+	"github.com/glefebvre/stalkeer/internal/notifier"
 	"github.com/spf13/cobra"
 )
 
@@ -32,11 +33,13 @@ logged and does not prevent the other sources from being attempted.`,
 		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
 		log := logger.AppLogger()
 
+		notif := notifier.FromConfig(cfg.Notifications)
+
 		// Get flags
 		urlOverride, _ := cmd.Flags().GetString("url")
 		noArchive, _ := cmd.Flags().GetBool("no-archive")
 
-		failures := downloadAllSources(cfg, log, urlOverride, noArchive)
+		failures := downloadAllSources(cfg, log, notif, urlOverride, noArchive)
 		if failures > 0 {
 			fmt.Fprintf(os.Stderr, "\nError: %d source(s) failed to download\n", failures)
 			os.Exit(1)
@@ -49,7 +52,7 @@ logged and does not prevent the other sources from being attempted.`,
 // prevent the remaining sources from being attempted. Returns the number of
 // sources that failed, so the caller can decide the process exit code only
 // after every source has been attempted.
-func downloadAllSources(cfg *config.Config, log *logger.Logger, urlOverride string, noArchive bool) int {
+func downloadAllSources(cfg *config.Config, log *logger.Logger, notif notifier.Notifier, urlOverride string, noArchive bool) int {
 	sources := cfg.M3U.Sources
 	failures := 0
 
@@ -99,6 +102,7 @@ func downloadAllSources(cfg *config.Config, log *logger.Logger, urlOverride stri
 		cancel()
 
 		if err != nil {
+			notifyPlaylistFetchFailure(notif, source.Name, err)
 			fmt.Fprintf(os.Stderr, "Error: Download failed for source %q: %v\n\n", source.Name, err)
 			log.WithFields(map[string]interface{}{
 				"source": source.Name,
@@ -117,6 +121,21 @@ func downloadAllSources(cfg *config.Config, log *logger.Logger, urlOverride stri
 	}
 
 	return failures
+}
+
+// notifyPlaylistFetchFailure sends a Critical notification identifying that
+// an m3u-download run failed to fetch the configured playlist for the given
+// source. A delivery failure is logged and never affects the run's exit
+// status.
+func notifyPlaylistFetchFailure(notif notifier.Notifier, sourceName string, err error) {
+	event := notifier.Event{
+		Severity: notifier.Critical,
+		Title:    "Stalkeer: m3u-download run failed",
+		Message:  fmt.Sprintf("Failed to fetch playlist for source %q: %v", sourceName, err),
+	}
+	if notifyErr := notif.Notify(context.Background(), event); notifyErr != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{"error": notifyErr}).Warn("failed to send notification")
+	}
 }
 
 var listM3UArchivesCmd = &cobra.Command{

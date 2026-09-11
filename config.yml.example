@@ -118,6 +118,18 @@ jellyfin:
   url: http://localhost:8096
   api_key: your_jellyfin_api_key_here
 
+# Push notifications (optional): alerts an operator of a failed or broken
+# scheduled run (download, process, m3u-download) without requiring anyone to
+# check the dashboard or job logs proactively. A successful run with zero
+# failures sends nothing.
+notifications:
+  enabled: false
+  ntfy:
+    enabled: false
+    server_url: https://ntfy.sh
+    topic: ""
+    auth_token: ""  # Optional: required only for a protected/private ntfy topic
+
 # Download settings
 downloads:
   # Fallback base path for movie downloads. When using the radarr command, movie.Path
