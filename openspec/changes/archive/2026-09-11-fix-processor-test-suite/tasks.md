@@ -12,4 +12,4 @@
 ## 3. Clean up CI
 
 - [x] 3.1 Remove the `services.postgres` block and the `STALKEER_DATABASE_*` / `STALKEER_M3U_FILE_PATH` env vars from the `Run tests` step in `.github/workflows/ci.yml`, now that no test depends on them (confirmed by task 2.3). Verify by re-reading the edited step and confirming only `go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` remains, with no leftover `env:` block for those vars.
-- [ ] 3.2 Push the branch and confirm the `Go CI` workflow run is green (`gh run list --workflow=ci.yml --limit 1`), ending the current 6-run failure streak.
+- [x] 3.2 Push the branch and confirm the `Go CI` workflow run is green (`gh run list --workflow=ci.yml --limit 1`), ending the current 6-run failure streak.
