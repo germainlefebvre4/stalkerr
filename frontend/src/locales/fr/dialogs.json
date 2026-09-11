@@ -84,9 +84,7 @@
     "overrideAtLabel": "Corrigé le :"
   },
   "systemStatus": {
-    "title": "État du système",
     "refresh": "Rafraîchir",
-    "close": "Fermer",
     "loading": "Vérification en cours...",
     "error": "Échec du chargement de l'état du système.",
     "rows": {

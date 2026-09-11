@@ -84,9 +84,7 @@
     "overrideAtLabel": "Corrected on:"
   },
   "systemStatus": {
-    "title": "System Status",
     "refresh": "Refresh",
-    "close": "Close",
     "loading": "Checking status...",
     "error": "Failed to load system status.",
     "rows": {

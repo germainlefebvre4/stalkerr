@@ -33,12 +33,12 @@ input, select {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
-  background-color: rgba(255, 255, 255, 0.85);
+  background-color: var(--glass-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   padding: 1.25rem 2rem;
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-md);
   transition: all 0.3s ease;
 }
@@ -70,7 +70,7 @@ input, select {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .card:hover {
+  :root:not([data-reduce-motion="true"]) .card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
   }
@@ -247,12 +247,12 @@ input, select {
 /* Segmented Control Tabs (Radix tabs list styled like capsule macOS widget) */
 .segmented-tabs-list {
   display: inline-flex;
-  background-color: rgba(15, 23, 42, 0.04);
+  background-color: var(--tabs-well-bg);
   padding: 0.35rem;
   border-radius: var(--radius-md);
   gap: 0.25rem;
   margin-bottom: 2rem;
-  border: 1px solid rgba(15, 23, 42, 0.02);
+  border: 1px solid var(--tabs-well-border);
 }
 
 .segmented-tabs-trigger {
@@ -343,7 +343,7 @@ input, select {
 }
 
 .btn-danger:hover {
-  background-color: #fee2e2;
+  background-color: var(--status-failed-border);
   transform: translateY(-1px);
 }
 
@@ -353,7 +353,7 @@ input, select {
   padding: 0.65rem 1rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background-color: #ffffff;
+  background-color: var(--bg-card);
   font-size: 0.875rem;
   color: var(--text-main);
   transition: all 0.2s ease;
@@ -605,7 +605,7 @@ input, select {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 /* Drawer Sidepanel Styling */
@@ -621,7 +621,7 @@ input, select {
 
 .drawer-content {
   background-color: var(--bg-card);
-  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.15);
+  box-shadow: var(--shadow-drawer);
   position: fixed;
   top: 0;
   right: 0;
@@ -650,7 +650,7 @@ input, select {
 
 .drawer-content--secondary {
   background-color: var(--bg-card);
-  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.15);
+  box-shadow: var(--shadow-drawer);
   position: fixed;
   top: 0;
   right: 750px;
@@ -666,6 +666,69 @@ input, select {
   flex-direction: column;
   height: 100vh;
   overflow-y: auto;
+}
+
+/* Settings drawer: same right-anchored sheet mechanics as .drawer-content,
+   narrower since it holds compact preference controls rather than rich
+   detail content. */
+.settings-drawer-content {
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-drawer);
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 420px;
+  padding: 2rem;
+  z-index: 101;
+  border-left: 1px solid var(--border-color);
+  outline: none;
+  animation: drawerShow 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.settings-section + .settings-section {
+  margin-top: 1.75rem;
+}
+
+.settings-section-header {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.35rem;
+  margin: 0 0 0.85rem;
+}
+
+.settings-field + .settings-field {
+  margin-top: 1rem;
+}
+
+.settings-field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.4rem;
+}
+
+.settings-field-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 /* Copiable code block and technical section */
@@ -694,7 +757,7 @@ input, select {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: var(--copy-btn-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.25rem 0.5rem;
@@ -1085,11 +1148,13 @@ input, select {
     min-height: 44px;
   }
 
-  .drawer-content {
+  .drawer-content,
+  .settings-drawer-content {
     padding: 1.25rem;
   }
 
-  .drawer-section-title {
+  .drawer-section-title,
+  .settings-section-header {
     font-size: 0.8rem;
   }
 }

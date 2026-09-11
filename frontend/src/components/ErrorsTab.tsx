@@ -55,7 +55,7 @@ export function ErrorsTab({
         <select
           value={reasonFilter}
           onChange={e => setReasonFilter(e.target.value)}
-          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
         >
           <option value="">{t('reasonFilter.all')}</option>
           <option value="unknown_format">{t('reasonFilter.unknownFormat')}</option>

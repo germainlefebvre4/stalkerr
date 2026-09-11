@@ -1,17 +1,12 @@
 import { useTranslation } from 'react-i18next';
-
-const LANGUAGES: { code: 'en' | 'fr'; labelKey: string }[] = [
-  { code: 'en', labelKey: 'language.en' },
-  { code: 'fr', labelKey: 'language.fr' },
-];
+import { SlidersHorizontal } from 'lucide-react';
 
 interface FloatingHeaderProps {
-  onOpenSystemStatus: () => void;
+  onOpenSettings: () => void;
 }
 
-export function FloatingHeader({ onOpenSystemStatus }: FloatingHeaderProps) {
-  const { t, i18n } = useTranslation();
-  const activeLanguage = i18n.language.startsWith('fr') ? 'fr' : 'en';
+export function FloatingHeader({ onOpenSettings }: FloatingHeaderProps) {
+  const { t } = useTranslation();
 
   return (
     <header className="glass-header">
@@ -26,9 +21,9 @@ export function FloatingHeader({ onOpenSystemStatus }: FloatingHeaderProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <button
           type="button"
-          aria-label={t('systemStatus.iconLabel')}
-          title={t('systemStatus.iconLabel')}
-          onClick={onOpenSystemStatus}
+          aria-label={t('settings:trigger')}
+          title={t('settings:trigger')}
+          onClick={onOpenSettings}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -39,31 +34,10 @@ export function FloatingHeader({ onOpenSystemStatus }: FloatingHeaderProps) {
             border: '1px solid var(--primary-slate)',
             background: 'var(--bg-app)',
             color: 'var(--text-secondary)',
-            fontSize: '1rem',
-            lineHeight: 1,
           }}
         >
-          📶
+          <SlidersHorizontal size={16} />
         </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-          <select
-            aria-label={t('language.label')}
-            value={activeLanguage}
-            onChange={(e) => i18n.changeLanguage(e.target.value)}
-            style={{
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--primary-slate)',
-              background: 'var(--bg-app)',
-              color: 'var(--text-secondary)',
-              padding: '0.25rem 0.5rem',
-              fontSize: '0.8rem',
-            }}
-          >
-            {LANGUAGES.map(({ code, labelKey }) => (
-              <option key={code} value={code}>{t(labelKey)}</option>
-            ))}
-          </select>
-        </label>
       </div>
     </header>
   );

@@ -1,0 +1,37 @@
+{
+  "trigger": "Paramètres",
+  "title": "Paramètres",
+  "description": "Préférences de l'application : apparence, langue, filtres, valeurs de démarrage et état du système.",
+  "close": "Fermer",
+  "sections": {
+    "appearance": "Apparence",
+    "language": "Langue",
+    "filters": "Filtres",
+    "preferences": "Préférences",
+    "system": "Système",
+    "about": "À propos"
+  },
+  "language": {
+    "label": "Langue",
+    "en": "Anglais",
+    "fr": "Français"
+  },
+  "appearance": {
+    "themeLabel": "Thème sombre",
+    "switchToLight": "Passer au thème clair",
+    "switchToDark": "Passer au thème sombre",
+    "reduceMotionLabel": "Réduire les animations"
+  },
+  "preferences": {
+    "startupTabLabel": "Onglet de démarrage",
+    "startupTabHint": "Utilisé au prochain chargement de l'application. Ne change pas l'onglet actuellement affiché.",
+    "playlistPageSizeLabel": "Taille de page par défaut (Playlist)",
+    "playlistViewLabel": "Vue par défaut (Playlist)",
+    "switchToItems": "Passer à la vue liste",
+    "switchToGrouped": "Passer à la vue groupée"
+  },
+  "about": {
+    "appName": "Stalkeer Dashboard",
+    "repositoryLink": "Voir le code source sur GitHub"
+  }
+}

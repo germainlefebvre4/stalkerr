@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
-import { SystemStatusDialog } from './SystemStatusDialog';
+import { SystemStatusSection } from './SystemStatusSection';
 import { api } from '../services/api';
 import { SystemStatusResponse } from '../types';
 
@@ -38,44 +38,44 @@ const response: SystemStatusResponse = {
   date: '2026-09-10_12:00:00',
 };
 
-function renderDialog(isOpen: boolean) {
+function renderSection(isExpanded: boolean) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <SystemStatusDialog isOpen={isOpen} onOpenChange={() => {}} />
+      <SystemStatusSection isExpanded={isExpanded} />
     </I18nextProvider>
   );
 }
 
-describe('SystemStatusDialog fetch behavior', () => {
-  it('does not fetch before the dialog is opened', () => {
-    renderDialog(false);
+describe('SystemStatusSection fetch behavior', () => {
+  it('does not fetch before the section is expanded', () => {
+    renderSection(false);
     expect(api.getSystemStatus).not.toHaveBeenCalled();
   });
 
-  it('fetches exactly once when opened', async () => {
+  it('fetches exactly once when expanded', async () => {
     vi.mocked(api.getSystemStatus).mockResolvedValue(response);
-    renderDialog(true);
+    renderSection(true);
 
     await waitFor(() => expect(api.getSystemStatus).toHaveBeenCalledTimes(1));
   });
 
-  it('fetches again on reopen after close', async () => {
+  it('fetches again on re-expand after collapse', async () => {
     vi.mocked(api.getSystemStatus).mockResolvedValue(response);
     const { rerender } = render(
       <I18nextProvider i18n={i18n}>
-        <SystemStatusDialog isOpen={true} onOpenChange={() => {}} />
+        <SystemStatusSection isExpanded={true} />
       </I18nextProvider>
     );
     await waitFor(() => expect(api.getSystemStatus).toHaveBeenCalledTimes(1));
 
     rerender(
       <I18nextProvider i18n={i18n}>
-        <SystemStatusDialog isOpen={false} onOpenChange={() => {}} />
+        <SystemStatusSection isExpanded={false} />
       </I18nextProvider>
     );
     rerender(
       <I18nextProvider i18n={i18n}>
-        <SystemStatusDialog isOpen={true} onOpenChange={() => {}} />
+        <SystemStatusSection isExpanded={true} />
       </I18nextProvider>
     );
 
@@ -83,14 +83,13 @@ describe('SystemStatusDialog fetch behavior', () => {
   });
 });
 
-describe('SystemStatusDialog translations', () => {
+describe('SystemStatusSection translations', () => {
   it('renders translated English rows/states/reasons, not raw keys', async () => {
     vi.mocked(api.getSystemStatus).mockResolvedValue(response);
     await i18n.changeLanguage('en');
-    renderDialog(true);
+    renderSection(true);
 
-    await waitFor(() => expect(screen.getByText('System Status')).toBeInTheDocument());
-    expect(screen.getByText('Database')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Database')).toBeInTheDocument());
     expect(screen.getByText('Unreachable')).toBeInTheDocument();
     expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
     expect(screen.getByText('Not configured')).toBeInTheDocument();
@@ -104,10 +103,9 @@ describe('SystemStatusDialog translations', () => {
   it('renders translated French rows/states/reasons, not raw keys', async () => {
     vi.mocked(api.getSystemStatus).mockResolvedValue(response);
     await i18n.changeLanguage('fr');
-    renderDialog(true);
+    renderSection(true);
 
-    await waitFor(() => expect(screen.getByText('État du système')).toBeInTheDocument());
-    expect(screen.getByText('Base de données')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Base de données')).toBeInTheDocument());
     expect(screen.getByText('Injoignable')).toBeInTheDocument();
     expect(screen.getByText('Identifiants invalides')).toBeInTheDocument();
     expect(screen.getByText('Non configuré')).toBeInTheDocument();

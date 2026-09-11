@@ -179,7 +179,7 @@ export function DownloadsTab({
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
         >
           <option value="">{t('statusFilter.all')}</option>
           <option value="completed">{t('statusFilter.completed')}</option>
@@ -191,7 +191,7 @@ export function DownloadsTab({
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
-          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
         >
           <option value="">{t('typeFilter.all')}</option>
           <option value="movies">{t('typeFilter.movies')}</option>
@@ -201,7 +201,7 @@ export function DownloadsTab({
         <select
           value={problemFilter}
           onChange={e => setProblemFilter(e.target.value)}
-          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
         >
           <option value="">{t('problemFilter.none')}</option>
           <option value="missing_year">{t('problemFilter.missingYear')}</option>

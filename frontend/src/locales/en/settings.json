@@ -1,0 +1,37 @@
+{
+  "trigger": "Settings",
+  "title": "Settings",
+  "description": "App preferences: appearance, language, filters, startup defaults, and system status.",
+  "close": "Close",
+  "sections": {
+    "appearance": "Appearance",
+    "language": "Language",
+    "filters": "Filters",
+    "preferences": "Preferences",
+    "system": "System",
+    "about": "About"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "fr": "French"
+  },
+  "appearance": {
+    "themeLabel": "Dark theme",
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme",
+    "reduceMotionLabel": "Reduce animations"
+  },
+  "preferences": {
+    "startupTabLabel": "Startup tab",
+    "startupTabHint": "Used the next time the app loads. Does not change the tab you're viewing now.",
+    "playlistPageSizeLabel": "Default playlist page size",
+    "playlistViewLabel": "Default playlist view",
+    "switchToItems": "Switch to list view",
+    "switchToGrouped": "Switch to grouped view"
+  },
+  "about": {
+    "appName": "Stalkeer Dashboard",
+    "repositoryLink": "View source on GitHub"
+  }
+}

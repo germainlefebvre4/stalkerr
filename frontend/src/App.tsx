@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useTranslation } from 'react-i18next';
 import { useToast } from './hooks/useToast';
+import { useTheme } from './hooks/useTheme';
+import { useReduceMotion } from './hooks/useReduceMotion';
 import { useApiErrorMessage } from './hooks/useApiErrorMessage';
 import { useHealthAndStats } from './hooks/useHealthAndStats';
 import { usePlaylist } from './hooks/usePlaylist';
@@ -19,11 +21,10 @@ import { api } from './services/api';
 import { DownloadEnriched, PlaylistItem, ProcessingLog } from './types';
 import { resolveRenameFolderName } from './utils/renameDialog';
 
-const VALID_TABS = ['home', 'playlist', 'filters', 'logs', 'downloads', 'radarr-sonarr', 'errors'];
+const VALID_TABS = ['home', 'playlist', 'logs', 'downloads', 'radarr-sonarr', 'errors'];
 
-// The Erreurs and Filtres tabs are desktop-only: neither is part of the
-// mobile bottom tab bar, so falling back off either while narrowing the
-// viewport lands here.
+// The Erreurs tab is desktop-only: it's not part of the mobile bottom tab
+// bar, so falling back off it while narrowing the viewport lands here.
 const MOBILE_FALLBACK_TAB = 'home';
 
 const TAB_URL_SCHEMA = {
@@ -43,10 +44,27 @@ function readInitialActiveTab(): string {
   return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'home';
 }
 
+// The Settings drawer's Préférences section lets the user set this same
+// localStorage key without navigating the current session; this reads it
+// independently of any `?tab=` URL override, which only affects this load's
+// active tab, not the persisted startup default shown in that selector.
+function readStoredStartupTab(): string {
+  const storedTab = localStorage.getItem('stalkeer_active_tab');
+  return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'home';
+}
+
+const STARTUP_TAB_LABEL_KEYS: Record<string, string> = {
+  home: 'tabs.home',
+  playlist: 'tabs.playlist',
+  logs: 'tabs.logs',
+  downloads: 'tabs.downloads',
+  'radarr-sonarr': 'tabs.radarrSonarr',
+  errors: 'tabs.errors',
+};
+
 import { FloatingHeader } from './components/FloatingHeader';
 import { HomeTab } from './components/HomeTab';
 import { PlaylistTab } from './components/PlaylistTab';
-import { FiltersTab } from './components/FiltersTab';
 import { LogsTab } from './components/LogsTab';
 import { DownloadsTab } from './components/DownloadsTab';
 import { ErrorsTab } from './components/ErrorsTab';
@@ -57,7 +75,7 @@ import { MoveFolderDialog } from './components/MoveFolderDialog';
 import { RenameFolderDialog } from './components/RenameFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 import { RunItemsDialog } from './components/RunItemsDialog';
-import { SystemStatusDialog } from './components/SystemStatusDialog';
+import { SettingsDrawer } from './components/SettingsDrawer';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -66,6 +84,8 @@ export default function App() {
   const [, patchTabURLState] = useURLState(TAB_URL_SCHEMA);
 
   const { notification, showToast } = useToast();
+  const { theme, setTheme } = useTheme();
+  const { reduceMotion, setReduceMotion } = useReduceMotion();
   const { stats, fetchStats, getDownloadSuccessRatio } = useHealthAndStats();
   
   const {
@@ -128,12 +148,21 @@ export default function App() {
   const overrideExtraSuccessRef = useRef<(() => void) | null>(null);
   const [isRunItemsOpen, setIsRunItemsOpen] = useState(false);
   const [selectedRunLog, setSelectedRunLog] = useState<ProcessingLog | null>(null);
-  const [isSystemStatusOpen, setIsSystemStatusOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [startupTab, setStartupTabState] = useState<string>(readStoredStartupTab);
 
   useEffect(() => {
     localStorage.setItem('stalkeer_active_tab', activeTab);
     patchTabURLState({ tab: activeTab });
   }, [activeTab, patchTabURLState]);
+
+  const setStartupTab = (tab: string) => {
+    localStorage.setItem('stalkeer_active_tab', tab);
+    setStartupTabState(tab);
+  };
+
+  const startupTabOptions = VALID_TABS
+    .map(tab => ({ value: tab, label: t(STARTUP_TAB_LABEL_KEYS[tab]) }));
 
   useEffect(() => {
     document.documentElement.lang = i18n.language;
@@ -146,17 +175,11 @@ export default function App() {
     };
   }, [i18n]);
 
+  // The Erreurs tab is desktop-only (never in the mobile bottom tab bar): if
+  // the viewport narrows while it's active, fall back to another tab instead
+  // of continuing to render it.
   useEffect(() => {
-    if (activeTab === 'filters') {
-      fetchFilters();
-    }
-  }, [activeTab, fetchFilters]);
-
-  // The Erreurs and Filtres tabs are desktop-only (never in the mobile bottom
-  // tab bar): if the viewport narrows while either is active, fall back to
-  // another tab instead of continuing to render it.
-  useEffect(() => {
-    if (isMobile && (activeTab === 'errors' || activeTab === 'filters')) {
+    if (isMobile && activeTab === 'errors') {
       setActiveTab(MOBILE_FALLBACK_TAB);
     }
   }, [isMobile, activeTab]);
@@ -259,19 +282,18 @@ export default function App() {
           color: notification.type === 'success' ? 'var(--status-success-text)' : 'var(--status-failed-text)',
           border: `1px solid ${notification.type === 'success' ? 'var(--status-success-border)' : 'var(--status-failed-border)'}`,
           padding: '1rem 1.5rem', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)', fontWeight: 600, fontSize: '0.875rem',
-          animation: 'contentShow 150ms ease-out'
+          ...(reduceMotion ? {} : { animation: 'contentShow 150ms ease-out' })
         }}>
           {notification.type === 'success' ? '✓' : '⚠️'} {notification.message}
         </div>
       )}
 
-      <FloatingHeader onOpenSystemStatus={() => setIsSystemStatusOpen(true)} />
+      <FloatingHeader onOpenSettings={() => setIsSettingsOpen(true)} />
 
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="segmented-tabs-list">
           <Tabs.Trigger value="home" className="segmented-tabs-trigger">🏠 {t('tabs.home')}</Tabs.Trigger>
           <Tabs.Trigger value="playlist" className="segmented-tabs-trigger">🎬 {t('tabs.playlist')}</Tabs.Trigger>
-          <Tabs.Trigger value="filters" className="segmented-tabs-trigger">🔍 {t('tabs.filters')}</Tabs.Trigger>
           <Tabs.Trigger value="logs" className="segmented-tabs-trigger">⚙️ {t('tabs.logs')}</Tabs.Trigger>
           <Tabs.Trigger value="downloads" className="segmented-tabs-trigger">📥 {t('tabs.downloads')}</Tabs.Trigger>
           <Tabs.Trigger value="radarr-sonarr" className="segmented-tabs-trigger">🎯 {t('tabs.radarrSonarr')}</Tabs.Trigger>
@@ -299,11 +321,6 @@ export default function App() {
           playlistView={playlistView} setPlaylistView={setPlaylistView}
           groups={groups} groupsLoading={groupsLoading} groupsTotal={groupsTotal}
           groupsPage={groupsPage} setGroupsPage={setGroupsPage} groupsLimit={groupsLimit}
-        />
-
-        <FiltersTab
-          filters={filters} filtersLoading={filtersLoading} onDeleteFilter={handleDeleteFilter}
-          onOpenCreate={() => setIsCreateFilterOpen(true)}
         />
 
         <LogsTab
@@ -384,7 +401,16 @@ export default function App() {
         onOpenOverride={handleOpenOverride} onResetPipeline={handleResetPipeline}
       />
 
-      <SystemStatusDialog isOpen={isSystemStatusOpen} onOpenChange={setIsSystemStatusOpen} />
+      <SettingsDrawer
+        isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen}
+        theme={theme} onSetTheme={setTheme}
+        reduceMotion={reduceMotion} onSetReduceMotion={setReduceMotion}
+        startupTab={startupTab} onSetStartupTab={setStartupTab} tabOptions={startupTabOptions}
+        playlistLimit={playlistLimit} onSetPlaylistLimit={setPlaylistLimit}
+        playlistView={playlistView} onSetPlaylistView={setPlaylistView}
+        filters={filters} filtersLoading={filtersLoading} onFetchFilters={fetchFilters}
+        onDeleteFilter={handleDeleteFilter} onOpenCreateFilter={() => setIsCreateFilterOpen(true)}
+      />
     </div>
   );
 }

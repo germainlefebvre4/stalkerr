@@ -369,7 +369,7 @@ export function RadarrSonarrTab({
               <select
                 value={filmsFilter}
                 onChange={e => setFilmsFilter(e.target.value as MatchStatusFilter)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
               >
                 <option value="">{t('filterStatus.all')}</option>
                 <option value="matched">{t('filterStatus.matched')}</option>
@@ -466,7 +466,7 @@ export function RadarrSonarrTab({
               <select
                 value={seriesFilter}
                 onChange={e => setSeriesFilter(e.target.value as MatchStatusFilter)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: '#fff', fontWeight: 600, color: 'var(--text-secondary)' }}
+                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
               >
                 <option value="">{t('filterStatus.all')}</option>
                 <option value="matched">{t('filterStatus.matched')}</option>

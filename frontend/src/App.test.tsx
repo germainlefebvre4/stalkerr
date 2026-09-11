@@ -59,8 +59,8 @@ describe('App mobile fallback off the Erreurs tab', () => {
   });
 });
 
-describe('App mobile fallback off the Filtres tab', () => {
-  it('falls back to Home when mounted below the 768px breakpoint with filters active', async () => {
+describe('App falls back off the removed Filtres tab', () => {
+  it('falls back to Home on a mobile-width viewport ("filters" is no longer a valid tab)', async () => {
     window.history.replaceState(null, '', '/?tab=filters');
     setMatchMedia(true);
 
@@ -72,11 +72,10 @@ describe('App mobile fallback off the Filtres tab', () => {
       );
     });
 
-    expect(screen.queryByText('Inclusion & Exclusion Regular Expressions')).not.toBeInTheDocument();
     expect(screen.getByText('Last Processing Run')).toBeInTheDocument();
   });
 
-  it('keeps the Filtres tab active on a desktop-width viewport', async () => {
+  it('falls back to Home on a desktop-width viewport ("filters" is no longer a valid tab)', async () => {
     window.history.replaceState(null, '', '/?tab=filters');
     setMatchMedia(false);
 
@@ -88,7 +87,7 @@ describe('App mobile fallback off the Filtres tab', () => {
       );
     });
 
-    expect(screen.getByText('Inclusion & Exclusion Regular Expressions')).toBeInTheDocument();
+    expect(screen.getByText('Last Processing Run')).toBeInTheDocument();
   });
 });
 
