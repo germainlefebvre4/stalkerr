@@ -35,10 +35,7 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid item id",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid item id")
 		return
 	}
 
@@ -46,16 +43,10 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 	var item models.ProcessedLine
 	if err := db.Preload("Movie").Preload("TVShow").First(&item, uint(id)).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("item with id %d not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("item with id %d not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch item",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch item")
 		return
 	}
 
@@ -64,33 +55,21 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 	isMovie := item.ContentType == models.ContentTypeMovies && item.Movie != nil
 	isEpisode := item.ContentType == models.ContentTypeTVShows && item.TVShow != nil && item.TVShow.Season != nil && item.TVShow.Episode != nil
 	if !isMovie && !isEpisode {
-		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{
-			Error:   "not_matched",
-			Message: "item is not matched to a movie or TV show",
-		})
+		respondError(c, http.StatusUnprocessableEntity, "not_matched", "item is not matched to a movie or TV show")
 		return
 	}
 
 	if item.State == models.StateDownloaded {
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error:   "already_downloaded",
-			Message: "item is already downloaded",
-		})
+		respondError(c, http.StatusConflict, "already_downloaded", "item is already downloaded")
 		return
 	}
 	if item.State == models.StateDownloading {
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error:   "already_downloading",
-			Message: "a download for this item is already in progress",
-		})
+		respondError(c, http.StatusConflict, "already_downloading", "a download for this item is already in progress")
 		return
 	}
 
 	if item.LineURL == nil || *item.LineURL == "" {
-		c.JSON(http.StatusUnprocessableEntity, ErrorResponse{
-			Error:   "no_stream_url",
-			Message: "item has no stream URL to download",
-		})
+		respondError(c, http.StatusUnprocessableEntity, "no_stream_url", "item has no stream URL to download")
 		return
 	}
 
@@ -104,24 +83,21 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 	if isMovie {
 		path, errResp := s.resolveForceDownloadMoviePath(ctx, cfg, &item, fallbackMarker)
 		if errResp != nil {
-			c.JSON(errResp.status, errResp.body)
+			respondError(c, errResp.status, errResp.code, errResp.message)
 			return
 		}
 		basePath = path
 	} else {
 		path, errResp := s.resolveForceDownloadEpisodePath(ctx, cfg, &item, fallbackMarker)
 		if errResp != nil {
-			c.JSON(errResp.status, errResp.body)
+			respondError(c, errResp.status, errResp.code, errResp.message)
 			return
 		}
 		basePath = path
 	}
 
 	if err := s.persistForceDownloadPath(db, &item, basePath); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to persist download record",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to persist download record")
 		return
 	}
 
@@ -131,20 +107,18 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 	})
 }
 
-// forceDownloadErrorResponse pairs an HTTP status with the error body to send for it.
+// forceDownloadErrorResponse pairs an HTTP status with the error code/message to send for it.
 type forceDownloadErrorResponse struct {
-	status int
-	body   ErrorResponse
+	status  int
+	code    string
+	message string
 }
 
 // resolveForceDownloadMoviePath runs the live Radarr existence check for a movie
 // occurrence and, on success, computes its resolution-suffixed destination base path.
 func (s *Server) resolveForceDownloadMoviePath(ctx context.Context, cfg *config.Config, item *models.ProcessedLine, fallbackMarker string) (string, *forceDownloadErrorResponse) {
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
-		return "", &forceDownloadErrorResponse{http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "radarr_not_configured",
-			Message: "Radarr is not configured",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusServiceUnavailable, "radarr_not_configured", "Radarr is not configured"}
 	}
 
 	client := radarr.New(radarr.Config{
@@ -156,22 +130,13 @@ func (s *Server) resolveForceDownloadMoviePath(ctx context.Context, cfg *config.
 
 	movie, err := client.GetMovieByTMDBID(ctx, item.Movie.TMDBID)
 	if err != nil {
-		return "", &forceDownloadErrorResponse{http.StatusBadGateway, ErrorResponse{
-			Error:   "existence_check_failed",
-			Message: "failed to verify movie existence in Radarr",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusBadGateway, "existence_check_failed", "failed to verify movie existence in Radarr"}
 	}
 	if movie == nil {
-		return "", &forceDownloadErrorResponse{http.StatusNotFound, ErrorResponse{
-			Error:   "media_not_found",
-			Message: "movie not found in Radarr",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusNotFound, "media_not_found", "movie not found in Radarr"}
 	}
 	if !movie.Monitored {
-		return "", &forceDownloadErrorResponse{http.StatusUnprocessableEntity, ErrorResponse{
-			Error:   "not_monitored",
-			Message: "movie is not monitored in Radarr",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusUnprocessableEntity, "not_monitored", "movie is not monitored in Radarr"}
 	}
 
 	basePath, _ := downloader.BuildRadarrDestPathWithResolution(
@@ -186,17 +151,11 @@ func (s *Server) resolveForceDownloadMoviePath(ctx context.Context, cfg *config.
 // base path. It fails closed when the TV show's TVDBID hasn't been backfilled yet.
 func (s *Server) resolveForceDownloadEpisodePath(ctx context.Context, cfg *config.Config, item *models.ProcessedLine, fallbackMarker string) (string, *forceDownloadErrorResponse) {
 	if item.TVShow.TVDBID == nil {
-		return "", &forceDownloadErrorResponse{http.StatusNotFound, ErrorResponse{
-			Error:   "media_not_found",
-			Message: "TV show has no known TVDB ID yet",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusNotFound, "media_not_found", "TV show has no known TVDB ID yet"}
 	}
 
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
-		return "", &forceDownloadErrorResponse{http.StatusServiceUnavailable, ErrorResponse{
-			Error:   "sonarr_not_configured",
-			Message: "Sonarr is not configured",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusServiceUnavailable, "sonarr_not_configured", "Sonarr is not configured"}
 	}
 
 	client := sonarr.New(sonarr.Config{
@@ -208,22 +167,13 @@ func (s *Server) resolveForceDownloadEpisodePath(ctx context.Context, cfg *confi
 
 	series, episode, err := client.FindEpisodeByTVDBID(ctx, *item.TVShow.TVDBID, *item.TVShow.Season, *item.TVShow.Episode)
 	if err != nil {
-		return "", &forceDownloadErrorResponse{http.StatusBadGateway, ErrorResponse{
-			Error:   "existence_check_failed",
-			Message: "failed to verify episode existence in Sonarr",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusBadGateway, "existence_check_failed", "failed to verify episode existence in Sonarr"}
 	}
 	if series == nil || episode == nil {
-		return "", &forceDownloadErrorResponse{http.StatusNotFound, ErrorResponse{
-			Error:   "media_not_found",
-			Message: "episode not found in Sonarr",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusNotFound, "media_not_found", "episode not found in Sonarr"}
 	}
 	if !series.Monitored {
-		return "", &forceDownloadErrorResponse{http.StatusUnprocessableEntity, ErrorResponse{
-			Error:   "not_monitored",
-			Message: "series is not monitored in Sonarr",
-		}}
+		return "", &forceDownloadErrorResponse{http.StatusUnprocessableEntity, "not_monitored", "series is not monitored in Sonarr"}
 	}
 
 	basePath, _ := downloader.BuildSonarrDestPathWithResolution(

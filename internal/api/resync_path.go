@@ -233,24 +233,15 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 	var dl models.DownloadInfo
 	if err := db.Preload("ProcessedLines.Movie").Preload("ProcessedLines.TVShow").First(&dl, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: "Download not found",
-			})
+			respondError(c, http.StatusNotFound, "not_found", "Download not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "Failed to fetch download",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "Failed to fetch download")
 		return
 	}
 
 	if dl.DownloadPath == nil || *dl.DownloadPath == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "validation_error",
-			Message: "Download has no completed file to resync",
-		})
+		respondError(c, http.StatusBadRequest, "validation_error", "Download has no completed file to resync")
 		return
 	}
 
@@ -272,10 +263,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 	case line.Movie != nil:
 		contentType = models.ContentTypeMovies
 		if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
-			c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-				Error:   "radarr_not_configured",
-				Message: "Radarr is not configured",
-			})
+			respondError(c, http.StatusServiceUnavailable, "radarr_not_configured", "Radarr is not configured")
 			return
 		}
 
@@ -288,10 +276,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 
 		movie, err := client.GetMovieByTMDBID(ctx, line.Movie.TMDBID)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, ErrorResponse{
-				Error:   "existence_check_failed",
-				Message: "failed to verify movie existence in Radarr",
-			})
+			respondError(c, http.StatusBadGateway, "existence_check_failed", "failed to verify movie existence in Radarr")
 			return
 		}
 		if movie != nil {
@@ -302,10 +287,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 	case line.TVShow != nil && line.TVShow.TVDBID != nil:
 		contentType = models.ContentTypeTVShows
 		if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
-			c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-				Error:   "sonarr_not_configured",
-				Message: "Sonarr is not configured",
-			})
+			respondError(c, http.StatusServiceUnavailable, "sonarr_not_configured", "Sonarr is not configured")
 			return
 		}
 
@@ -318,10 +300,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 
 		series, err := client.GetSeriesByTVDBID(ctx, *line.TVShow.TVDBID)
 		if err != nil {
-			c.JSON(http.StatusBadGateway, ErrorResponse{
-				Error:   "existence_check_failed",
-				Message: "failed to verify series existence in Sonarr",
-			})
+			respondError(c, http.StatusBadGateway, "existence_check_failed", "failed to verify series existence in Sonarr")
 			return
 		}
 		if series != nil {
@@ -347,19 +326,10 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 	case OutcomeAlreadyUpToDate:
 		c.JSON(http.StatusOK, gin.H{"status": outcome})
 	case OutcomeRenameTargetExists:
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   string(outcome),
-			Message: "A file already exists at the destination path",
-		})
+		respondError(c, http.StatusBadRequest, string(outcome), "A file already exists at the destination path")
 	case OutcomeDBUpdateFailed:
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   string(outcome),
-			Message: "File moved successfully on disk, but database path update failed",
-		})
+		respondError(c, http.StatusInternalServerError, string(outcome), "File moved successfully on disk, but database path update failed")
 	default:
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   string(OutcomeRenameFailed),
-			Message: "Failed to move physical file",
-		})
+		respondError(c, http.StatusInternalServerError, string(OutcomeRenameFailed), "Failed to move physical file")
 	}
 }

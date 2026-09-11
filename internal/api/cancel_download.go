@@ -33,10 +33,7 @@ func (s *Server) cancelDownload(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error:   "invalid_request",
-			Message: "invalid download id",
-		})
+		respondError(c, http.StatusBadRequest, "invalid_request", "invalid download id")
 		return
 	}
 
@@ -44,16 +41,10 @@ func (s *Server) cancelDownload(c *gin.Context) {
 	var dl models.DownloadInfo
 	if err := db.First(&dl, uint(id)).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Error:   "not_found",
-				Message: fmt.Sprintf("download with id %d not found", id),
-			})
+			respondError(c, http.StatusNotFound, "not_found", fmt.Sprintf("download with id %d not found", id))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to fetch download",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch download")
 		return
 	}
 
@@ -75,10 +66,7 @@ func (s *Server) cancelDownload(c *gin.Context) {
 			errCode = "already_cancelled"
 			message = "download is already cancelled"
 		}
-		c.JSON(http.StatusConflict, ErrorResponse{
-			Error:   errCode,
-			Message: message,
-		})
+		respondError(c, http.StatusConflict, errCode, message)
 		return
 	}
 
@@ -96,10 +84,7 @@ func (s *Server) cancelDownload(c *gin.Context) {
 			Where("download_info_id = ?", dl.ID).
 			Update("state", string(models.StateCancelled)).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error:   "database_error",
-			Message: "failed to cancel download",
-		})
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to cancel download")
 		return
 	}
 
