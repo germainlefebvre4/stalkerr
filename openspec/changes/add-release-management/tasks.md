@@ -8,14 +8,14 @@
 - [x] 2.1 Add `release-please-config.json` configured as a single root-level "simple" component, bootstrapped at `1.0.0`, and a matching `.release-please-manifest.json`
 - [x] 2.2 Add `extra-files` updaters in the release-please config for `charts/stalkerr/Chart.yaml` (`version` and `appVersion` fields) and `frontend/package.json` (`version` field), and verify a manual dry run (`release-please release-pr --dry-run` or equivalent) shows all three files staged for the same version
 - [x] 2.3 Add `.github/workflows/release-please.yml` running `googleapis/release-please-action` on push to `main`, and verify it opens a release PR titled with the next version after a `feat`/`fix` commit lands on `main`
-- [ ] 2.4 Verify merging the release PR creates a git tag `v1.0.0`, publishes a GitHub Release, and updates `CHANGELOG.md`
+- [x] 2.4 Verify merging the release PR creates a git tag `v1.0.0`, publishes a GitHub Release, and updates `CHANGELOG.md`
 
 ## 3. Docker Hub multi-arch publish
 
 - [x] 3.1 Add a Docker publish workflow (or job) gated on the release-please action's `release_created` output, using `docker/setup-qemu-action` + `docker/setup-buildx-action` + `docker/build-push-action`
 - [x] 3.2 Configure the backend build to push `germainlefebvre4/stalkerr:vX.Y.Z` and `germainlefebvre4/stalkerr:latest` for `linux/amd64,linux/arm64`, passing `VERSION`/`COMMIT`/`DATE` build args from the release tag, resolved commit SHA, and workflow run timestamp
 - [x] 3.3 Configure the frontend build to push `germainlefebvre4/stalkerr-frontend:vX.Y.Z` and `germainlefebvre4/stalkerr-frontend:latest` for the same two platforms
-- [ ] 3.4 Add `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` as GitHub Actions repository secrets and wire them into the `docker/login-action` step
+- [x] 3.4 Add `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` as GitHub Actions repository secrets and wire them into the `docker/login-action` step
 - [ ] 3.5 Verify end-to-end by merging a release PR (or manually dispatching the workflow against an existing tag) and confirming both images and both architectures appear on Docker Hub under the new tag
 
 ## 4. Build version metadata
