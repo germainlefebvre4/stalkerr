@@ -1,9 +1,11 @@
 apiVersion: v2
 name: stalkerr
-description: A Helm chart for Stalkerr - M3U playlist parser and media downloader for Sonarr/Radarr
+description: >-
+  A Helm chart for Stalkerr - M3U playlist parser and media downloader for
+  Sonarr/Radarr
 type: application
-version: 0.1.0
-appVersion: "1.0.0"
+version: 1.0.0
+appVersion: 1.0.0
 keywords:
   - media
   - automation
@@ -22,8 +24,7 @@ maintainers:
   - name: Stalkerr Team
     email: maintainer@example.com
 icon: https://raw.githubusercontent.com/yourusername/stalkerr/main/assets/icon.png
-kubeVersion: ">=1.19.0"
-
+kubeVersion: '>=1.19.0'
 dependencies:
   - name: postgresql
     version: 18.6.7
