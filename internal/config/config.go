@@ -10,17 +10,18 @@ import (
 
 // Config holds the application configuration
 type Config struct {
-	Database  DatabaseConfig  `mapstructure:"database"`
-	M3U       M3UConfig       `mapstructure:"m3u"`
-	Filter    FilterConfig    `mapstructure:"filter"`
-	Logging   LoggingConfig   `mapstructure:"logging"`
-	API       APIConfig       `mapstructure:"api"`
-	TMDB      TMDBConfig      `mapstructure:"tmdb"`
-	Radarr    RadarrConfig    `mapstructure:"radarr"`
-	Sonarr    SonarrConfig    `mapstructure:"sonarr"`
-	Jellyfin  JellyfinConfig  `mapstructure:"jellyfin"`
-	Downloads DownloadsConfig `mapstructure:"downloads"`
-	Metrics   MetricsConfig   `mapstructure:"metrics"`
+	Database      DatabaseConfig      `mapstructure:"database"`
+	M3U           M3UConfig           `mapstructure:"m3u"`
+	Filter        FilterConfig        `mapstructure:"filter"`
+	Logging       LoggingConfig       `mapstructure:"logging"`
+	API           APIConfig           `mapstructure:"api"`
+	TMDB          TMDBConfig          `mapstructure:"tmdb"`
+	Radarr        RadarrConfig        `mapstructure:"radarr"`
+	Sonarr        SonarrConfig        `mapstructure:"sonarr"`
+	Jellyfin      JellyfinConfig      `mapstructure:"jellyfin"`
+	Downloads     DownloadsConfig     `mapstructure:"downloads"`
+	Metrics       MetricsConfig       `mapstructure:"metrics"`
+	Notifications NotificationsConfig `mapstructure:"notifications"`
 }
 
 // DatabaseConfig holds database connection settings
@@ -128,6 +129,21 @@ type JellyfinConfig struct {
 	Enabled bool   `mapstructure:"enabled"`
 }
 
+// NotificationsConfig holds push notification settings for alerting
+// operators of failed or broken scheduled runs.
+type NotificationsConfig struct {
+	Enabled bool       `mapstructure:"enabled"`
+	Ntfy    NtfyConfig `mapstructure:"ntfy"`
+}
+
+// NtfyConfig holds ntfy (https://ntfy.sh) channel settings.
+type NtfyConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	ServerURL string `mapstructure:"server_url"`
+	Topic     string `mapstructure:"topic"`
+	AuthToken string `mapstructure:"auth_token"`
+}
+
 // MetricsConfig holds Prometheus metrics exposition settings
 type MetricsConfig struct {
 	Enabled bool   `mapstructure:"enabled"`
@@ -232,6 +248,12 @@ func Load() error {
 	viper.BindEnv("metrics.enabled")
 	viper.BindEnv("metrics.port")
 	viper.BindEnv("metrics.path")
+
+	viper.BindEnv("notifications.enabled")
+	viper.BindEnv("notifications.ntfy.enabled")
+	viper.BindEnv("notifications.ntfy.server_url")
+	viper.BindEnv("notifications.ntfy.topic")
+	viper.BindEnv("notifications.ntfy.auth_token")
 
 	bindEnvWithAlternatives("downloads.movies_path", "MOVIES_PATH")
 	bindEnvWithAlternatives("downloads.tvshows_path", "TVSHOWS_PATH")
@@ -343,6 +365,10 @@ func setDefaults() {
 	viper.SetDefault("metrics.enabled", false)
 	viper.SetDefault("metrics.port", 8081)
 	viper.SetDefault("metrics.path", "/metrics")
+
+	// Notifications defaults
+	viper.SetDefault("notifications.enabled", false)
+	viper.SetDefault("notifications.ntfy.enabled", false)
 }
 
 func validate() error {

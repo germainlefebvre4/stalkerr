@@ -98,6 +98,42 @@ func TestLoad_WithDefaults(t *testing.T) {
 	}
 }
 
+// TestLoad_NotificationsDefaults covers the notifications section's defaults
+// separately from TestLoad_WithDefaults to keep that function's cyclomatic
+// complexity within the project's configured limit.
+func TestLoad_NotificationsDefaults(t *testing.T) {
+	withM3USourcesConfig(t)
+
+	os.Setenv("STALKEER_DATABASE_USER", "testuser")
+	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
+	defer func() {
+		os.Unsetenv("STALKEER_DATABASE_USER")
+		os.Unsetenv("STALKEER_DATABASE_DBNAME")
+	}()
+
+	cfg = nil
+	if err := Load(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	config := Get()
+	if config.Notifications.Enabled != false {
+		t.Errorf("expected notifications.enabled to default to false, got %v", config.Notifications.Enabled)
+	}
+	if config.Notifications.Ntfy.Enabled != false {
+		t.Errorf("expected notifications.ntfy.enabled to default to false, got %v", config.Notifications.Ntfy.Enabled)
+	}
+	if config.Notifications.Ntfy.ServerURL != "" {
+		t.Errorf("expected notifications.ntfy.server_url to default to empty, got %q", config.Notifications.Ntfy.ServerURL)
+	}
+	if config.Notifications.Ntfy.Topic != "" {
+		t.Errorf("expected notifications.ntfy.topic to default to empty, got %q", config.Notifications.Ntfy.Topic)
+	}
+	if config.Notifications.Ntfy.AuthToken != "" {
+		t.Errorf("expected notifications.ntfy.auth_token to default to empty, got %q", config.Notifications.Ntfy.AuthToken)
+	}
+}
+
 func TestLoad_MinFileSizeMBOverride(t *testing.T) {
 	withM3USourcesConfig(t)
 
@@ -119,6 +155,49 @@ func TestLoad_MinFileSizeMBOverride(t *testing.T) {
 	config := Get()
 	if config.Downloads.MinFileSizeMB != 5 {
 		t.Errorf("expected overridden min_file_size_mb 5, got %v", config.Downloads.MinFileSizeMB)
+	}
+}
+
+func TestLoad_NotificationsEnvOverride(t *testing.T) {
+	withM3USourcesConfig(t)
+
+	os.Setenv("STALKEER_DATABASE_USER", "testuser")
+	os.Setenv("STALKEER_DATABASE_DBNAME", "testdb")
+	os.Setenv("STALKEER_NOTIFICATIONS_ENABLED", "true")
+	os.Setenv("STALKEER_NOTIFICATIONS_NTFY_ENABLED", "true")
+	os.Setenv("STALKEER_NOTIFICATIONS_NTFY_SERVER_URL", "https://ntfy.sh")
+	os.Setenv("STALKEER_NOTIFICATIONS_NTFY_TOPIC", "stalkeer-alerts")
+	os.Setenv("STALKEER_NOTIFICATIONS_NTFY_AUTH_TOKEN", "tk_test_token")
+	defer func() {
+		os.Unsetenv("STALKEER_DATABASE_USER")
+		os.Unsetenv("STALKEER_DATABASE_DBNAME")
+		os.Unsetenv("STALKEER_NOTIFICATIONS_ENABLED")
+		os.Unsetenv("STALKEER_NOTIFICATIONS_NTFY_ENABLED")
+		os.Unsetenv("STALKEER_NOTIFICATIONS_NTFY_SERVER_URL")
+		os.Unsetenv("STALKEER_NOTIFICATIONS_NTFY_TOPIC")
+		os.Unsetenv("STALKEER_NOTIFICATIONS_NTFY_AUTH_TOKEN")
+	}()
+
+	cfg = nil
+	if err := Load(); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	config := Get()
+	if !config.Notifications.Enabled {
+		t.Error("expected notifications.enabled to be overridden to true")
+	}
+	if !config.Notifications.Ntfy.Enabled {
+		t.Error("expected notifications.ntfy.enabled to be overridden to true")
+	}
+	if config.Notifications.Ntfy.ServerURL != "https://ntfy.sh" {
+		t.Errorf("expected notifications.ntfy.server_url 'https://ntfy.sh', got %q", config.Notifications.Ntfy.ServerURL)
+	}
+	if config.Notifications.Ntfy.Topic != "stalkeer-alerts" {
+		t.Errorf("expected notifications.ntfy.topic 'stalkeer-alerts', got %q", config.Notifications.Ntfy.Topic)
+	}
+	if config.Notifications.Ntfy.AuthToken != "tk_test_token" {
+		t.Errorf("expected notifications.ntfy.auth_token 'tk_test_token', got %q", config.Notifications.Ntfy.AuthToken)
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
+	"github.com/glefebvre/stalkeer/internal/notifier"
 	"github.com/glefebvre/stalkeer/internal/processor"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +40,8 @@ configured source list entirely for a manual one-off run against that explicit f
 		if cfg.IsUsingLegacyLogging() {
 			log.Warn("Using deprecated 'logging.level' configuration. Please migrate to 'logging.app.level' and 'logging.database.level' for better control.")
 		}
+
+		notif := notifier.FromConfig(cfg.Notifications)
 
 		force, _ := cmd.Flags().GetBool("force")
 		limit, _ := cmd.Flags().GetInt("limit")
@@ -90,18 +94,20 @@ configured source list entirely for a manual one-off run against that explicit f
 
 			stats, err := runProcessTarget(filePath, "default", opts)
 			if err != nil {
+				notifyProcessParseFailure(notif, err)
 				fmt.Fprintf(os.Stderr, "Error processing file: %v\n", err)
 				os.Exit(1)
 			}
 
 			printProcessStats("default", stats, skipTMDB)
+			notifyProcessRunResult(notif, stats)
 			fmt.Println("\nProcessing completed successfully!")
 			return
 		}
 
 		// Otherwise, process every configured source, isolating each source's
 		// failure from the others.
-		if processConfiguredSources(cfg.M3U.Sources, opts, log) {
+		if processConfiguredSources(cfg.M3U.Sources, opts, log, notif) {
 			os.Exit(1)
 		}
 
@@ -123,7 +129,7 @@ func runProcessTarget(filePath, sourceName string, opts processor.ProcessOptions
 // than aborting the run; a source that fails to process is logged and does
 // not prevent the remaining sources from being attempted. Returns true if
 // any source failed to process (a missing file is skipped, not a failure).
-func processConfiguredSources(sources []config.M3USourceConfig, opts processor.ProcessOptions, log *logger.Logger) bool {
+func processConfiguredSources(sources []config.M3USourceConfig, opts processor.ProcessOptions, log *logger.Logger, notif notifier.Notifier) bool {
 	hadError := false
 
 	for i := range sources {
@@ -143,6 +149,7 @@ func processConfiguredSources(sources []config.M3USourceConfig, opts processor.P
 
 		stats, err := runProcessTarget(filePath, source.Name, opts)
 		if err != nil {
+			notifyProcessParseFailure(notif, err)
 			fmt.Fprintf(os.Stderr, "Error processing source %q: %v\n", source.Name, err)
 			log.WithFields(map[string]interface{}{
 				"source": source.Name,
@@ -153,9 +160,43 @@ func processConfiguredSources(sources []config.M3USourceConfig, opts processor.P
 		}
 
 		printProcessStats(source.Name, stats, opts.SkipTMDB)
+		notifyProcessRunResult(notif, stats)
 	}
 
 	return hadError
+}
+
+// notifyProcessParseFailure sends a Critical notification identifying that
+// a process run failed to parse its input M3U file. A delivery failure is
+// logged and never affects the run's exit status.
+func notifyProcessParseFailure(notif notifier.Notifier, err error) {
+	event := notifier.Event{
+		Severity: notifier.Critical,
+		Title:    "Stalkeer: process run failed",
+		Message:  fmt.Sprintf("Failed to parse M3U file: %v", err),
+	}
+	if notifyErr := notif.Notify(context.Background(), event); notifyErr != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{"error": notifyErr}).Warn("failed to send notification")
+	}
+}
+
+// notifyProcessRunResult sends a Warning notification summarizing a
+// completed process run, only when stats.Errors > 0. A run with zero errors
+// sends nothing. A delivery failure is logged and never affects the run's
+// exit status.
+func notifyProcessRunResult(notif notifier.Notifier, stats *processor.Statistics) {
+	if stats.Errors == 0 {
+		return
+	}
+
+	event := notifier.Event{
+		Severity: notifier.Warning,
+		Title:    "Stalkeer: process run completed with errors",
+		Message:  fmt.Sprintf("Processed: %d, Errors: %d", stats.Processed, stats.Errors),
+	}
+	if err := notif.Notify(context.Background(), event); err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{"error": err}).Warn("failed to send notification")
+	}
 }
 
 // printProcessStats prints the processing summary for one source.

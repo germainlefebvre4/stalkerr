@@ -57,7 +57,7 @@ func TestDownloadAllSources_OneFailsOthersStillRun(t *testing.T) {
 	}
 
 	log := logger.NewWithLevelAndFormat("info", "text")
-	failures := downloadAllSources(cfg, log, "", true)
+	failures := downloadAllSources(cfg, log, &fakeNotifier{}, "", true)
 
 	if failures != 1 {
 		t.Errorf("expected exactly 1 failure, got %d", failures)
