@@ -8,6 +8,7 @@ import (
 	"time"
 
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
 	"github.com/glefebvre/stalkeer/internal/external/httpclient"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/retry"
@@ -25,6 +26,11 @@ type Config struct {
 	Timeout     time.Duration
 	RetryConfig retry.Config
 	Logger      *logger.Logger
+
+	// Breaker protects every call this client makes, shared across every
+	// client built for the same long-lived owner (see
+	// internal/external/httpclient.Client.Breaker). Nil means unprotected.
+	Breaker *circuitbreaker.CircuitBreaker
 }
 
 // Movie represents a Radarr movie
@@ -58,7 +64,7 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		http: httpclient.New(cfg.BaseURL, cfg.APIKey, cfg.Timeout, cfg.RetryConfig, cfg.Logger),
+		http: httpclient.New(cfg.BaseURL, cfg.APIKey, cfg.Timeout, cfg.RetryConfig, cfg.Logger, cfg.Breaker),
 	}
 }
 
@@ -218,25 +224,30 @@ func (e *StatusError) StatusCode() int {
 // Radarr's own system/status endpoint - the same call Radarr's UI uses to
 // confirm connectivity. Unlike the other client methods, it does not go
 // through retry.Do: a diagnostic check must fail fast under the caller's ctx
-// deadline rather than retry like a real data fetch.
+// deadline rather than retry like a real data fetch. The whole check runs
+// through the client's circuit breaker (when configured): if the breaker is
+// already open, this returns circuitbreaker.ErrOpenState without making the
+// request at all.
 func (c *Client) SystemStatus(ctx context.Context) error {
 	req, err := c.newRequest(ctx, "GET", "/api/v3/system/status", nil)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.http.HTTP.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	return c.http.Execute(func() error {
+		resp, err := c.http.HTTP.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return &StatusError{Code: resp.StatusCode, Body: string(body)}
-	}
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return &StatusError{Code: resp.StatusCode, Body: string(body)}
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func (c *Client) getPagedMovies(ctx context.Context, endpoint string) ([]Movie, int, error) {

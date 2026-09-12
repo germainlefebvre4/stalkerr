@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
@@ -772,6 +773,35 @@ func TestSystemStatus(t *testing.T) {
 		}
 		if statusErr.StatusCode() != http.StatusUnauthorized {
 			t.Errorf("expected status 401, got %d", statusErr.StatusCode())
+		}
+	})
+
+	t.Run("open breaker short-circuits without an HTTP call", func(t *testing.T) {
+		called := false
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		breaker := circuitbreaker.New(circuitbreaker.Config{
+			MaxFailures:         1,
+			Timeout:             time.Minute,
+			MaxHalfOpenRequests: 1,
+		})
+		breaker.Execute(func() error { return errors.New("boom") })
+		if breaker.State() != circuitbreaker.StateOpen {
+			t.Fatalf("expected breaker to be open, got %s", breaker.State())
+		}
+
+		client := New(Config{BaseURL: server.URL, APIKey: "test-key", Timeout: 5 * time.Second, Breaker: breaker})
+
+		err := client.SystemStatus(context.Background())
+		if !errors.Is(err, circuitbreaker.ErrOpenState) {
+			t.Fatalf("expected ErrOpenState, got %v", err)
+		}
+		if called {
+			t.Error("expected no HTTP call to reach the test server while the breaker is open")
 		}
 	})
 }

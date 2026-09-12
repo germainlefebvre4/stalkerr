@@ -116,6 +116,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 		APIKey:      cfg.Radarr.APIKey,
 		Timeout:     existenceCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     s.radarrBreaker,
 	})
 
 	allMovies, err := client.GetAllMovies(ctx)
@@ -252,6 +253,7 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		APIKey:      cfg.Sonarr.APIKey,
 		Timeout:     existenceCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     s.sonarrBreaker,
 	})
 
 	allSeries, err := client.GetAllMonitoredSeries(ctx)
@@ -427,6 +429,7 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 			APIKey:      cfg.Radarr.APIKey,
 			Timeout:     existenceCheckTimeout,
 			RetryConfig: retry.Config{MaxAttempts: 1},
+			Breaker:     s.radarrBreaker,
 		})
 
 		if allMovies, err := radarrClient.GetAllMovies(ctx); err != nil {
@@ -465,6 +468,7 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 			APIKey:      cfg.Sonarr.APIKey,
 			Timeout:     existenceCheckTimeout,
 			RetryConfig: retry.Config{MaxAttempts: 1},
+			Breaker:     s.sonarrBreaker,
 		})
 
 		if allSeries, err := sonarrClient.GetAllMonitoredSeries(ctx); err != nil {
@@ -537,6 +541,7 @@ func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 		APIKey:      cfg.Radarr.APIKey,
 		Timeout:     existenceCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     s.radarrBreaker,
 	})
 
 	movie, err := client.GetMovieDetails(ctx, id)
@@ -593,6 +598,7 @@ func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
 		APIKey:      cfg.Sonarr.APIKey,
 		Timeout:     existenceCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     s.sonarrBreaker,
 	})
 
 	series, err := client.GetSeriesDetails(ctx, id)

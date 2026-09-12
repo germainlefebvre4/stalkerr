@@ -8,9 +8,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
+	"github.com/glefebvre/stalkeer/internal/external/httpclient"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,8 +25,23 @@ type Server struct {
 	httpServer      *http.Server
 	metricsServer   *http.Server
 	tmdbClient      *tmdb.Client
+	radarrBreaker   *circuitbreaker.CircuitBreaker
+	sonarrBreaker   *circuitbreaker.CircuitBreaker
 	downloader      *downloader.Downloader
 	metricsRegistry *prometheus.Registry
+}
+
+// newServiceBreaker builds a circuit breaker for a Radarr/Sonarr client with
+// the same defaults as the existing TMDB breaker (see tmdb.NewClient), using
+// httpclient.IsSuccessful so a bad request or bad credentials never trips
+// the circuit (see internal/external/httpclient.IsSuccessful).
+func newServiceBreaker() *circuitbreaker.CircuitBreaker {
+	return circuitbreaker.New(circuitbreaker.Config{
+		MaxFailures:         5,
+		Timeout:             60 * time.Second,
+		MaxHalfOpenRequests: 1,
+		IsSuccessful:        httpclient.IsSuccessful,
+	})
 }
 
 // NewServer creates a new API server instance
@@ -58,8 +75,10 @@ func NewServer() *Server {
 	metricsRegistry.MustRegister(metrics.New(database.Get(), tmdbClient))
 
 	s := &Server{
-		router:     router,
-		tmdbClient: tmdbClient,
+		router:        router,
+		tmdbClient:    tmdbClient,
+		radarrBreaker: newServiceBreaker(),
+		sonarrBreaker: newServiceBreaker(),
 		downloader: downloader.New(
 			time.Duration(cfg.Downloads.Timeout)*time.Second,
 			cfg.Downloads.RetryAttempts,

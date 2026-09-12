@@ -272,6 +272,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 			APIKey:      cfg.Radarr.APIKey,
 			Timeout:     existenceCheckTimeout,
 			RetryConfig: retry.Config{MaxAttempts: 1},
+			Breaker:     s.radarrBreaker,
 		})
 
 		movie, err := client.GetMovieByTMDBID(ctx, line.Movie.TMDBID)
@@ -296,6 +297,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 			APIKey:      cfg.Sonarr.APIKey,
 			Timeout:     existenceCheckTimeout,
 			RetryConfig: retry.Config{MaxAttempts: 1},
+			Breaker:     s.sonarrBreaker,
 		})
 
 		series, err := client.GetSeriesByTVDBID(ctx, *line.TVShow.TVDBID)
