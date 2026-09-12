@@ -1,10 +1,13 @@
+<div align="center">
+  <img src="./media/logo/stalkerr-black.svg" alt="Stalkerr Logo" style="width:250px;"/>
+
 # Stalkeer
 
-> Parse M3U playlists and download missing media items from Radarr and Sonarr via direct links.
+**Turn m3u playlists into source for Radarr and Sonarr**
 
-[![CI](https://github.com/glefebvre/stalkeer/workflows/Go%20CI/badge.svg)](https://github.com/glefebvre/stalkeer/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/glefebvre/stalkeer)](https://goreportcard.com/report/github.com/glefebvre/stalkeer)
-[![License](https://img.shields.io/github/license/glefebvre/stalkeer)](LICENSE)
+Parse M3U playlists and download missing media items from Radarr and Sonarr via direct links.
+
+</div>
 
 ## Features
 
@@ -27,6 +30,8 @@
 ## Architecture
 
 Stalkeer bridges an IPTV/M3U playlist to Radarr/Sonarr: it figures out what those tools are still missing and downloads it straight from the M3U source over HTTP (no torrents involved, despite the repo's home). The diagrams below give the shape of the system before you dive into setup.
+
+![Stalkerr Overview](./docs/images/stalkerr-overview.png)
 
 For more information about architecture implementation, you can read the page [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
