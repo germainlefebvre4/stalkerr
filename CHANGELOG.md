@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.0.0...v1.1.0) (2026-09-12)
+
+
+### Features
+
+* **notifications:** Add ntfy notifications ([#41](https://github.com/germainlefebvre4/stalkerr/issues/41)) ([e941d68](https://github.com/germainlefebvre4/stalkerr/commit/e941d68f7dbc663c3fbc2e9ac73fa38264ebb145))
+
+
+### Bug Fixes
+
+* **settings:** Move health language filters in system drawer ([#38](https://github.com/germainlefebvre4/stalkerr/issues/38)) ([2f0d85a](https://github.com/germainlefebvre4/stalkerr/commit/2f0d85a3348e7d06e1520ae2f8f8b21437ffa6b1))
+* **settings:** Move health language filters in system drawer ([#40](https://github.com/germainlefebvre4/stalkerr/issues/40)) ([3711441](https://github.com/germainlefebvre4/stalkerr/commit/3711441eb6d255e14ee5c4b939ad107f0cf3c093))
+
 ## 1.0.0 (2026-09-11)
 
 
