@@ -1,10 +1,4 @@
-# system-status-api Specification
-
-## Purpose
-
-Expose a single, on-demand backend endpoint that reports database connectivity, Radarr/Sonarr/TMDB reachability, and deduplicated disk usage for the app's storage paths, so problems can be diagnosed without reading logs.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Aggregated on-demand system status endpoint
 The system SHALL expose an endpoint that returns, in a single response, the status of the database, Radarr, Sonarr, TMDB, and the app's configured storage paths. The endpoint SHALL compute every section fresh on each call; it SHALL NOT cache or persist results between calls - except that the Radarr and Sonarr sections SHALL report their circuit breaker's open state without a live call, as described in the three-state reachability requirement below.
@@ -16,17 +10,6 @@ The system SHALL expose an endpoint that returns, in a single response, the stat
 #### Scenario: One dependency's failure does not affect the others
 - **WHEN** one dependency (e.g. Radarr) is unreachable
 - **THEN** the endpoint SHALL still return HTTP 200 with accurate status for the database, Sonarr, TMDB, and disk usage sections
-
-### Requirement: Database connectivity check
-The database section SHALL report whether the database is currently reachable, reusing the existing database health check.
-
-#### Scenario: Database reachable
-- **WHEN** the database responds to the health check
-- **THEN** the database section SHALL report an OK status
-
-#### Scenario: Database unreachable
-- **WHEN** the database does not respond to the health check
-- **THEN** the database section SHALL report a KO status with a short, human-readable reason
 
 ### Requirement: Radarr/Sonarr/TMDB three-state reachability
 Each of the Radarr, Sonarr, and TMDB sections SHALL report exactly one of three states: **OK** (reachable and responding correctly), **KO** with a short human-readable reason (e.g. unreachable, invalid credentials, timed out, circuit open), or **not configured** (the integration is disabled or missing required settings). A **not configured** integration SHALL NOT trigger any outbound call to that service. For Radarr and Sonarr specifically, when that service's shared circuit breaker is currently open, the section SHALL report **KO** with a reason indicating the circuit is open, without attempting a live reachability call to that service.
@@ -54,29 +37,3 @@ Each of the Radarr, Sonarr, and TMDB sections SHALL report exactly one of three 
 #### Scenario: Radarr or Sonarr circuit breaker is open
 - **WHEN** the status endpoint is called and the shared circuit breaker for Radarr or Sonarr is currently open
 - **THEN** the corresponding section SHALL report **KO** with a reason indicating the circuit is open, without making an outbound call to that service, and without waiting for the reachability timeout
-
-### Requirement: Deduplicated disk usage per configured storage path
-The disk usage section SHALL report available/used space for each of the app's configured storage paths (movies download path, TV shows download path, temp directory when set, and M3U archive directory). Paths that resolve to the same mounted volume SHALL be merged into a single reported entry rather than listed redundantly.
-
-#### Scenario: Distinct volumes reported separately
-- **WHEN** two configured storage paths reside on different mounted volumes
-- **THEN** the disk usage section SHALL report a separate entry for each
-
-#### Scenario: Paths sharing a volume are merged
-- **WHEN** two or more configured storage paths reside on the same mounted volume
-- **THEN** the disk usage section SHALL report a single entry for that volume, referencing all of the paths it backs
-
-#### Scenario: Unset temp directory is omitted
-- **WHEN** the temp directory is not configured (falls back to the OS default)
-- **THEN** the disk usage section SHALL NOT include an entry for it
-
-#### Scenario: Configured path is missing or unreadable
-- **WHEN** a configured storage path does not exist or its usage cannot be read
-- **THEN** the disk usage section SHALL report that entry as unavailable with a short reason, rather than failing the entire endpoint response
-
-### Requirement: Build version metadata in status response
-The aggregated status response SHALL include the running instance's version, commit, and build date, sourced from the embedded build metadata.
-
-#### Scenario: Status response includes build metadata
-- **WHEN** the status endpoint is called
-- **THEN** the response SHALL include the version, commit, and date of the running build

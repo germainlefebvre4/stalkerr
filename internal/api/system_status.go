@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
@@ -41,6 +42,7 @@ const (
 	reasonUnauthorized = "unauthorized"
 	reasonTimeout      = "timeout"
 	reasonUnavailable  = "unavailable"
+	reasonCircuitOpen  = "circuit_open"
 )
 
 // buildVersion, buildCommit, and buildDate hold the running binary's build
@@ -116,8 +118,8 @@ func (s *Server) getSystemStatus(c *gin.Context) {
 
 	wg.Add(5)
 	go func() { defer wg.Done(); dbStatus = checkDatabaseStatus() }()
-	go func() { defer wg.Done(); radarrStatus = checkRadarrStatus(ctx, cfg) }()
-	go func() { defer wg.Done(); sonarrStatus = checkSonarrStatus(ctx, cfg) }()
+	go func() { defer wg.Done(); radarrStatus = checkRadarrStatus(ctx, cfg, s.radarrBreaker) }()
+	go func() { defer wg.Done(); sonarrStatus = checkSonarrStatus(ctx, cfg, s.sonarrBreaker) }()
 	go func() { defer wg.Done(); tmdbStatus = checkTMDBStatus(ctx, s.tmdbClient) }()
 	go func() { defer wg.Done(); diskEntries = downloader.GroupDiskUsage(configuredStoragePaths(cfg)) }()
 	wg.Wait()
@@ -185,7 +187,7 @@ func checkDatabaseStatus() ServiceStatus {
 	return ServiceStatus{Status: statusOK}
 }
 
-func checkRadarrStatus(ctx context.Context, cfg *config.Config) ServiceStatus {
+func checkRadarrStatus(ctx context.Context, cfg *config.Config, breaker *circuitbreaker.CircuitBreaker) ServiceStatus {
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
 		return ServiceStatus{Status: statusNotConfigured}
 	}
@@ -198,6 +200,7 @@ func checkRadarrStatus(ctx context.Context, cfg *config.Config) ServiceStatus {
 		APIKey:      cfg.Radarr.APIKey,
 		Timeout:     systemStatusCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     breaker,
 	})
 
 	if err := client.SystemStatus(checkCtx); err != nil {
@@ -206,7 +209,7 @@ func checkRadarrStatus(ctx context.Context, cfg *config.Config) ServiceStatus {
 	return ServiceStatus{Status: statusOK}
 }
 
-func checkSonarrStatus(ctx context.Context, cfg *config.Config) ServiceStatus {
+func checkSonarrStatus(ctx context.Context, cfg *config.Config, breaker *circuitbreaker.CircuitBreaker) ServiceStatus {
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
 		return ServiceStatus{Status: statusNotConfigured}
 	}
@@ -219,6 +222,7 @@ func checkSonarrStatus(ctx context.Context, cfg *config.Config) ServiceStatus {
 		APIKey:      cfg.Sonarr.APIKey,
 		Timeout:     systemStatusCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     breaker,
 	})
 
 	if err := client.SystemStatus(checkCtx); err != nil {
@@ -252,6 +256,13 @@ func checkTMDBStatus(ctx context.Context, client *tmdb.Client) ServiceStatus {
 func classifyReachabilityError(err error) string {
 	if err == nil {
 		return ""
+	}
+
+	// Checked first: an open (or half-open, request-limited) circuit means
+	// no live call was even attempted, which is a distinct condition from a
+	// timeout or connection failure observed on an actual attempt.
+	if errors.Is(err, circuitbreaker.ErrOpenState) || errors.Is(err, circuitbreaker.ErrTooManyRequests) {
+		return reasonCircuitOpen
 	}
 
 	// A ctx deadline exceeded surfaces as *url.Error wrapping

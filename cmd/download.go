@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/api"
+	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
+	"github.com/glefebvre/stalkeer/internal/external/httpclient"
 	"github.com/glefebvre/stalkeer/internal/external/jellyfin"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
@@ -23,6 +25,20 @@ import (
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
+
+// newRunBreaker builds a circuit breaker for one Radarr/Sonarr client built
+// for this download run, using the same defaults as the API server's
+// long-lived breakers (see internal/api.newServiceBreaker) so a service
+// failing partway through a run fails fast for the rest of it instead of
+// letting every remaining worker independently wait out its own timeout.
+func newRunBreaker() *circuitbreaker.CircuitBreaker {
+	return circuitbreaker.New(circuitbreaker.Config{
+		MaxFailures:         5,
+		Timeout:             60 * time.Second,
+		MaxHalfOpenRequests: 1,
+		IsSuccessful:        httpclient.IsSuccessful,
+	})
+}
 
 var downloadCmd = &cobra.Command{
 	Use:   "download",
@@ -94,6 +110,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 					BackoffMultiplier: 2.0,
 					JitterFraction:    0.1,
 				},
+				Breaker: newRunBreaker(),
 			})
 			radarrClient = radarrFullClient
 		} else if verbose {
@@ -115,6 +132,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 					BackoffMultiplier: 2.0,
 					JitterFraction:    0.1,
 				},
+				Breaker: newRunBreaker(),
 			})
 			sonarrClient = sonarrFullClient
 		} else if verbose {

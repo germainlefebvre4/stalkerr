@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
@@ -72,6 +74,18 @@ func TestClassifyReachabilityError(t *testing.T) {
 		err := errors.New("boom")
 		if got := classifyReachabilityError(err); got != reasonUnavailable {
 			t.Errorf("expected %s, got %s", reasonUnavailable, got)
+		}
+	})
+
+	t.Run("open circuit breaker maps to circuit_open", func(t *testing.T) {
+		if got := classifyReachabilityError(circuitbreaker.ErrOpenState); got != reasonCircuitOpen {
+			t.Errorf("expected %s, got %s", reasonCircuitOpen, got)
+		}
+	})
+
+	t.Run("half-open too-many-requests maps to circuit_open", func(t *testing.T) {
+		if got := classifyReachabilityError(circuitbreaker.ErrTooManyRequests); got != reasonCircuitOpen {
+			t.Errorf("expected %s, got %s", reasonCircuitOpen, got)
 		}
 	})
 }
@@ -210,5 +224,91 @@ func TestSystemStatus_BoundedByPerCheckTimeout(t *testing.T) {
 	}
 	if resp.Radarr.Status != statusKO || resp.Radarr.Reason != reasonTimeout {
 		t.Errorf("expected radarr ko/timeout, got %+v", resp.Radarr)
+	}
+}
+
+// openBreaker drives cb to StateOpen using failures shaped the same way a
+// real Radarr/Sonarr outage would (a retryable apperrors.AppError, per
+// httpclient.IsSuccessful), independent of MaxFailures.
+func openBreaker(t *testing.T, cb *circuitbreaker.CircuitBreaker) {
+	t.Helper()
+	for i := 0; i < 1000 && cb.State() != circuitbreaker.StateOpen; i++ {
+		cb.Execute(func() error {
+			return apperrors.Wrap(errors.New("boom"), apperrors.CodeServiceUnavailable, "boom")
+		})
+	}
+	if cb.State() != circuitbreaker.StateOpen {
+		t.Fatalf("failed to drive breaker open, state is %s", cb.State())
+	}
+}
+
+func TestSystemStatus_CircuitOpenSkipsLiveCall(t *testing.T) {
+	setupTestDB(t)
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("expected no outbound call to Radarr while its circuit is open")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer radarrServer.Close()
+
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("expected no outbound call to Sonarr while its circuit is open")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer sonarrServer.Close()
+
+	original := systemStatusCheckTimeout
+	systemStatusCheckTimeout = 5 * time.Second
+	defer func() { systemStatusCheckTimeout = original }()
+
+	newSystemStatusTestConfig(t, radarrServer.URL, "radarr-key", sonarrServer.URL, "sonarr-key")
+	server := NewServer()
+
+	openBreaker(t, server.radarrBreaker)
+	openBreaker(t, server.sonarrBreaker)
+
+	start := time.Now()
+	resp := getSystemStatusResponse(t, server)
+	elapsed := time.Since(start)
+
+	if resp.Radarr.Status != statusKO || resp.Radarr.Reason != reasonCircuitOpen {
+		t.Errorf("expected radarr ko/circuit_open, got %+v", resp.Radarr)
+	}
+	if resp.Sonarr.Status != statusKO || resp.Sonarr.Reason != reasonCircuitOpen {
+		t.Errorf("expected sonarr ko/circuit_open, got %+v", resp.Sonarr)
+	}
+	if elapsed > systemStatusCheckTimeout/2 {
+		t.Errorf("expected the response to return immediately without waiting for systemStatusCheckTimeout (%v), took %v", systemStatusCheckTimeout, elapsed)
+	}
+}
+
+// TestRadarrSonarrBreakersAreIndependent verifies the radarr-sonarr-resilience
+// spec's "Circuit breaker state is independent per service" requirement:
+// driving Radarr's breaker open must never affect Sonarr's.
+func TestRadarrSonarrBreakersAreIndependent(t *testing.T) {
+	setupTestDB(t)
+
+	// Both point at an address nothing listens on, so a live Sonarr check
+	// (if Sonarr's breaker were mistakenly shared/affected) would also fail -
+	// the assertion below distinguishes "failed because unreachable" from
+	// "failed because circuit open" to prove the two are unaffected by each other.
+	newSystemStatusTestConfig(t, "http://127.0.0.1:1", "radarr-key", "http://127.0.0.1:1", "sonarr-key")
+	server := NewServer()
+
+	openBreaker(t, server.radarrBreaker)
+
+	if server.radarrBreaker.State() != circuitbreaker.StateOpen {
+		t.Fatalf("expected radarr breaker to be open, got %s", server.radarrBreaker.State())
+	}
+	if server.sonarrBreaker.State() != circuitbreaker.StateClosed {
+		t.Errorf("expected sonarr breaker to remain closed after radarr's failures, got %s", server.sonarrBreaker.State())
+	}
+
+	resp := getSystemStatusResponse(t, server)
+	if resp.Radarr.Status != statusKO || resp.Radarr.Reason != reasonCircuitOpen {
+		t.Errorf("expected radarr ko/circuit_open, got %+v", resp.Radarr)
+	}
+	if resp.Sonarr.Status != statusKO || resp.Sonarr.Reason == reasonCircuitOpen {
+		t.Errorf("expected sonarr ko for its own unreachability (not circuit_open), got %+v", resp.Sonarr)
 	}
 }

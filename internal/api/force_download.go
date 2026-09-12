@@ -126,6 +126,7 @@ func (s *Server) resolveForceDownloadMoviePath(ctx context.Context, cfg *config.
 		APIKey:      cfg.Radarr.APIKey,
 		Timeout:     existenceCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     s.radarrBreaker,
 	})
 
 	movie, err := client.GetMovieByTMDBID(ctx, item.Movie.TMDBID)
@@ -163,6 +164,7 @@ func (s *Server) resolveForceDownloadEpisodePath(ctx context.Context, cfg *confi
 		APIKey:      cfg.Sonarr.APIKey,
 		Timeout:     existenceCheckTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
+		Breaker:     s.sonarrBreaker,
 	})
 
 	series, episode, err := client.FindEpisodeByTVDBID(ctx, *item.TVShow.TVDBID, *item.TVShow.Season, *item.TVShow.Episode)
