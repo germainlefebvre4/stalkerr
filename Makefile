@@ -1,4 +1,4 @@
-# Makefile for Stalkeer
+# Makefile for Stalkerr
 
 .PHONY: all build test clean run lint fmt help front-install front-dev front-build front-lint dev
 

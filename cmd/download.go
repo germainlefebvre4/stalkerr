@@ -97,6 +97,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 
 		var radarrClient scheduler.RadarrClient
 		var radarrFullClient *radarr.Client
+		var radarrRescanner movieRescanner
 		if cfg.Radarr.URL != "" && cfg.Radarr.APIKey != "" {
 			radarrFullClient = radarr.New(radarr.Config{
 				BaseURL: cfg.Radarr.URL,
@@ -113,12 +114,14 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 				Breaker: newRunBreaker(),
 			})
 			radarrClient = radarrFullClient
+			radarrRescanner = radarrFullClient
 		} else if verbose {
 			fmt.Println("Radarr is not configured, skipping movie fetch")
 		}
 
 		var sonarrClient scheduler.SonarrClient
 		var sonarrFullClient *sonarr.Client
+		var sonarrRescanner seriesRescanner
 		if cfg.Sonarr.URL != "" && cfg.Sonarr.APIKey != "" {
 			sonarrFullClient = sonarr.New(sonarr.Config{
 				BaseURL: cfg.Sonarr.URL,
@@ -135,6 +138,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 				Breaker: newRunBreaker(),
 			})
 			sonarrClient = sonarrFullClient
+			sonarrRescanner = sonarrFullClient
 		} else if verbose {
 			fmt.Println("Sonarr is not configured, skipping episode fetch")
 		}
@@ -182,7 +186,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		}
 
 		sched := scheduler.NewScheduler(streams, cfg.Downloads.ForceTierProbability)
-		stats := runDownloadWorkerPool(ctx, sched, dl, cfg, parallel, verbose)
+		stats := runDownloadWorkerPool(ctx, sched, dl, cfg, parallel, verbose, radarrRescanner, sonarrRescanner)
 
 		notifyDownloadRunResult(notif, stats)
 		notifyJellyfin(ctx, cfg, stats.changedPaths)
@@ -286,6 +290,20 @@ type downloadStats struct {
 	Downloaded   int
 	Failed       int
 	changedPaths []string
+
+	// notifiedMovieIDs/notifiedSeriesIDs track, by Radarr movie ID / Sonarr
+	// series ID, which distinct completed work units have already triggered a
+	// post-download rescan notification this run (see shouldNotify).
+	notifiedMovieIDs  map[int]struct{}
+	notifiedSeriesIDs map[int]struct{}
+}
+
+// newDownloadStats builds a downloadStats ready to accumulate a run.
+func newDownloadStats() *downloadStats {
+	return &downloadStats{
+		notifiedMovieIDs:  make(map[int]struct{}),
+		notifiedSeriesIDs: make(map[int]struct{}),
+	}
 }
 
 // recordItem records one item's outcome. When successful and changedPath is
@@ -305,12 +323,56 @@ func (s *downloadStats) recordItem(success bool, changedPath string) {
 	}
 }
 
+// notifyKind distinguishes which per-run notified-ID set shouldNotify checks.
+type notifyKind int
+
+const (
+	notifyKindMovie notifyKind = iota
+	notifyKindSeries
+)
+
+// shouldNotify returns true and records id the first time it's called for
+// that (kind, id) pair during this run, so a rescan is requested at most once
+// per distinct completed movie/series regardless of how many of its items
+// complete (see radarr-sonarr-post-download-rescan spec).
+func (s *downloadStats) shouldNotify(kind notifyKind, id int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	set := s.notifiedMovieIDs
+	if kind == notifyKindSeries {
+		set = s.notifiedSeriesIDs
+	}
+	if _, ok := set[id]; ok {
+		return false
+	}
+	set[id] = struct{}{}
+	return true
+}
+
+// movieRescanner is the subset of *radarr.Client the download command depends
+// on to request a post-download rescan of a specific movie.
+type movieRescanner interface {
+	RescanMovie(ctx context.Context, movieID int) error
+}
+
+// seriesRescanner is the subset of *sonarr.Client the download command
+// depends on to request a post-download rescan of a specific series.
+type seriesRescanner interface {
+	RescanSeries(ctx context.Context, seriesID int) error
+}
+
+// rescanNotifyTimeout bounds how long a single best-effort post-download
+// rescan call may take, so an unreachable/slow Radarr or Sonarr cannot delay
+// a worker beyond a bounded amount per completed item.
+const rescanNotifyTimeout = 10 * time.Second
+
 // runDownloadWorkerPool starts `parallel` goroutines that each claim a stream,
 // drain it fully (in order), release it, and loop until the scheduler reports
 // no streams remain. See media-download-scheduling spec: a claimed stream is
 // drained to completion before its worker returns to the pool.
-func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *downloader.Downloader, cfg *config.Config, parallel int, verbose bool) *downloadStats {
-	stats := &downloadStats{}
+func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *downloader.Downloader, cfg *config.Config, parallel int, verbose bool, radarr movieRescanner, sonarr seriesRescanner) *downloadStats {
+	stats := newDownloadStats()
 
 	var wg sync.WaitGroup
 	for w := 0; w < parallel; w++ {
@@ -323,7 +385,7 @@ func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *
 					return
 				}
 
-				drainStream(ctx, dl, cfg, stream, stats, verbose)
+				drainStream(ctx, dl, cfg, stream, stats, verbose, radarr, sonarr)
 
 				if stream.SeriesID != 0 {
 					sched.Release(stream.SeriesID)
@@ -336,10 +398,46 @@ func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *
 	return stats
 }
 
-func drainStream(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, stream *scheduler.Stream, stats *downloadStats, verbose bool) {
+func drainStream(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, stream *scheduler.Stream, stats *downloadStats, verbose bool, radarr movieRescanner, sonarr seriesRescanner) {
 	for i := range stream.Items {
 		success, changedPath := downloadItem(ctx, dl, cfg, &stream.Items[i], verbose)
 		stats.recordItem(success, changedPath)
+		if success {
+			notifyRescanForCompletedItem(ctx, stats, stream, radarr, sonarr)
+		}
+	}
+}
+
+// notifyRescanForCompletedItem requests a targeted Radarr/Sonarr rescan for
+// the movie/series that just had an item complete successfully, at most once
+// per distinct movie/series for this run (see downloadStats.shouldNotify). A
+// service that isn't configured for this run (nil) or whose ID is unknown
+// (Stream.RadarrMovieID/SeriesID == 0, e.g. a stream synthesized without a
+// fresh live lookup) is skipped. A rescan failure is logged and never affects
+// stats or the run's exit status.
+func notifyRescanForCompletedItem(ctx context.Context, stats *downloadStats, stream *scheduler.Stream, radarr movieRescanner, sonarr seriesRescanner) {
+	if stream.RadarrMovieID != 0 && radarr != nil && stats.shouldNotify(notifyKindMovie, stream.RadarrMovieID) {
+		rctx, cancel := context.WithTimeout(ctx, rescanNotifyTimeout)
+		err := radarr.RescanMovie(rctx, stream.RadarrMovieID)
+		cancel()
+		if err != nil {
+			logger.AppLogger().WithFields(map[string]interface{}{
+				"radarr_movie_id": stream.RadarrMovieID,
+				"error":           err,
+			}).Warn("failed to notify radarr of completed download")
+		}
+	}
+
+	if stream.SeriesID != 0 && sonarr != nil && stats.shouldNotify(notifyKindSeries, stream.SeriesID) {
+		rctx, cancel := context.WithTimeout(ctx, rescanNotifyTimeout)
+		err := sonarr.RescanSeries(rctx, stream.SeriesID)
+		cancel()
+		if err != nil {
+			logger.AppLogger().WithFields(map[string]interface{}{
+				"sonarr_series_id": stream.SeriesID,
+				"error":            err,
+			}).Warn("failed to notify sonarr of completed download")
+		}
 	}
 }
 

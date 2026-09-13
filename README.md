@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./media/logo/stalkerr-black.svg" alt="Stalkerr Logo" style="width:250px;"/>
 
-# Stalkeer
+# Stalkerr
 
 **Turn m3u playlists into source for Radarr and Sonarr**
 
@@ -29,7 +29,7 @@ Parse M3U playlists and download missing media items from Radarr and Sonarr via 
 
 ## Architecture
 
-Stalkeer bridges an IPTV/M3U playlist to Radarr/Sonarr: it figures out what those tools are still missing and downloads it straight from the M3U source over HTTP (no torrents involved, despite the repo's home). The diagrams below give the shape of the system before you dive into setup.
+Stalkerr bridges an IPTV/M3U playlist to Radarr/Sonarr: it figures out what those tools are still missing and downloads it straight from the M3U source over HTTP (no torrents involved, despite the repo's home). The diagrams below give the shape of the system before you dive into setup.
 
 ![Stalkerr Overview](./docs/images/stalkerr-overview.png)
 
@@ -43,8 +43,8 @@ The fastest way to get started:
 
 ```bash
 # Clone and start
-git clone https://github.com/glefebvre/stalkeer.git
-cd stalkeer
+git clone https://github.com/glefebvre/stalkerr.git
+cd stalkerr
 cp .env.example .env
 docker-compose up -d
 
@@ -60,7 +60,7 @@ For detailed Docker deployment instructions, see:
 
 ### Option 2: Kubernetes (Helm)
 
-A Helm chart is available under [charts/stalkerr](charts/stalkerr) for deploying Stalkeer to a Kubernetes cluster, including a `CronJob` for scheduled processing. See [charts/stalkerr/README.md](charts/stalkerr/README.md) for values and installation instructions.
+A Helm chart is available under [charts/stalkerr](charts/stalkerr) for deploying Stalkerr to a Kubernetes cluster, including a `CronJob` for scheduled processing. See [charts/stalkerr/README.md](charts/stalkerr/README.md) for values and installation instructions.
 
 ### Option 3: Build from Source
 
@@ -74,8 +74,8 @@ A Helm chart is available under [charts/stalkerr](charts/stalkerr) for deploying
 
 ```bash
 # Clone the repository
-git clone https://github.com/glefebvre/stalkeer.git
-cd stalkeer
+git clone https://github.com/glefebvre/stalkerr.git
+cd stalkerr
 
 # Install dependencies
 go mod download
@@ -96,9 +96,9 @@ cp config.yml.example config.yml
 database:
   host: localhost
   port: 5432
-  user: stalkeer
+  user: stalkerr
   password: your_password
-  dbname: stalkeer
+  dbname: stalkerr
 
 m3u:
   update_interval: 3600
@@ -441,7 +441,7 @@ docker-compose up -d postgres
 ### Project Structure
 
 ```
-stalkeer/
+stalkerr/
 ├── cmd/                    # CLI commands (process, download, resume-downloads,
 │                           # cleanup, config, db-prune, enrich-tvdb, reset, server, ...)
 ├── frontend/               # React 19 + Radix UI Frontend Web Dashboard
@@ -648,7 +648,7 @@ GET /api/v1/tmdb/search   # Proxy a TMDB search query
 
 ### Logging Configuration
 
-Stalkeer supports modular logging with independent control for application and database logging:
+Stalkerr supports modular logging with independent control for application and database logging:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -747,7 +747,7 @@ Most configuration options can be overridden with environment variables using th
 
 Or use a PostgreSQL connection string:
 ```bash
-export DATABASE_URL="postgres://user:password@localhost:5432/stalkeer"
+export DATABASE_URL="postgres://user:password@localhost:5432/stalkerr"
 ```
 
 ## Contributing
@@ -778,5 +778,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Support
 
 - 📖 [Documentation](docs/)
-- 🐛 [Issue Tracker](https://github.com/glefebvre/stalkeer/issues)
-- 💬 [Discussions](https://github.com/glefebvre/stalkeer/discussions)
+- 🐛 [Issue Tracker](https://github.com/glefebvre/stalkerr/issues)
+- 💬 [Discussions](https://github.com/glefebvre/stalkerr/discussions)

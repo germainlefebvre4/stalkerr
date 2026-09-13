@@ -144,12 +144,141 @@ func TestBuildTier1Streams_MockedAPI(t *testing.T) {
 	require.Equal(t, Tier1, movieStream.Tier)
 	require.Len(t, movieStream.Items, 1)
 	require.Contains(t, movieStream.Items[0].BaseDestDir, "Test Movie (2020)")
+	require.Equal(t, 1, movieStream.RadarrMovieID, "tier-1 movie stream should carry the live Radarr movie ID")
 
 	require.NotNil(t, seriesStream)
 	require.Equal(t, Tier1, seriesStream.Tier)
 	require.Equal(t, 1, seriesStream.Season)
 	require.Len(t, seriesStream.Items, 1)
 	require.Equal(t, 1, seriesStream.Items[0].Episode)
+	require.Equal(t, 10, seriesStream.SeriesID, "tier-1 series stream should carry the live Sonarr series ID")
+}
+
+// 2.5 Tier-2 movie/series streams built from a live Radarr/Sonarr lookup
+// carry the resolved RadarrMovieID/SeriesID, so a post-download rescan can
+// target the right movie/series.
+func TestBuildTier2Streams_PopulatesLiveIDs(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 7, TMDBTitle: "Live ID Movie", TMDBYear: 2020}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "lid1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "lid2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	fr := &fakeRadarr{byTMDBID: map[int]*radarr.Movie{7: {ID: 707, TMDBID: 7, Path: "/media/movies/Live ID Movie (2020)"}}}
+
+	movieStreams, err := buildTier2MovieStreams(context.Background(), testDeps(db, fr, &fakeSonarr{}))
+	require.NoError(t, err)
+	require.Len(t, movieStreams, 1)
+	require.Equal(t, 707, movieStreams[0].RadarrMovieID)
+
+	tvdbID := 888
+	ep := models.TVShow{TMDBID: 400, TVDBID: intPtr(tvdbID), TMDBTitle: "Live ID Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "lid3", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "lid4", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateProcessed, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	fs := &fakeSonarr{byTVDBID: map[int]*sonarr.Series{tvdbID: {ID: 808, TvdbID: tvdbID, Path: "/media/tv/Live ID Show"}}}
+
+	seriesStreams, err := buildTier2SeriesStreams(context.Background(), testDeps(db, &fakeRadarr{}, fs))
+	require.NoError(t, err)
+	require.Len(t, seriesStreams, 1)
+	require.Equal(t, 808, seriesStreams[0].SeriesID)
+}
+
+// 2.5 A stream synthesized by mergeIncompleteDownloads (no fresh live
+// Radarr/Sonarr lookup) leaves RadarrMovieID/SeriesID at 0.
+func TestMergeIncompleteDownloads_SynthesizedStreamLeavesLiveIDsZero(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Stuck Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "ziq1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{} // movie not reported missing by Radarr
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+	require.Equal(t, 0, streams[0].RadarrMovieID, "a stream synthesized without a fresh Radarr lookup must leave RadarrMovieID at 0")
+}
+
+// 5.2 Regression test reproducing the production incident this change fixes:
+// "Vaiana (2026)" and "La Pat' Patrouille : Le film mission Dino (2026)" were
+// each downloaded twice, in two different resolutions, because Radarr's own
+// library scan lagged behind stalkeer's download cadence and still reported
+// both as missing on a later run despite each already having a successful
+// local download. Exercised through the same BuildStreams entrypoint
+// `stalkeer download --dry-run` calls, with both incident movies present and
+// Radarr still reporting both missing: confirms neither yields a stream.
+func TestBuildStreams_IncidentRegression_VaianaAndPatPatrouilleNotRedownloaded(t *testing.T) {
+	db := setupTestDB(t)
+
+	vaiana := models.Movie{TMDBID: 1001, TVDBID: intPtr(90001), TMDBTitle: "Vaiana", TMDBYear: 2026}
+	require.NoError(t, db.Create(&vaiana).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "vaiana-downloaded", LineHash: "vai-inc-1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &vaiana.ID,
+		LineURL: strPtr("http://example.com/vaiana-1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "vaiana-alt", LineHash: "vai-inc-2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &vaiana.ID,
+		LineURL: strPtr("http://example.com/vaiana-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	patPatrouille := models.Movie{TMDBID: 1002, TVDBID: intPtr(90002), TMDBTitle: "La Pat' Patrouille : Le film mission Dino", TMDBYear: 2026}
+	require.NoError(t, db.Create(&patPatrouille).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "patpatrouille-downloaded", LineHash: "pp-inc-1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &patPatrouille.ID,
+		LineURL: strPtr("http://example.com/patpatrouille-1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "patpatrouille-alt", LineHash: "pp-inc-2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &patPatrouille.ID,
+		LineURL: strPtr("http://example.com/patpatrouille-4k.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	fr := &fakeRadarr{missing: []radarr.Movie{
+		{ID: 1, Title: "Vaiana", Year: 2026, TvdbID: 90001, TMDBID: 1001},
+		{ID: 2, Title: "La Pat' Patrouille : Le film mission Dino", Year: 2026, TvdbID: 90002, TMDBID: 1002},
+	}}
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Empty(t, streams, "neither incident movie should be re-scheduled for download despite Radarr still reporting both missing")
 }
 
 // 2.2 Tier classification: already-downloaded -> tier2, never-downloaded -> tier1.
@@ -197,9 +326,12 @@ func TestBuildStreams_TierClassification(t *testing.T) {
 	require.Equal(t, Tier2, tiers[fmt.Sprintf("movie:%d", upgradeMovie.ID)])
 }
 
-// A movie still reported missing by Radarr, but already downloaded locally
-// with another eligible candidate, must yield only its tier-1 stream - not a
-// second tier-2 stream for the same SourceKey (see fix-dedupe-tier-streams).
+// A movie still reported missing by Radarr (stale status), but already
+// downloaded locally with a strictly-better untried candidate, must yield
+// only its tier-2 upgrade stream - not a duplicate/conflicting tier-1 stream
+// for the same SourceKey. The local "already downloaded" guard removes it
+// from tier-1 entirely, so Radarr's stale missing status alone can no longer
+// produce a second, redundant stream (see fix-duplicate-content-redownload).
 func TestBuildStreams_DedupTier2AgainstTier1_Movie(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -208,12 +340,14 @@ func TestBuildStreams_DedupTier2AgainstTier1_Movie(t *testing.T) {
 	require.NoError(t, db.Create(&models.ProcessedLine{
 		LineContent: "downloaded", LineHash: "d1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
 		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
-		LineURL: strPtr("http://example.com/dune-720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		LineURL: strPtr("http://example.com/dune-1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
 	}).Error)
 	require.NoError(t, db.Create(&models.ProcessedLine{
 		LineContent: "alt", LineHash: "d2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
 		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
-		LineURL: strPtr("http://example.com/dune-1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		LineURL: strPtr("http://example.com/dune-720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
 	}).Error)
 
 	fr := &fakeRadarr{missing: []radarr.Movie{{ID: 1, Title: "Dune", Year: 2021, TvdbID: 1001, TMDBID: 1}}}
@@ -223,7 +357,37 @@ func TestBuildStreams_DedupTier2AgainstTier1_Movie(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, streams, 1, "movie missing per Radarr and already downloaded should yield a single stream")
 	require.Equal(t, fmt.Sprintf("movie:%d", movie.ID), streams[0].SourceKey)
-	require.Equal(t, Tier1, streams[0].Tier)
+	require.Equal(t, Tier2, streams[0].Tier, "tier-1 must not re-claim an already-downloaded movie based on Radarr's stale missing status")
+}
+
+// A movie still reported missing by Radarr, but with a downloaded
+// ProcessedLine locally and no strictly-better untried candidate, must yield
+// no stream at all - Radarr's missing status alone must not requalify it for
+// tier-1 (see fix-duplicate-content-redownload, media-download-scheduling
+// spec scenario "Movie missing per Radarr but already marked downloaded
+// locally").
+func TestBuildTier1MovieStreams_SkipsAlreadyDownloadedMovie(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 50, TVDBID: intPtr(5050), TMDBTitle: "Vaiana", TMDBYear: 2026}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "vai-1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vaiana.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "vai-2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/vaiana-alt.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	fr := &fakeRadarr{missing: []radarr.Movie{{ID: 1, Title: "Vaiana", Year: 2026, TvdbID: 5050, TMDBID: 50}}}
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	streams, _, err := buildTier1MovieStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Empty(t, streams, "movie with a local downloaded ProcessedLine must not be re-added to tier-1 despite Radarr still reporting it missing")
 }
 
 // A series-season with a missing episode per Sonarr, but with another episode
@@ -268,6 +432,53 @@ func TestBuildStreams_DedupTier2AgainstTier1_Series(t *testing.T) {
 	require.Equal(t, Tier1, streams[0].Tier)
 	require.Equal(t, 1, streams[0].Season)
 	require.Len(t, streams[0].Items, 1)
+	require.Equal(t, 1, streams[0].Items[0].Episode)
+}
+
+// A season with one already-downloaded episode and one genuinely missing
+// episode, where Sonarr's stale status still reports BOTH episodes missing,
+// must yield a season stream containing only the genuinely-missing episode -
+// Sonarr's missing status alone must not requalify the already-downloaded
+// episode for tier-1 (see fix-duplicate-content-redownload,
+// media-download-scheduling spec scenario "Series-season missing per Sonarr
+// but already marked downloaded locally").
+func TestBuildTier1SeriesStreams_SkipsAlreadyDownloadedEpisode(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 999
+
+	e1 := models.TVShow{TMDBID: 500, TVDBID: intPtr(tvdbID), TMDBTitle: "Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&e1).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "e1", LineHash: "sad-e1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateProcessed, TVShowID: &e1.ID,
+		LineURL: strPtr("http://example.com/sad-e1.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	// e2 already has a downloaded local ProcessedLine, but Sonarr's missing
+	// list still reports it too (its own status hasn't caught up yet).
+	e2 := models.TVShow{TMDBID: 500, TVDBID: intPtr(tvdbID), TMDBTitle: "Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(2)}
+	require.NoError(t, db.Create(&e2).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "e2-downloaded", LineHash: "sad-e2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &e2.ID,
+		LineURL: strPtr("http://example.com/sad-e2.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	fr := &fakeRadarr{}
+	fs := &fakeSonarr{
+		missing: []sonarr.Episode{
+			{ID: 1, SeriesID: 30, SeasonNumber: 1, EpisodeNumber: 1},
+			{ID: 2, SeriesID: 30, SeasonNumber: 1, EpisodeNumber: 2},
+		},
+		series: map[int]*sonarr.Series{30: {ID: 30, Title: "Show", Year: 2020, TvdbID: tvdbID}},
+	}
+
+	streams, _, err := buildTier1SeriesStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Len(t, streams, 1, "season stream should still be produced for the genuinely-missing episode")
+	require.Equal(t, "series:30", streams[0].SourceKey)
+	require.Len(t, streams[0].Items, 1, "already-downloaded episode reported missing by Sonarr must be excluded")
 	require.Equal(t, 1, streams[0].Items[0].Episode)
 }
 

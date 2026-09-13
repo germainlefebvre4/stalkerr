@@ -327,6 +327,68 @@ func TestUpdateEpisode(t *testing.T) {
 	}
 }
 
+func TestRescanSeries(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		var receivedMethod, receivedPath string
+		var receivedBody map[string]interface{}
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			receivedMethod = r.Method
+			receivedPath = r.URL.Path
+			if err := json.NewDecoder(r.Body).Decode(&receivedBody); err != nil {
+				t.Fatalf("failed to decode request body: %v", err)
+			}
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]interface{}{"id": 1, "name": "RescanSeries"})
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		err := client.RescanSeries(context.Background(), 99)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if receivedMethod != http.MethodPost {
+			t.Errorf("expected POST method, got %s", receivedMethod)
+		}
+		if receivedPath != "/api/v3/command" {
+			t.Errorf("expected path /api/v3/command, got %s", receivedPath)
+		}
+		if receivedBody["name"] != "RescanSeries" {
+			t.Errorf("expected name RescanSeries, got %v", receivedBody["name"])
+		}
+		if receivedBody["seriesId"] != float64(99) {
+			t.Errorf("expected seriesId 99, got %v", receivedBody["seriesId"])
+		}
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("boom"))
+		}))
+		defer server.Close()
+
+		client := New(Config{
+			BaseURL:     server.URL,
+			APIKey:      "test-key",
+			Timeout:     5 * time.Second,
+			RetryConfig: retry.Config{MaxAttempts: 1},
+		})
+
+		if err := client.RescanSeries(context.Background(), 99); err == nil {
+			t.Fatal("expected error for server failure")
+		}
+	})
+}
+
 func TestGetMissingEpisodesMultiPage(t *testing.T) {
 	// Three episodes total, pageSize=2 → should make 2 requests.
 	allEpisodes := []Episode{

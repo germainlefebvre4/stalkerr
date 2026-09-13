@@ -162,6 +162,14 @@ func buildTier1MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, map
 			continue
 		}
 
+		downloadedLine, err := findDownloadedLine(deps.DB, "movie_id", dbMovie.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if downloadedLine != nil {
+			continue
+		}
+
 		candidates, err := matcher.FindMovieDownloadCandidates(deps.DB, dbMovie.ID)
 		if err != nil {
 			return nil, nil, err
@@ -172,8 +180,9 @@ func buildTier1MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, map
 
 		baseDestPath, _ := downloader.BuildRadarrDestPath(movie.Path, deps.Config.Downloads.MoviesPath, movie.Title, movie.Year)
 		stream := &Stream{
-			Tier:      Tier1,
-			SourceKey: fmt.Sprintf("movie:%d", dbMovie.ID),
+			Tier:          Tier1,
+			SourceKey:     fmt.Sprintf("movie:%d", dbMovie.ID),
+			RadarrMovieID: movie.ID,
 			Items: []Item{{
 				DisplayName: fmt.Sprintf("%s (%d)", movie.Title, movie.Year),
 				BaseDestDir: baseDestPath,
@@ -221,6 +230,14 @@ func buildTier1SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, ma
 
 		dbShow, _, _, err := matcher.MatchTVShowByTVDB(deps.DB, series.TvdbID, 0, series.Title, ep.SeasonNumber, ep.EpisodeNumber)
 		if err != nil {
+			continue
+		}
+
+		downloadedLine, err := findDownloadedLine(deps.DB, "tv_show_id", dbShow.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if downloadedLine != nil {
 			continue
 		}
 
@@ -305,6 +322,7 @@ func buildTier2MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, err
 		}
 
 		moviePath := ""
+		radarrMovieID := 0
 		if deps.Radarr != nil {
 			radarrMovie, err := deps.Radarr.GetMovieByTMDBID(ctx, movie.TMDBID)
 			if err != nil {
@@ -317,13 +335,15 @@ func buildTier2MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, err
 			}
 			if radarrMovie != nil {
 				moviePath = radarrMovie.Path
+				radarrMovieID = radarrMovie.ID
 			}
 		}
 
 		baseDestPath, _ := downloader.BuildRadarrDestPath(moviePath, deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
 		streams = append(streams, &Stream{
-			Tier:      Tier2,
-			SourceKey: fmt.Sprintf("movie:%d", movie.ID),
+			Tier:          Tier2,
+			SourceKey:     fmt.Sprintf("movie:%d", movie.ID),
+			RadarrMovieID: radarrMovieID,
 			Items: []Item{{
 				DisplayName: fmt.Sprintf("%s (%d)", movie.TMDBTitle, movie.TMDBYear),
 				BaseDestDir: baseDestPath,
@@ -352,7 +372,7 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 
 	seasonMap := make(map[tvdbSeasonKey]*seasonBuild)
 	var seasonOrder []tvdbSeasonKey
-	seriesPathCache := make(map[int]string)
+	seriesInfoCache := make(map[int]seriesLookup)
 
 	for _, ep := range episodes {
 		if ep.TVDBID == nil || ep.Season == nil || ep.Episode == nil {
@@ -378,7 +398,7 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 			continue
 		}
 
-		seriesPath, ok := seriesPathCache[*ep.TVDBID]
+		info, ok := seriesInfoCache[*ep.TVDBID]
 		if !ok {
 			if deps.Sonarr != nil {
 				series, err := deps.Sonarr.GetSeriesByTVDBID(ctx, *ep.TVDBID)
@@ -390,18 +410,18 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 					continue
 				}
 				if series != nil {
-					seriesPath = series.Path
+					info = seriesLookup{path: series.Path, id: series.ID}
 				}
 			}
-			seriesPathCache[*ep.TVDBID] = seriesPath
+			seriesInfoCache[*ep.TVDBID] = info
 		}
 
-		baseDestPath, _ := downloader.BuildSonarrDestPath(seriesPath, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
+		baseDestPath, _ := downloader.BuildSonarrDestPath(info.path, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
 
 		key := tvdbSeasonKey{tvdbID: *ep.TVDBID, season: *ep.Season}
 		sb, ok := seasonMap[key]
 		if !ok {
-			sb = &seasonBuild{season: *ep.Season, tvdbID: *ep.TVDBID}
+			sb = &seasonBuild{season: *ep.Season, tvdbID: *ep.TVDBID, seriesID: info.id}
 			seasonMap[key] = sb
 			seasonOrder = append(seasonOrder, key)
 		}
@@ -420,12 +440,21 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 		streams = append(streams, &Stream{
 			Tier:      Tier2,
 			SourceKey: fmt.Sprintf("series:tvdb:%d:season:%d", key.tvdbID, key.season),
+			SeriesID:  sb.seriesID,
 			Season:    sb.season,
 			Items:     sb.items,
 		})
 	}
 
 	return streams, nil
+}
+
+// seriesLookup caches a live Sonarr series lookup's path and internal series
+// ID, keyed by TVDB ID, so a season's episodes sharing the same series don't
+// each re-fetch it.
+type seriesLookup struct {
+	path string
+	id   int
 }
 
 // findDownloadedLine returns the best-ranked already-downloaded ProcessedLine
