@@ -98,7 +98,7 @@ func TestRunDownloadWorkerPool_AllItemsComplete(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, 2, false)
+	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, 2, false, nil, nil)
 
 	require.Equal(t, 3, stats.Total)
 	require.Equal(t, 3, stats.Downloaded)
@@ -161,7 +161,7 @@ func TestRunDownloadWorkerPool_RespectsSharedConcurrencyLimit(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, limit, false)
+	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, limit, false, nil, nil)
 
 	require.Equal(t, 6, stats.Total)
 	require.Equal(t, 6, stats.Downloaded)

@@ -47,6 +47,10 @@ type Stream struct {
 	// It is 0 for movie streams and for Tier2 (upgrade) streams, neither of which
 	// participate in the ascending-season-order queue.
 	SeriesID int
+	// RadarrMovieID is the originating Radarr movie ID for a movie stream, when
+	// known from a live Radarr lookup. It is 0 when unknown/not applicable (e.g.
+	// a stream synthesized by mergeIncompleteDownloads without a fresh lookup).
+	RadarrMovieID int
 	// Season is the season number for a series-season stream; 0 for movies.
 	Season int
 	Items  []Item

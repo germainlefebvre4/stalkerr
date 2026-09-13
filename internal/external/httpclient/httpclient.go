@@ -252,3 +252,21 @@ func Put(ctx context.Context, c *Client, endpoint string, body any) error {
 
 	return CheckStatus(resp, http.StatusOK, http.StatusAccepted)
 }
+
+// Post performs a POST request against endpoint with body marshaled as JSON,
+// accepting a 200, 201, or 202 response and discarding its body. Radarr/Sonarr's
+// /api/v3/command endpoint responds 201 Created with the queued command.
+func Post(ctx context.Context, c *Client, endpoint string, body any) error {
+	req, err := c.NewRequest(ctx, "POST", endpoint, body)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.doRequest(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return CheckStatus(resp, http.StatusOK, http.StatusCreated, http.StatusAccepted)
+}

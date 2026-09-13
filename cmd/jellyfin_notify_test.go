@@ -188,7 +188,7 @@ func TestRunDownloadWorkerPool_MultipleEpisodesSameSeason_SingleGroupedNotificat
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, 2, false)
+	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, 2, false, nil, nil)
 	require.Equal(t, 2, stats.Downloaded)
 
 	var requestCount int

@@ -319,6 +319,34 @@ func (c *Client) FindEpisodeByTVDBID(ctx context.Context, tvdbID, season, episod
 	return nil, nil, nil
 }
 
+// rescanSeriesCommand is the /api/v3/command request body Sonarr expects to
+// queue an on-demand rescan of a single series' files, matching Sonarr's
+// RescanSeriesCommand (field SeriesId, serialized camelCase as seriesId per
+// Sonarr's JSON conventions - confirmed against Sonarr's source, not merely
+// assumed).
+type rescanSeriesCommand struct {
+	Name     string `json:"name"`
+	SeriesID int    `json:"seriesId"`
+}
+
+// RescanSeries requests Sonarr to rescan/refresh a specific series' files, so
+// its missing/has-file status updates promptly instead of waiting for
+// Sonarr's own periodic library scan. Best-effort: callers should treat a
+// non-nil error as non-fatal to the caller's own run.
+func (c *Client) RescanSeries(ctx context.Context, seriesID int) error {
+	endpoint := "/api/v3/command"
+
+	err := retry.Do(ctx, c.http.Retry, func() error {
+		return httpclient.Post(ctx, c.http, endpoint, rescanSeriesCommand{Name: "RescanSeries", SeriesID: seriesID})
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return apperrors.ExternalServiceError("sonarr", "failed to request series rescan", err)
+	}
+
+	return nil
+}
+
 // UpdateEpisode updates an episode in Sonarr
 func (c *Client) UpdateEpisode(ctx context.Context, episode *Episode) error {
 	endpoint := fmt.Sprintf("/api/v3/episode/%d", episode.ID)

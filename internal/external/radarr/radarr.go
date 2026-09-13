@@ -186,6 +186,34 @@ func (c *Client) GetMovieByTMDBID(ctx context.Context, tmdbID int) (*Movie, erro
 	return &movies[0], nil
 }
 
+// rescanMovieCommand is the /api/v3/command request body Radarr expects to
+// queue an on-demand rescan of a single movie's files, matching Radarr's
+// RescanMovieCommand (field MovieId, serialized camelCase as movieId per
+// Radarr's JSON conventions - confirmed against Radarr's source, not merely
+// assumed).
+type rescanMovieCommand struct {
+	Name    string `json:"name"`
+	MovieID int    `json:"movieId"`
+}
+
+// RescanMovie requests Radarr to rescan/refresh a specific movie's files, so
+// its missing/has-file status updates promptly instead of waiting for
+// Radarr's own periodic library scan. Best-effort: callers should treat a
+// non-nil error as non-fatal to the caller's own run.
+func (c *Client) RescanMovie(ctx context.Context, movieID int) error {
+	endpoint := "/api/v3/command"
+
+	err := retry.Do(ctx, c.http.Retry, func() error {
+		return httpclient.Post(ctx, c.http, endpoint, rescanMovieCommand{Name: "RescanMovie", MovieID: movieID})
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return apperrors.ExternalServiceError("radarr", "failed to request movie rescan", err)
+	}
+
+	return nil
+}
+
 // UpdateMovie updates a movie in Radarr
 func (c *Client) UpdateMovie(ctx context.Context, movie *Movie) error {
 	endpoint := fmt.Sprintf("/api/v3/movie/%d", movie.ID)
