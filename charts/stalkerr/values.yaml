@@ -8,7 +8,7 @@ global:
 
 # Image configuration
 image:
-  repository: germainlefebvre4/stalkeer
+  repository: germainlefebvre4/stalkerr
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -371,7 +371,7 @@ frontend:
   replicaCount: 1
 
   image:
-    repository: germainlefebvre4/stalkeer-frontend
+    repository: germainlefebvre4/stalkerr-frontend
     tag: "latest"
     pullPolicy: IfNotPresent
 
