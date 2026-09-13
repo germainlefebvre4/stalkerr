@@ -11,6 +11,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/notifier"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +28,7 @@ logged and does not prevent the other sources from being attempted.`,
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Get()
+		cfg := settings.Effective()
 
 		// Initialize logger
 		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
@@ -148,7 +149,7 @@ var listM3UArchivesCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Get()
+		cfg := settings.Effective()
 
 		// Initialize logger
 		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
@@ -222,7 +223,7 @@ var cleanupM3UArchivesCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Get()
+		cfg := settings.Effective()
 
 		// Initialize logger
 		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)

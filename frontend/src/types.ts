@@ -259,3 +259,54 @@ export interface TMDBSearchResult {
   release_date?: string;
   overview?: string;
 }
+
+// Effective origin of a settings/M3U-source value: "interface" when a
+// stored override applies, "config" when the file/env/default value does.
+export type SettingsOrigin = 'interface' | 'config';
+
+export interface SettingsField {
+  key: string;
+  value?: string | number | boolean;
+  is_set?: boolean; // present only for sensitive fields, in place of value
+  sensitive: boolean;
+  origin: SettingsOrigin;
+  restart_required: boolean;
+}
+
+export interface BootstrapField {
+  key: string;
+  value?: string | number | boolean;
+  is_set?: boolean;
+  sensitive: boolean;
+  origin: SettingsOrigin;
+}
+
+export interface M3uSource {
+  name: string;
+  file_path: string;
+  enabled: boolean;
+  url: string;
+  archive_dir: string;
+  retention_count: number;
+  max_file_size_mb: number;
+  timeout_seconds: number;
+  retry_attempts: number;
+  auth_username: string;
+  has_auth_password: boolean;
+  is_runtime: boolean;
+}
+
+// auth_password omitted entirely (not just empty) means "keep the current
+// effective password"; an explicit empty string clears it.
+export interface M3uSourceInput {
+  file_path: string;
+  enabled: boolean;
+  url: string;
+  archive_dir: string;
+  retention_count: number;
+  max_file_size_mb: number;
+  timeout_seconds: number;
+  retry_attempts: number;
+  auth_username: string;
+  auth_password?: string;
+}

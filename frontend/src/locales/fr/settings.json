@@ -1,12 +1,21 @@
 {
   "trigger": "Paramètres",
   "title": "Paramètres",
-  "description": "Préférences de l'application : apparence, langue, filtres, valeurs de démarrage et état du système.",
+  "description": "Préférences de l'application : apparence, langue, filtres, intégrations, valeurs de démarrage et état du système.",
   "close": "Fermer",
+  "loading": "Chargement…",
+  "save": "Enregistrer",
+  "saving": "Enregistrement…",
+  "cancel": "Annuler",
+  "resetToConfig": "Réinitialiser",
   "sections": {
     "appearance": "Apparence",
     "language": "Langue",
     "filters": "Filtres",
+    "m3uSources": "Sources M3U",
+    "integrations": "Intégrations",
+    "notifications": "Notifications",
+    "advanced": "Avancé",
     "preferences": "Préférences",
     "system": "Système",
     "about": "À propos"
@@ -21,6 +30,127 @@
     "switchToLight": "Passer au thème clair",
     "switchToDark": "Passer au thème sombre",
     "reduceMotionLabel": "Réduire les animations"
+  },
+  "origin": {
+    "interface": "Interface",
+    "config": "Config"
+  },
+  "restartRequired": {
+    "label": "Redémarrage requis",
+    "hint": "Ce changement ne s'applique qu'après le redémarrage de l'application."
+  },
+  "sensitive": {
+    "set": "Défini",
+    "notSet": "Non défini"
+  },
+  "boolean": {
+    "true": "Activé",
+    "false": "Désactivé"
+  },
+  "groups": {
+    "radarr": "Radarr",
+    "sonarr": "Sonarr",
+    "tmdb": "TMDB",
+    "jellyfin": "Jellyfin",
+    "downloads": "Téléchargements",
+    "logging": "Journalisation",
+    "m3u": "M3U",
+    "bootstrap": "Base de données et ports (lecture seule)"
+  },
+  "bootstrapHint": "Ces valeurs viennent de config.yml ou des variables d'environnement. Elles ne peuvent pas être modifiées ici car l'application en a besoin avant de pouvoir joindre sa base de données ou ouvrir ses ports.",
+  "fields": {
+    "radarr": {
+      "url": "URL",
+      "apiKey": "Clé API",
+      "enabled": "Activé",
+      "syncInterval": "Intervalle de synchronisation (secondes)",
+      "qualityProfileId": "ID du profil de qualité"
+    },
+    "sonarr": {
+      "url": "URL",
+      "apiKey": "Clé API",
+      "enabled": "Activé",
+      "syncInterval": "Intervalle de synchronisation (secondes)",
+      "qualityProfileId": "ID du profil de qualité"
+    },
+    "tmdb": {
+      "enabled": "Activé",
+      "apiKey": "Clé API",
+      "language": "Langue",
+      "requestsPerSecond": "Requêtes par seconde"
+    },
+    "jellyfin": {
+      "enabled": "Activé",
+      "url": "URL",
+      "apiKey": "Clé API"
+    },
+    "notifications": {
+      "enabled": "Notifications activées",
+      "ntfyEnabled": "ntfy activé",
+      "ntfyServerUrl": "URL du serveur ntfy",
+      "ntfyTopic": "Sujet ntfy",
+      "ntfyAuthToken": "Jeton d'authentification ntfy"
+    },
+    "downloads": {
+      "moviesPath": "Chemin des films",
+      "tvshowsPath": "Chemin des séries",
+      "tempDir": "Répertoire temporaire",
+      "maxParallel": "Téléchargements parallèles max",
+      "timeout": "Délai d'expiration (secondes)",
+      "retryAttempts": "Tentatives de nouvel essai",
+      "resumeEnabled": "Reprise activée",
+      "progressIntervalMb": "Intervalle de progression (Mo)",
+      "progressIntervalSeconds": "Intervalle de progression (secondes)",
+      "lockTimeoutMinutes": "Délai de verrou (minutes)",
+      "maxRetryAttempts": "Tentatives max",
+      "minFileSizeMb": "Taille de fichier min (Mo)",
+      "forceTierProbability": "Probabilité de tier forcé"
+    },
+    "logging": {
+      "appLevel": "Niveau de log applicatif",
+      "databaseLevel": "Niveau de log base de données",
+      "format": "Format des logs"
+    },
+    "m3u": {
+      "updateInterval": "Intervalle de rafraîchissement (secondes)"
+    },
+    "bootstrap": {
+      "databaseHost": "Hôte de la base de données",
+      "databasePort": "Port de la base de données",
+      "databaseUser": "Utilisateur de la base de données",
+      "databasePassword": "Mot de passe de la base de données",
+      "databaseName": "Nom de la base de données",
+      "databaseSslMode": "Mode SSL de la base de données",
+      "apiPort": "Port de l'API",
+      "metricsEnabled": "Métriques activées",
+      "metricsPort": "Port des métriques",
+      "metricsPath": "Chemin des métriques"
+    }
+  },
+  "m3uSources": {
+    "heading": "Sources M3U",
+    "subtitle": "Sources actuellement en vigueur, qu'elles viennent de config.yml ou d'ici.",
+    "createButton": "+ Ajouter une source",
+    "emptyTitle": "Aucune source M3U configurée pour le moment.",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "overridesOrigin": "surcharge la config",
+    "createTitle": "Ajouter une source M3U",
+    "editTitle": "Modifier la source M3U",
+    "description": "Une source ajoutée ou modifiée ici est stockée dans l'application et prend le pas sur toute entrée config.yml portant le même nom.",
+    "nameLabel": "Nom",
+    "nameRequired": "Le nom est requis.",
+    "nameCollidesWithOrigin": "Ce nom correspond à une source de config.yml : l'enregistrement la remplacera.",
+    "filePathLabel": "Chemin du fichier",
+    "urlLabel": "URL de téléchargement",
+    "authUsernameLabel": "Nom d'utilisateur",
+    "authPasswordLabel": "Mot de passe",
+    "passwordWillChange": "Le mot de passe stocké sera remplacé à l'enregistrement.",
+    "retentionCountLabel": "Nombre d'archives conservées",
+    "retryAttemptsLabel": "Tentatives de nouvel essai",
+    "enabledLabel": "Téléchargement activé",
+    "confirmReplaceRuntime": "« {{name}} » existe déjà en tant que source créée ici. L'enregistrement la remplacera. Continuer ?",
+    "confirmDelete": "Supprimer la surcharge stockée pour « {{name}} » ? Si elle venait de config.yml, elle reviendra à cette définition."
   },
   "preferences": {
     "startupTabLabel": "Onglet de démarrage",

@@ -9,12 +9,12 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/httpclient"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/metrics"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -62,7 +62,7 @@ func NewServer() *Server {
 	router.Use(errorHandlerMiddleware())
 
 	var tmdbClient *tmdb.Client
-	cfg := config.Get()
+	cfg := settings.Effective()
 	if cfg.TMDB.Enabled && cfg.TMDB.APIKey != "" {
 		tmdbClient = tmdb.NewClient(tmdb.Config{
 			APIKey:            cfg.TMDB.APIKey,
@@ -202,6 +202,25 @@ func (s *Server) setupRoutes() {
 			filters.PATCH("/:id", s.updateFilter)
 			filters.DELETE("/:id", s.deleteFilter)
 			filters.DELETE("/runtime", s.clearRuntimeFilters)
+		}
+
+		// Settings endpoints (app-settings)
+		settingsGroup := v1.Group("/settings")
+		{
+			settingsGroup.GET("", s.listSettings)
+			settingsGroup.GET("/origin", s.getBootstrapSettings)
+			settingsGroup.PUT("/:key", s.setSettingsField)
+			settingsGroup.DELETE("/:key", s.clearSettingsField)
+		}
+
+		// M3U source endpoints (m3u-source-overrides)
+		m3uSources := v1.Group("/m3u/sources")
+		{
+			m3uSources.GET("", s.listEffectiveM3USources)
+			m3uSources.GET("/origin", s.listOriginM3USources)
+			m3uSources.POST("", s.createM3USource)
+			m3uSources.PUT("/:name", s.updateM3USource)
+			m3uSources.DELETE("/:name", s.deleteM3USource)
 		}
 
 		// Dry-run endpoint

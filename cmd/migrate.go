@@ -7,6 +7,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/logger"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +21,7 @@ var migrateCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Get()
+		cfg := settings.Effective()
 
 		// Initialize loggers
 		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())

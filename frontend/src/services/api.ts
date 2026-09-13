@@ -17,7 +17,11 @@ import {
   SonarrSeriesEpisodesResponse,
   RadarrSonarrStats,
   MatchStatusFilter,
-  SystemStatusResponse
+  SystemStatusResponse,
+  SettingsField,
+  BootstrapField,
+  M3uSource,
+  M3uSourceInput
 } from '../types';
 
 export class ApiError extends Error {
@@ -343,6 +347,72 @@ export const api = {
 
   async getSystemStatus(): Promise<SystemStatusResponse> {
     const res = await fetch('/api/v1/system/status');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getSettings(): Promise<{ settings: SettingsField[] }> {
+    const res = await fetch('/api/v1/settings');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getBootstrapSettings(): Promise<{ bootstrap: BootstrapField[] }> {
+    const res = await fetch('/api/v1/settings/origin');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async setSetting(key: string, value: unknown): Promise<SettingsField> {
+    const res = await fetch(`/api/v1/settings/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async clearSetting(key: string): Promise<SettingsField> {
+    const res = await fetch(`/api/v1/settings/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getM3uSourcesOrigin(): Promise<{ sources: M3uSource[] }> {
+    const res = await fetch('/api/v1/m3u/sources/origin');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getM3uSources(): Promise<{ sources: M3uSource[] }> {
+    const res = await fetch('/api/v1/m3u/sources');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async createM3uSource(name: string, payload: M3uSourceInput): Promise<M3uSource> {
+    const res = await fetch('/api/v1/m3u/sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, ...payload }),
+    });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async updateM3uSource(name: string, payload: M3uSourceInput): Promise<M3uSource> {
+    const res = await fetch(`/api/v1/m3u/sources/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async deleteM3uSource(name: string): Promise<unknown> {
+    const res = await fetch(`/api/v1/m3u/sources/${encodeURIComponent(name)}`, { method: 'DELETE' });
     if (!res.ok) return throwApiError(res);
     return res.json();
   }

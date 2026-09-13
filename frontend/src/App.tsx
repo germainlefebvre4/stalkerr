@@ -75,7 +75,7 @@ import { MoveFolderDialog } from './components/MoveFolderDialog';
 import { RenameFolderDialog } from './components/RenameFolderDialog';
 import { ManualOverrideDialog } from './components/ManualOverrideDialog';
 import { RunItemsDialog } from './components/RunItemsDialog';
-import { SettingsDrawer } from './components/SettingsDrawer';
+import { ConfigurationPage } from './components/ConfigurationPage';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -290,6 +290,18 @@ export default function App() {
 
       <FloatingHeader onOpenSettings={() => setIsSettingsOpen(true)} />
 
+      {isSettingsOpen ? (
+        <ConfigurationPage
+          onBack={() => setIsSettingsOpen(false)}
+          theme={theme} onSetTheme={setTheme}
+          reduceMotion={reduceMotion} onSetReduceMotion={setReduceMotion}
+          startupTab={startupTab} onSetStartupTab={setStartupTab} tabOptions={startupTabOptions}
+          playlistLimit={playlistLimit} onSetPlaylistLimit={setPlaylistLimit}
+          playlistView={playlistView} onSetPlaylistView={setPlaylistView}
+          filters={filters} filtersLoading={filtersLoading} onFetchFilters={fetchFilters}
+          onDeleteFilter={handleDeleteFilter} onOpenCreateFilter={() => setIsCreateFilterOpen(true)}
+        />
+      ) : (
       <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List className="segmented-tabs-list">
           <Tabs.Trigger value="home" className="segmented-tabs-trigger">🏠 {t('tabs.home')}</Tabs.Trigger>
@@ -361,8 +373,9 @@ export default function App() {
           onOpenOverride={handleOpenOverride}
         />
       </Tabs.Root>
+      )}
 
-      {isMobile && (
+      {!isSettingsOpen && isMobile && (
         <nav className="mobile-tab-bar">
           {tabs.map(tab => (
             <button
@@ -401,16 +414,6 @@ export default function App() {
         onOpenOverride={handleOpenOverride} onResetPipeline={handleResetPipeline}
       />
 
-      <SettingsDrawer
-        isOpen={isSettingsOpen} onOpenChange={setIsSettingsOpen}
-        theme={theme} onSetTheme={setTheme}
-        reduceMotion={reduceMotion} onSetReduceMotion={setReduceMotion}
-        startupTab={startupTab} onSetStartupTab={setStartupTab} tabOptions={startupTabOptions}
-        playlistLimit={playlistLimit} onSetPlaylistLimit={setPlaylistLimit}
-        playlistView={playlistView} onSetPlaylistView={setPlaylistView}
-        filters={filters} filtersLoading={filtersLoading} onFetchFilters={fetchFilters}
-        onDeleteFilter={handleDeleteFilter} onOpenCreateFilter={() => setIsCreateFilterOpen(true)}
-      />
     </div>
   );
 }

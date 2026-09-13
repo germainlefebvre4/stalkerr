@@ -50,8 +50,15 @@ Only the fields actually baked into a long-lived object at process start are fla
 ### Bootstrap fields are read-only, not merely unenforced
 The settings API rejects a write attempt for any Tier-0 key (`database.*`, `api.port`, `metrics.port`, `metrics.enabled`) rather than silently ignoring it, so a misdirected client request fails loudly instead of appearing to succeed.
 
+### The Settings drawer is replaced by a dedicated Configuration page
+The existing right-anchored Settings drawer (`SettingsDrawer.tsx`) is retired outright rather than extended: with Radarr/Sonarr/TMDB/Jellyfin/Notifications/Downloads/logging fields and full M3U source management added on top of what it already held (Apparence, Langue, Filtres, Préférences, Système, À propos), a slide-out panel no longer gives enough room. The header settings icon instead navigates to a dedicated Configuration page/view, addressed the same way the existing Home/Downloads/Playlist/Logs tabs are (the app's existing tab/URL-state mechanism), but not itself shown in the tab bar — leaving it reachable only from the header icon, as the drawer was. Every section the drawer held moves to this page unchanged in substance; only their container changes.
+
+**Alternative considered**: keep the drawer and let its sections scroll (rejected — a CRUD table for M3U sources and ~25 scalar fields across four integrations is a poor fit for a narrow slide-out panel, and would make the drawer the single most complex piece of frontend UI in the app despite being sized as an overlay).
+
 ### Sensitive field masking
 The settings API never returns a sensitive field's raw value (override or config-resolved) — only whether one is set. The frontend's input for such a field starts empty/masked and only submits an override when the user types a new value (see `frontend-app-settings-management`).
+
+`m3u_source_configs.auth_password` follows the same "never return the raw value" rule but isn't part of the field registry (M3U sources are a separate, list-shaped table), so it uses its own presence/absence convention instead of the registry's masked-boolean response: a read reports only whether a password is set, and a write treats the field's absence from the request as "keep the current one," an explicit empty value as "clear it," and any other value as a new password (see `m3u-source-overrides`'s "Sensitive Source Field Masking"). This mirrors the write-only secret field pattern used by GitHub/Stripe/Kubernetes-style APIs, and was chosen over an earlier "masked sentinel string" draft specifically to avoid a real value ever colliding with the sentinel.
 
 ## Risks / Trade-offs
 

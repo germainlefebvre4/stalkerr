@@ -11,6 +11,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/logger"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/glefebvre/stalkeer/internal/shutdown"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +30,7 @@ filters, and statistics.`,
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Get()
+		cfg := settings.Effective()
 
 		// An explicit --port flag always takes precedence over config.yml / API_PORT / STALKEER_API_PORT.
 		port := cfg.API.Port

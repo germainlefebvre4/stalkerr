@@ -13,13 +13,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glefebvre/stalkeer/internal/classifier"
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/fileparser"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"gorm.io/gorm"
 )
 
@@ -300,7 +300,7 @@ func matchesSingleProblem(resp DownloadEnrichedResponse, filter string) bool {
 
 // getConfigPaths returns configured default storage directories
 func (s *Server) getConfigPaths(c *gin.Context) {
-	cfg := config.Get()
+	cfg := settings.Effective()
 	c.JSON(http.StatusOK, gin.H{
 		"movies_path":  cfg.Downloads.MoviesPath,
 		"tvshows_path": cfg.Downloads.TVShowsPath,

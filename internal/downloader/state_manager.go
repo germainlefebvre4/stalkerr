@@ -6,11 +6,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/glefebvre/stalkeer/internal/database"
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
-	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"gorm.io/gorm"
 )
 
@@ -192,7 +192,7 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 		updates["retry_count"] = newRetryCount
 		updates["last_retry_at"] = now
 
-		maxRetries := config.Get().Downloads.MaxRetryAttempts
+		maxRetries := settings.Effective().Downloads.MaxRetryAttempts
 		if maxRetries > 0 && newRetryCount >= maxRetries {
 			cancelled = true
 			updates["status"] = string(models.DownloadStatusCancelled)

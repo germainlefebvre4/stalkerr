@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/classifier"
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/filter"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/parser"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"gorm.io/gorm"
 )
 
@@ -85,7 +85,7 @@ func NewProcessor(filePath, sourceName string) (*Processor, error) {
 	}
 	// Initialize TMDB client if enabled
 	var tmdbClient *tmdb.Client
-	cfg := config.Get()
+	cfg := settings.Effective()
 	if cfg.TMDB.Enabled && cfg.TMDB.APIKey != "" {
 		tmdbClient = tmdb.NewClient(tmdb.Config{
 			APIKey:            cfg.TMDB.APIKey,
@@ -286,7 +286,7 @@ func (p *Processor) setContentType(line *models.ProcessedLine, classification cl
 	// Determine language for TMDB
 	language := opts.TMDBLanguage
 	if language == "" {
-		cfg := config.Get()
+		cfg := settings.Effective()
 		language = cfg.TMDB.Language
 		if language == "" {
 			language = "en-US"

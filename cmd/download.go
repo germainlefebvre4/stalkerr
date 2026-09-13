@@ -22,6 +22,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/notifier"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
@@ -63,7 +64,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Get()
+		cfg := settings.Effective()
 
 		if parallel <= 0 {
 			parallel = cfg.Downloads.MaxParallel
