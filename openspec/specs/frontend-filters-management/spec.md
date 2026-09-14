@@ -6,10 +6,10 @@ Provides the frontend UI for managing runtime filter overrides — viewing activ
 ## Requirements
 
 ### Requirement: Filters List View
-The frontend SHALL provide a collapsible "Filtres" section within the Configuration page, collapsed by default, that groups filter configuration by target attribute (Group Title, TVG Name). Expanding the section SHALL query `GET /api/v1/filters` for the active runtime override and the origin configuration endpoint for the `config.yml`-defined patterns, and SHALL render both: the origin patterns (read-only, labeled as origin/system) and the active runtime override, if any (labeled as an active override), so the user can see at a glance which configuration is currently in effect for that attribute.
+The frontend SHALL provide a "Filtres" section within the Configuration page's "Contenu" tab that groups filter configuration by target attribute (Group Title, TVG Name). Viewing the section SHALL query `GET /api/v1/filters` for the active runtime override and the origin configuration endpoint for the `config.yml`-defined patterns, and SHALL render both: the origin patterns (read-only, labeled as origin/system) and the active runtime override, if any (labeled as an active override), so the user can see at a glance which configuration is currently in effect for that attribute.
 
 #### Scenario: View current filter configurations
-- **WHEN** the user opens the Configuration page and expands the "Filtres" section
+- **WHEN** the user views the "Contenu" tab's "Filtres" section
 - **THEN** the frontend SHALL fetch both the origin configuration and the active runtime overrides, and render one section per attribute (Group Title, TVG Name) showing the origin include/exclude patterns and, if present, the active override's name and include/exclude patterns
 
 #### Scenario: Attribute with no active override
@@ -21,14 +21,14 @@ The frontend SHALL provide a collapsible "Filtres" section within the Configurat
 - **THEN** the frontend SHALL visually distinguish the origin patterns (labeled as origin/system) from the active override (labeled as an active override), making clear that the override is what is currently applied
 
 ### Requirement: Create Filter Configuration
-The frontend SHALL allow creating a new filter configuration via a modern popup dialog using Radix UI `Dialog` primitives, submitting a `POST` request to `/api/v1/filters` on confirmation. If the `POST` request fails, the backend response SHALL include a distinct machine-readable error code of `"filter_create_failed"` (rather than a generic error code) so the frontend can render a specific, translated error message in the dialog instead of a generic one. The dialog SHALL provide a way to load the currently active configuration (the active override if one exists, otherwise the origin configuration) for the selected attribute into the Include/Exclude fields, and SHALL warn the user before submission if an active override for the selected attribute will be replaced.
+The frontend SHALL allow creating a new filter configuration via a popup dialog using Radix UI `Dialog` primitives, opened from a trigger in the "Filtres" section's own header, submitting a `POST` request to `/api/v1/filters` on confirmation. If the `POST` request fails, the backend response SHALL include a distinct machine-readable error code of `"filter_create_failed"` (rather than a generic error code) so the frontend can render a specific, translated error message in the dialog instead of a generic one. The dialog SHALL provide a way to load the currently active configuration (the active override if one exists, otherwise the origin configuration) for the selected attribute into the Include/Exclude fields, and SHALL warn the user, via an inline warning banner within the dialog, before submission if an active override for the selected attribute will be replaced. This trigger, dialog layout, and inline replace-warning presentation SHALL be the same shared pattern used by the Sources M3U creation dialog (see `frontend-app-settings-management`).
 
 #### Scenario: Successfully create a new inclusion filter
-- **WHEN** the user opens the "Créer Filtre" dialog, inputs name, selects attribute, adds inclusion patterns, and clicks "Enregistrer"
+- **WHEN** the user opens the "Filtres" section's create dialog, inputs name, selects attribute, adds inclusion patterns, and clicks "Enregistrer"
 - **THEN** the frontend SHALL submit a `POST` request to `/api/v1/filters`, display a success notification, close the dialog, and refresh the filters list
 
 #### Scenario: Filter creation fails
-- **WHEN** the user submits the "Créer Filtre" dialog and the `POST /api/v1/filters` request fails (e.g. a duplicate name)
+- **WHEN** the user submits the create dialog and the `POST /api/v1/filters` request fails (e.g. a duplicate name)
 - **THEN** the backend SHALL respond with `ErrorResponse.error` set to `"filter_create_failed"`, and the frontend SHALL display the translated message for that code inline in the dialog instead of the raw backend `message` text
 
 #### Scenario: Load the currently active configuration into the form
@@ -36,8 +36,8 @@ The frontend SHALL allow creating a new filter configuration via a modern popup 
 - **THEN** the frontend SHALL populate the Include and Exclude fields with the active runtime override's patterns for that attribute if one exists, or with the origin `config.yml` patterns for that attribute otherwise, leaving the fields editable
 
 #### Scenario: Warning before replacing an existing active override
-- **WHEN** the user selects an attribute that already has an active runtime override and submits the "Créer Filtre" form
-- **THEN** the frontend SHALL display a warning that the existing active override for that attribute will be replaced before the request is submitted
+- **WHEN** the user selects an attribute that already has an active runtime override and submits the create dialog
+- **THEN** the frontend SHALL display an inline warning banner within the dialog that the existing active override for that attribute will be replaced before the request is submitted
 
 ### Requirement: Delete Filter Configuration
 The frontend SHALL allow deleting an existing filter configuration via a delete button on each filter card, which triggers a `DELETE` request to `/api/v1/filters/:id` on confirmation.
