@@ -1,35 +1,53 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FilterConfig } from '../types';
+import { FilterConfig, FilterOriginEntry } from '../types';
 
 interface FiltersSectionProps {
   isExpanded: boolean;
   filters: FilterConfig[];
+  filterOrigin: FilterOriginEntry[];
   filtersLoading: boolean;
-  onFetchFilters: () => void;
   onDeleteFilter: (id: number) => void;
   onOpenCreate: () => void;
+  searchQuery?: string;
 }
 
-// Content for the drawer's "Filtres" disclosure. Fetches on first expand
-// only, mirroring the Système section's fetch-on-expand behavior.
+const ATTRIBUTES = ['group_title', 'tvg_name'] as const;
+
+function joinPatterns(patterns: string[]): string {
+  return patterns.join(', ');
+}
+
+// The "Filtres" section within the Configuration page's "Contenu" tab: one
+// block per attribute (Group Title, TVG Name) showing the origin config.yml
+// patterns alongside the active runtime override, if any. See the Filters
+// List View requirement in frontend-filters-management.
 export function FiltersSection({
   isExpanded,
   filters,
+  filterOrigin,
   filtersLoading,
-  onFetchFilters,
   onDeleteFilter,
-  onOpenCreate
+  onOpenCreate,
+  searchQuery,
 }: FiltersSectionProps) {
   const { t } = useTranslation('filters');
 
-  useEffect(() => {
-    if (!isExpanded) return;
-    onFetchFilters();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded]);
-
   if (!isExpanded) return null;
+
+  const attributeLabel = (attribute: string) => (attribute === 'group_title' ? t('groupTitleLabel') : t('tvgNameLabel'));
+
+  const query = (searchQuery ?? '').trim().toLowerCase();
+  const groups = ATTRIBUTES
+    .map(attribute => ({
+      attribute,
+      origin: filterOrigin.find(o => o.attribute === attribute),
+      override: filters.find(f => f.attribute === attribute),
+    }))
+    .filter(group => {
+      if (!query) return true;
+      const label = attributeLabel(group.attribute).toLowerCase();
+      return label.includes(query) || (group.override?.name.toLowerCase().includes(query) ?? false);
+    });
 
   return (
     <div>
@@ -43,43 +61,55 @@ export function FiltersSection({
         </button>
       </div>
 
-      {filtersLoading && filters.length === 0 ? (
+      {filtersLoading && filterOrigin.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>{t('loading')}</div>
-      ) : filters.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-          <p style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{t('emptyTitle')}</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.25rem' }}>{t('emptySubtitle')}</p>
-        </div>
-      ) : (
+      ) : groups.length === 0 ? null : (
         <div className="filter-grid">
-          {filters.map(filter => (
-            <div key={filter.id} className="filter-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-slate)' }}>{filter.name}</h3>
-                  <span className="badge badge-progress" style={{ marginTop: '0.4rem', fontSize: '0.65rem', padding: '0.15rem 0.5rem' }}>
-                    {t('attribute', { attribute: filter.attribute })}
-                  </span>
-                </div>
-                <button onClick={() => onDeleteFilter(filter.id)} className="btn-danger" style={{ padding: '0.3rem 0.5rem' }} title={t('deleteTitle')}>
-                  {t('delete')}
-                </button>
-              </div>
+          {groups.map(({ attribute, origin, override }) => (
+            <div key={attribute} className="filter-card">
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-slate)' }}>{attributeLabel(attribute)}</h3>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
+                <span className="badge badge-neutral" style={{ alignSelf: 'flex-start', fontSize: '0.65rem' }}>
+                  {t('originLabel')}
+                </span>
                 <div>
                   <strong style={{ color: 'var(--status-success-text)' }}>{t('include')}</strong>
                   <code style={{ background: 'var(--status-success-bg)', padding: '0.15rem 0.4rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-                    {filter.include_patterns || t('includeAll')}
+                    {origin && origin.include_patterns.length > 0 ? joinPatterns(origin.include_patterns) : t('includeAll')}
                   </code>
                 </div>
                 <div>
                   <strong style={{ color: 'var(--status-failed-text)' }}>{t('exclude')}</strong>
                   <code style={{ background: 'var(--status-failed-bg)', padding: '0.15rem 0.4rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-                    {filter.exclude_patterns || t('excludeNone')}
+                    {origin && origin.exclude_patterns.length > 0 ? joinPatterns(origin.exclude_patterns) : t('excludeNone')}
                   </code>
                 </div>
               </div>
+
+              {override && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="badge badge-progress" style={{ fontSize: '0.65rem' }}>{t('overrideLabel')}</span>
+                    <button onClick={() => onDeleteFilter(override.id)} className="btn-danger" style={{ padding: '0.3rem 0.5rem' }} title={t('deleteTitle')}>
+                      {t('delete')}
+                    </button>
+                  </div>
+                  <div style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{override.name}</div>
+                  <div>
+                    <strong style={{ color: 'var(--status-success-text)' }}>{t('include')}</strong>
+                    <code style={{ background: 'var(--status-success-bg)', padding: '0.15rem 0.4rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+                      {override.include_patterns || t('includeAll')}
+                    </code>
+                  </div>
+                  <div>
+                    <strong style={{ color: 'var(--status-failed-text)' }}>{t('exclude')}</strong>
+                    <code style={{ background: 'var(--status-failed-bg)', padding: '0.15rem 0.4rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+                      {override.exclude_patterns || t('excludeNone')}
+                    </code>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

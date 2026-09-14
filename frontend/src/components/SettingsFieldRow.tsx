@@ -1,137 +1,131 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsField } from '../types';
+import * as Tooltip from '@radix-ui/react-tooltip';
+import { RotateCcw } from 'lucide-react';
+import { SettingsField, BootstrapField } from '../types';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
+import { ToggleSwitch } from './ToggleSwitch';
 
 interface SettingsFieldRowProps {
   label: string;
-  field: SettingsField;
+  field: SettingsField | BootstrapField;
   type?: 'text' | 'number' | 'boolean';
-  onSave: (value: unknown) => Promise<unknown>;
-  onClear: () => Promise<unknown>;
+  /** Read-only rendering: value + compact origin indicator, no edit/save/clear controls. */
+  readOnly?: boolean;
+  /** Controlled draft value (raw string, `'true'`/`'false'` for booleans). Defaults to the field's effective value. */
+  value?: string;
+  /** Whether this field currently has an unsaved staged change (owned by the enclosing group card). */
+  pending?: boolean;
+  onChange?: (raw: string) => void;
+  onClear?: () => Promise<unknown>;
 }
 
-function draftFromField(field: SettingsField): string {
+function draftFromField(field: SettingsField | BootstrapField): string {
   return field.sensitive ? '' : String(field.value ?? '');
 }
 
-// A single overridable settings field: shows its effective value, an
-// "Interface"/"Config" origin badge, and (for sensitive fields) a masked
-// input that only submits a change when the user explicitly types one. See
-// the frontend-app-settings-management spec.
-export function SettingsFieldRow({ label, field, type = 'text', onSave, onClear }: SettingsFieldRowProps) {
+function OriginIndicator({ isOverridden }: { isOverridden: boolean }) {
+  const { t } = useTranslation('settings');
+  const label = isOverridden ? t('origin.interface') : t('origin.config');
+
+  return (
+    <Tooltip.Provider delayDuration={150}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            className={`settings-origin-dot${isOverridden ? ' is-interface' : ' is-config'}`}
+            aria-label={label}
+          />
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content className="settings-origin-tooltip" sideOffset={4}>
+            {label}
+            <Tooltip.Arrow className="settings-origin-tooltip-arrow" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  );
+}
+
+// A single overridable settings field: shows its effective (or staged
+// pending) value, a compact origin indicator revealing "Interface"/"Config"
+// on hover/focus, and an icon-only reset-to-config control. Saving is owned
+// by the enclosing group card (see SettingsGroupCard) - this component only
+// reports draft changes upward via onChange. See frontend-app-settings-management.
+export function SettingsFieldRow({ label, field, type = 'text', readOnly = false, value, pending, onChange, onClear }: SettingsFieldRowProps) {
   const { t } = useTranslation('settings');
   const translateApiError = useApiErrorMessage();
-  const [draft, setDraft] = useState<string>(() => draftFromField(field));
-  const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Adjust the draft during render when the field's effective value changes
-  // from under us (e.g. another tab cleared the override) - the React-
-  // recommended alternative to a useEffect+setState pair for this exact
-  // "reset local state to match a changed prop" case.
-  const [lastFieldValue, setLastFieldValue] = useState(field.value);
-  if (!field.sensitive && field.value !== lastFieldValue) {
-    setLastFieldValue(field.value);
-    setDraft(draftFromField(field));
-  }
-
   const isOverridden = field.origin === 'interface';
-  const saveDisabled = saving || (field.sensitive && draft === '');
-
-  const handleSave = async () => {
-    // Sensitive fields must never submit a change unless the user typed
-    // into them: an empty draft here means "left unchanged".
-    if (field.sensitive && draft === '') return;
-
-    setSaving(true);
-    setError(null);
-    try {
-      let value: unknown = draft;
-      if (type === 'number') value = Number(draft);
-      if (type === 'boolean') value = draft === 'true';
-      await onSave(value);
-      if (field.sensitive) setDraft('');
-    } catch (err) {
-      setError(translateApiError(err));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const restartRequired = 'restart_required' in field && !!field.restart_required;
+  const draft = value ?? draftFromField(field);
 
   const handleClear = async () => {
-    setSaving(true);
+    if (!onClear) return;
+    setClearing(true);
     setError(null);
     try {
       await onClear();
-      setDraft('');
     } catch (err) {
       setError(translateApiError(err));
     } finally {
-      setSaving(false);
+      setClearing(false);
     }
   };
 
   return (
-    <div className="settings-field">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
+    <div className={`settings-field${pending ? ' is-pending' : ''}`}>
+      <div className="settings-field-row-header">
         <label className="settings-field-label" style={{ marginBottom: 0 }}>{label}</label>
-        <div style={{ display: 'flex', gap: '0.35rem' }}>
-          <span
-            className={`badge ${isOverridden ? 'badge-progress' : 'badge-muted'}`}
-            style={{ fontSize: '0.65rem' }}
-          >
-            {isOverridden ? t('origin.interface') : t('origin.config')}
-          </span>
-          {field.restart_required && (
+        <div className="settings-field-indicators">
+          {restartRequired && (
             <span className="badge badge-warning" style={{ fontSize: '0.65rem' }} title={t('restartRequired.hint')}>
               {t('restartRequired.label')}
             </span>
           )}
+          <OriginIndicator isOverridden={isOverridden} />
+          {!readOnly && isOverridden && onClear && (
+            <button
+              type="button"
+              className="settings-reset-icon-btn"
+              disabled={clearing}
+              onClick={handleClear}
+              title={t('resetToConfig')}
+              aria-label={t('resetToConfig')}
+            >
+              <RotateCcw size={14} />
+            </button>
+          )}
         </div>
       </div>
 
-      {type === 'boolean' ? (
-        <select className="custom-select" value={draft || 'false'} onChange={e => setDraft(e.target.value)}>
-          <option value="true">{t('boolean.true')}</option>
-          <option value="false">{t('boolean.false')}</option>
-        </select>
+      {readOnly ? (
+        <div className="custom-input settings-readonly-value" aria-readonly="true">
+          {field.sensitive ? (field.is_set ? t('sensitive.set') : t('sensitive.notSet')) : String(field.value ?? '')}
+        </div>
+      ) : type === 'boolean' ? (
+        <ToggleSwitch
+          checked={draft === 'true'}
+          onChange={checked => onChange?.(checked ? 'true' : 'false')}
+          ariaLabel={label}
+        />
       ) : (
         <input
           type={field.sensitive ? 'password' : type === 'number' ? 'number' : 'text'}
           className="custom-input"
           value={draft}
           placeholder={field.sensitive ? (field.is_set ? t('sensitive.set') : t('sensitive.notSet')) : undefined}
-          onChange={e => setDraft(e.target.value)}
+          onChange={e => onChange?.(e.target.value)}
         />
       )}
 
       {error && (
         <p className="settings-field-hint" style={{ color: 'var(--status-failed-text)' }}>{error}</p>
       )}
-
-      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem' }}>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={saveDisabled}
-          onClick={handleSave}
-          style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-        >
-          {saving ? t('saving') : t('save')}
-        </button>
-        {isOverridden && (
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={saving}
-            onClick={handleClear}
-            style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem' }}
-          >
-            {t('resetToConfig')}
-          </button>
-        )}
-      </div>
     </div>
   );
 }

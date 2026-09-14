@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { M3uSource, M3uSourceInput } from '../types';
 import { M3uSourceDialog } from './M3uSourceDialog';
@@ -8,29 +8,26 @@ interface M3uSourcesSectionProps {
   sources: M3uSource[];
   originNames: Set<string>;
   loading: boolean;
-  onFetchSources: () => void;
   onCreate: (name: string, input: M3uSourceInput) => Promise<void>;
   onUpdate: (name: string, input: M3uSourceInput) => Promise<void>;
   onDelete: (name: string) => Promise<void>;
+  searchQuery?: string;
 }
 
 export function M3uSourcesSection({
-  isExpanded, sources, originNames, loading, onFetchSources, onCreate, onUpdate, onDelete,
+  isExpanded, sources, originNames, loading, onCreate, onUpdate, onDelete, searchQuery,
 }: M3uSourcesSectionProps) {
   const { t } = useTranslation('settings');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSource, setEditingSource] = useState<M3uSource | null>(null);
 
-  useEffect(() => {
-    if (!isExpanded) return;
-    onFetchSources();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded]);
-
   if (!isExpanded) return null;
 
   const runtimeOnlyNames = sources.filter(s => s.is_runtime && !originNames.has(s.name)).map(s => s.name);
   const existingNames = sources.map(s => s.name);
+
+  const query = (searchQuery ?? '').trim().toLowerCase();
+  const visibleSources = query ? sources.filter(s => s.name.toLowerCase().includes(query)) : sources;
 
   const openCreate = () => {
     setEditingSource(null);
@@ -65,9 +62,9 @@ export function M3uSourcesSection({
         <div style={{ textAlign: 'center', padding: '2rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
           <p style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{t('m3uSources.emptyTitle')}</p>
         </div>
-      ) : (
+      ) : visibleSources.length === 0 ? null : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {sources.map(source => (
+          {visibleSources.map(source => (
             <div key={source.name} className="filter-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>

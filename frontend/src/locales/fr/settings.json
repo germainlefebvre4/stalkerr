@@ -20,6 +20,22 @@
     "system": "Système",
     "about": "À propos"
   },
+  "tabs": {
+    "general": "Général",
+    "integrations": "Intégrations",
+    "content": "Contenu",
+    "notifications": "Notifications",
+    "advanced": "Avancé",
+    "system": "Système"
+  },
+  "overview": {
+    "noOverrides": "Aucun paramètre n'est actuellement surchargé.",
+    "totalOverrides": "{{count}} surcharges actives",
+    "restartRequired": "{{count}} nécessitent un redémarrage"
+  },
+  "search": {
+    "placeholder": "Rechercher un paramètre…"
+  },
   "language": {
     "label": "Langue",
     "en": "Anglais",
@@ -149,7 +165,7 @@
     "retentionCountLabel": "Nombre d'archives conservées",
     "retryAttemptsLabel": "Tentatives de nouvel essai",
     "enabledLabel": "Téléchargement activé",
-    "confirmReplaceRuntime": "« {{name}} » existe déjà en tant que source créée ici. L'enregistrement la remplacera. Continuer ?",
+    "confirmReplaceRuntime": "« {{name}} » existe déjà en tant que source créée ici. L'enregistrement la remplacera.",
     "confirmDelete": "Supprimer la surcharge stockée pour « {{name}} » ? Si elle venait de config.yml, elle reviendra à cette définition."
   },
   "preferences": {

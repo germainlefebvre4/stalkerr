@@ -1,16 +1,18 @@
 import { useState, useCallback } from 'react';
 import { api } from '../services/api';
-import { FilterConfig } from '../types';
+import { FilterConfig, FilterOriginEntry } from '../types';
 
 export function useFilters() {
   const [filters, setFilters] = useState<FilterConfig[]>([]);
+  const [filterOrigin, setFilterOrigin] = useState<FilterOriginEntry[]>([]);
   const [filtersLoading, setFiltersLoading] = useState(false);
 
   const fetchFilters = useCallback(() => {
     setFiltersLoading(true);
-    api.getFilters()
-      .then(data => {
-        setFilters(data.filters || []);
+    return Promise.all([api.getFilters(), api.getFilterOrigin()])
+      .then(([filtersRes, originRes]) => {
+        setFilters(filtersRes.filters || []);
+        setFilterOrigin(originRes.origin || []);
       })
       .catch(() => {})
       .finally(() => setFiltersLoading(false));
@@ -23,6 +25,7 @@ export function useFilters() {
 
   return {
     filters,
+    filterOrigin,
     filtersLoading,
     fetchFilters,
     deleteFilter,

@@ -138,6 +138,15 @@ type UpdateFilterRequest struct {
 	ExcludePatterns *string `json:"exclude_patterns,omitempty"`
 }
 
+// FilterOriginEntry represents the config.yml-defined origin filter patterns
+// for one attribute. See filter-override-policy's "Origin Filter
+// Configuration Exposure" requirement.
+type FilterOriginEntry struct {
+	Attribute       string   `json:"attribute"`
+	IncludePatterns []string `json:"include_patterns"`
+	ExcludePatterns []string `json:"exclude_patterns"`
+}
+
 // OverrideItemRequest represents the payload to manually override a VOD item match
 type OverrideItemRequest struct {
 	TMDBID  int    `json:"tmdb_id" binding:"required"`

@@ -1033,6 +1033,262 @@ input, select {
   margin: 0;
 }
 
+/* --- Configuration page (redesign-configuration-page): tabs, summary
+   banner, search, and the card/grid layout for overridable field groups --- */
+
+.configuration-summary-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.25rem;
+  margin: 0 auto 1.25rem;
+  max-width: 960px;
+  box-shadow: var(--shadow-sm);
+}
+
+.configuration-summary-banner-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.configuration-summary-banner-counts {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-tabs-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  background-color: var(--tabs-well-bg);
+  padding: 0.35rem;
+  border-radius: var(--radius-md);
+  gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--tabs-well-border);
+}
+
+.settings-tab-badge {
+  margin-left: 0.35rem;
+}
+
+.settings-tab-restart-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--status-pending-text);
+  margin-left: 0.3rem;
+}
+
+.settings-search-input-wrap {
+  max-width: 960px;
+  margin: 0 auto 1.25rem;
+  position: relative;
+}
+
+.settings-search-input {
+  width: 100%;
+  padding-left: 2.25rem;
+}
+
+.settings-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.settings-tab-panel {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.settings-cards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.settings-group-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-group-card--compact {
+  flex: 1 1 280px;
+  min-width: 280px;
+}
+
+.settings-group-card--full {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.settings-group-card-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-slate);
+  margin: 0 0 0.85rem;
+}
+
+.settings-group-card-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem 1.25rem;
+}
+
+.settings-field-full {
+  grid-column: 1 / -1;
+}
+
+.settings-field-compact {
+  min-width: 0;
+}
+
+.settings-group-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-field.is-pending .settings-field-label::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--status-pending-text);
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
+.settings-field-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.settings-field-indicators {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.settings-origin-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: default;
+  background-color: var(--status-neutral-border);
+}
+
+.settings-origin-dot.is-interface {
+  background-color: var(--primary-accent);
+}
+
+.settings-origin-dot.is-config {
+  background-color: var(--border-color-strong);
+}
+
+.settings-origin-dot:focus-visible {
+  outline: 2px solid var(--primary-accent);
+  outline-offset: 2px;
+}
+
+.settings-origin-tooltip {
+  background-color: var(--primary-slate);
+  color: var(--bg-card);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+}
+
+.settings-origin-tooltip-arrow {
+  fill: var(--primary-slate);
+}
+
+.settings-reset-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.settings-reset-icon-btn:hover:not(:disabled) {
+  color: var(--primary-accent);
+  border-color: var(--primary-accent);
+}
+
+.settings-reset-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-readonly-value {
+  opacity: 0.7;
+  cursor: not-allowed;
+  user-select: text;
+}
+
+.badge-warning {
+  background-color: var(--status-pending-bg);
+  color: var(--status-pending-text);
+  border-color: var(--status-pending-border);
+}
+
+/* Shared inline "this will replace an existing item" warning banner, used by
+   the unified Filtres/Sources M3U create dialogs. */
+.dialog-warning-banner {
+  padding: 0.75rem 1rem;
+  background-color: var(--status-pending-bg);
+  color: var(--status-pending-text);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--status-pending-border);
+}
+
+@media (max-width: 767.98px) {
+  .settings-tabs-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-tabs-list .segmented-tabs-trigger {
+    flex-shrink: 0;
+  }
+}
+
 /* Full-width table on desktop, flush with the surrounding card's padding */
 @media (min-width: 768px) {
   .table-flush {

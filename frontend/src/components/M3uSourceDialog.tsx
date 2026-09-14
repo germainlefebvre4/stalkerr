@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { M3uSource, M3uSourceInput } from '../types';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
+import { DialogReplaceWarning } from './DialogReplaceWarning';
 
 interface M3uSourceDialogProps {
   isOpen: boolean;
@@ -64,15 +65,13 @@ export function M3uSourceDialog({ isOpen, onOpenChange, source, existingNames, r
     }
   }, [isOpen, source]);
 
+  const willReplaceRuntime = !isEdit && runtimeOnlyNames.includes(name);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError(t('m3uSources.nameRequired'));
       return;
-    }
-
-    if (!isEdit && runtimeOnlyNames.includes(name)) {
-      if (!confirm(t('m3uSources.confirmReplaceRuntime', { name }))) return;
     }
 
     setSaving(true);
@@ -119,6 +118,10 @@ export function M3uSourceDialog({ isOpen, onOpenChange, source, existingNames, r
                 </p>
               )}
             </div>
+
+            {willReplaceRuntime && (
+              <DialogReplaceWarning message={t('m3uSources.confirmReplaceRuntime', { name })} />
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label htmlFor="m3u-source-file-path" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('m3uSources.filePathLabel')}</label>

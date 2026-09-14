@@ -11,5 +11,9 @@
   "include": "🟢 Include: ",
   "includeAll": "* (Accept all)",
   "exclude": "🔴 Exclude: ",
-  "excludeNone": "- (None)"
+  "excludeNone": "- (None)",
+  "groupTitleLabel": "Group Title",
+  "tvgNameLabel": "TVG Name",
+  "originLabel": "Origin (config.yml)",
+  "overrideLabel": "Active override"
 }

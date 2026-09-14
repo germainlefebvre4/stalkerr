@@ -20,6 +20,22 @@
     "system": "System",
     "about": "About"
   },
+  "tabs": {
+    "general": "General",
+    "integrations": "Integrations",
+    "content": "Content",
+    "notifications": "Notifications",
+    "advanced": "Advanced",
+    "system": "System"
+  },
+  "overview": {
+    "noOverrides": "No settings are currently overridden.",
+    "totalOverrides": "{{count}} active overrides",
+    "restartRequired": "{{count}} require a restart"
+  },
+  "search": {
+    "placeholder": "Search settings…"
+  },
   "language": {
     "label": "Language",
     "en": "English",
@@ -149,7 +165,7 @@
     "retentionCountLabel": "Archive retention count",
     "retryAttemptsLabel": "Retry attempts",
     "enabledLabel": "Download enabled",
-    "confirmReplaceRuntime": "\"{{name}}\" already exists as a source created here. Saving will replace it. Continue?",
+    "confirmReplaceRuntime": "\"{{name}}\" already exists as a source created here. Saving will replace it.",
     "confirmDelete": "Delete the stored override for \"{{name}}\"? If it came from config.yml, it will revert to that definition."
   },
   "preferences": {

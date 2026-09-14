@@ -198,6 +198,7 @@ func (s *Server) setupRoutes() {
 		filters := v1.Group("/filters")
 		{
 			filters.GET("", s.listFilters)
+			filters.GET("/origin", s.listOriginFilters)
 			filters.POST("", s.createFilter)
 			filters.PATCH("/:id", s.updateFilter)
 			filters.DELETE("/:id", s.deleteFilter)

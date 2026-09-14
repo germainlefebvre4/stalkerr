@@ -55,8 +55,9 @@ function DiskUsageRow({ entry, t }: { entry: DiskUsageEntry; t: (key: string) =>
   );
 }
 
-// Content for the drawer's "Système" disclosure. Fetches only while expanded:
-// no request before the first expand, and a fresh one on every re-expand.
+// Content for the Configuration page's "Système" tab. Fetches only while
+// active: no request before the tab's first activation, and a fresh one on
+// every re-activation.
 export function SystemStatusSection({ isExpanded }: SystemStatusSectionProps) {
   const { t } = useTranslation('dialogs');
   const { status, loading, error, fetchStatus } = useSystemStatus();

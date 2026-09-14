@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/dryrun"
 	"github.com/glefebvre/stalkeer/internal/models"
@@ -353,6 +354,38 @@ func (s *Server) getTVShow(c *gin.Context) {
 	c.JSON(http.StatusOK, toTVShowResponse(tvShow))
 }
 
+// nonNilStringSlice returns s, or an empty (non-nil) slice when s is nil, so
+// the JSON response always carries a list rather than null.
+func nonNilStringSlice(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// listOriginFilters returns the config.yml-defined origin filter patterns
+// for each supported attribute (group_title, tvg_name), independently of
+// whether a runtime override currently exists for it. See
+// filter-override-policy's "Origin Filter Configuration Exposure".
+func (s *Server) listOriginFilters(c *gin.Context) {
+	cfg := config.Get()
+
+	origin := []FilterOriginEntry{
+		{
+			Attribute:       "group_title",
+			IncludePatterns: nonNilStringSlice(cfg.Filter.GroupTitle.IncludePatterns),
+			ExcludePatterns: nonNilStringSlice(cfg.Filter.GroupTitle.ExcludePatterns),
+		},
+		{
+			Attribute:       "tvg_name",
+			IncludePatterns: nonNilStringSlice(cfg.Filter.TvgName.IncludePatterns),
+			ExcludePatterns: nonNilStringSlice(cfg.Filter.TvgName.ExcludePatterns),
+		},
+	}
+
+	c.JSON(http.StatusOK, gin.H{"origin": origin})
+}
+
 // listFilters returns all filter configurations
 func (s *Server) listFilters(c *gin.Context) {
 	db := database.Get()
@@ -397,7 +430,16 @@ func (s *Server) createFilter(c *gin.Context) {
 		IsRuntime:       true,
 	}
 
-	if err := db.Create(&filter).Error; err != nil {
+	// Enforce at most one active runtime override per attribute: replace any
+	// existing one for this attribute instead of letting both remain active.
+	// See filter-override-policy's "Single Active Runtime Override Per Attribute".
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("attribute = ?", req.Attribute).Delete(&models.FilterConfig{}).Error; err != nil {
+			return err
+		}
+		return tx.Create(&filter).Error
+	})
+	if err != nil {
 		respondError(c, http.StatusInternalServerError, "filter_create_failed", "failed to create filter")
 		return
 	}
@@ -434,6 +476,16 @@ func (s *Server) updateFilter(c *gin.Context) {
 		if *req.Attribute != "group_title" && *req.Attribute != "tvg_name" {
 			respondError(c, http.StatusBadRequest, "invalid_attribute", "attribute must be 'group_title' or 'tvg_name'")
 			return
+		}
+		if *req.Attribute != filter.Attribute {
+			// Moving onto an attribute that already has a different active
+			// override: replace it rather than allowing both to remain
+			// active. See filter-override-policy's "Single Active Runtime
+			// Override Per Attribute".
+			if err := db.Where("attribute = ? AND id != ?", *req.Attribute, filter.ID).Delete(&models.FilterConfig{}).Error; err != nil {
+				respondError(c, http.StatusInternalServerError, "database_error", "failed to replace existing filter")
+				return
+			}
 		}
 		filter.Attribute = *req.Attribute
 	}

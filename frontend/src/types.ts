@@ -171,6 +171,12 @@ export interface FilterConfig {
   is_runtime: boolean;
 }
 
+export interface FilterOriginEntry {
+  attribute: string;
+  include_patterns: string[];
+  exclude_patterns: string[];
+}
+
 export interface OccurrenceResponse {
   id: number;
   resolution?: string;

@@ -23,6 +23,13 @@ import { resolveRenameFolderName } from './utils/renameDialog';
 
 const VALID_TABS = ['home', 'playlist', 'logs', 'downloads', 'radarr-sonarr', 'errors'];
 
+// The Configuration page is a recognized value of this same `tab` URL param
+// (e.g. `?tab=settings`), alongside the main Home/Downloads/Playlist/Logs
+// tabs - see the Configuration Page Container requirement. It is not part of
+// VALID_TABS since it isn't a "main tab" the app should ever start on, and
+// is deliberately excluded from `stalkeer_active_tab`'s persisted value.
+const CONFIGURATION_TAB = 'settings';
+
 // The Erreurs tab is desktop-only: it's not part of the mobile bottom tab
 // bar, so falling back off it while narrowing the viewport lands here.
 const MOBILE_FALLBACK_TAB = 'home';
@@ -32,19 +39,19 @@ const TAB_URL_SCHEMA = {
     default: 'home',
     parse: (raw: string) => raw,
     serialize: (v: string) => v,
-    isValid: (v: string) => VALID_TABS.includes(v),
+    isValid: (v: string) => VALID_TABS.includes(v) || v === CONFIGURATION_TAB,
   },
 } satisfies URLStateSchema;
 
 function readInitialActiveTab(): string {
   const urlTab = new URLSearchParams(window.location.search).get('tab');
-  if (urlTab && VALID_TABS.includes(urlTab)) return urlTab;
+  if (urlTab && (VALID_TABS.includes(urlTab) || urlTab === CONFIGURATION_TAB)) return urlTab;
 
   const storedTab = localStorage.getItem('stalkeer_active_tab');
   return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'home';
 }
 
-// The Settings drawer's Préférences section lets the user set this same
+// The Configuration page's Préférences card lets the user set this same
 // localStorage key without navigating the current session; this reads it
 // independently of any `?tab=` URL override, which only affects this load's
 // active tab, not the persisted startup default shown in that selector.
@@ -80,8 +87,25 @@ import { ConfigurationPage } from './components/ConfigurationPage';
 export default function App() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState(readInitialActiveTab);
+  const [activeTab, setActiveTabState] = useState(readInitialActiveTab);
   const [, patchTabURLState] = useURLState(TAB_URL_SCHEMA);
+
+  // The main tab to return to when the Configuration page is closed - see
+  // the Configuration Page Container requirement's "explicit way to return
+  // to the tab that was active in the main app before the settings icon was
+  // clicked". Tracked separately from `activeTab` (which becomes "settings"
+  // while Configuration is open) so Close always restores the right tab
+  // regardless of which Configuration-page tab was last active.
+  const previousMainTabRef = useRef(
+    activeTab === CONFIGURATION_TAB ? readStoredStartupTab() : activeTab
+  );
+
+  const setActiveTab = (tab: string) => {
+    if (tab !== CONFIGURATION_TAB) previousMainTabRef.current = tab;
+    setActiveTabState(tab);
+  };
+
+  const isSettingsOpen = activeTab === CONFIGURATION_TAB;
 
   const { notification, showToast } = useToast();
   const { theme, setTheme } = useTheme();
@@ -110,7 +134,7 @@ export default function App() {
     playlistTMDBFilter
   );
 
-  const { filters, filtersLoading, fetchFilters, deleteFilter } = useFilters();
+  const { filters, filterOrigin, filtersLoading, fetchFilters, deleteFilter } = useFilters();
   const { logs, logsLoading, fetchLogs } = useLogs(activeTab === 'logs');
   
   const {
@@ -148,11 +172,14 @@ export default function App() {
   const overrideExtraSuccessRef = useRef<(() => void) | null>(null);
   const [isRunItemsOpen, setIsRunItemsOpen] = useState(false);
   const [selectedRunLog, setSelectedRunLog] = useState<ProcessingLog | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [startupTab, setStartupTabState] = useState<string>(readStoredStartupTab);
 
   useEffect(() => {
-    localStorage.setItem('stalkeer_active_tab', activeTab);
+    // The Configuration page's own "settings" value is deliberately excluded
+    // from this persisted startup-tab preference - see CONFIGURATION_TAB.
+    if (activeTab !== CONFIGURATION_TAB) {
+      localStorage.setItem('stalkeer_active_tab', activeTab);
+    }
     patchTabURLState({ tab: activeTab });
   }, [activeTab, patchTabURLState]);
 
@@ -288,17 +315,17 @@ export default function App() {
         </div>
       )}
 
-      <FloatingHeader onOpenSettings={() => setIsSettingsOpen(true)} />
+      <FloatingHeader onOpenSettings={() => setActiveTab(CONFIGURATION_TAB)} />
 
       {isSettingsOpen ? (
         <ConfigurationPage
-          onBack={() => setIsSettingsOpen(false)}
+          onBack={() => setActiveTab(previousMainTabRef.current)}
           theme={theme} onSetTheme={setTheme}
           reduceMotion={reduceMotion} onSetReduceMotion={setReduceMotion}
           startupTab={startupTab} onSetStartupTab={setStartupTab} tabOptions={startupTabOptions}
           playlistLimit={playlistLimit} onSetPlaylistLimit={setPlaylistLimit}
           playlistView={playlistView} onSetPlaylistView={setPlaylistView}
-          filters={filters} filtersLoading={filtersLoading} onFetchFilters={fetchFilters}
+          filters={filters} filterOrigin={filterOrigin} filtersLoading={filtersLoading} onFetchFilters={fetchFilters}
           onDeleteFilter={handleDeleteFilter} onOpenCreateFilter={() => setIsCreateFilterOpen(true)}
         />
       ) : (
@@ -392,7 +419,13 @@ export default function App() {
         </nav>
       )}
 
-      <CreateFilterDialog isOpen={isCreateFilterOpen} onOpenChange={setIsCreateFilterOpen} onSuccess={(msg) => { showToast(msg); fetchFilters(); }} />
+      <CreateFilterDialog
+        isOpen={isCreateFilterOpen}
+        onOpenChange={setIsCreateFilterOpen}
+        onSuccess={(msg) => { showToast(msg); fetchFilters(); }}
+        filters={filters}
+        filterOrigin={filterOrigin}
+      />
       
       <MoveFolderDialog isOpen={isMoveOpen} onOpenChange={setIsMoveOpen} moveItem={moveItem} configPaths={configPaths} onSuccess={(msg) => { showToast(msg); fetchDownloads(); fetchStats(); }} />
 

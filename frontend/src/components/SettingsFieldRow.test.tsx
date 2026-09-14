@@ -3,15 +3,17 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { SettingsFieldRow } from './SettingsFieldRow';
-import { SettingsField } from '../types';
+import { SettingsField, BootstrapField } from '../types';
 
-function renderRow(field: SettingsField, onSave = vi.fn(), onClear = vi.fn(), type: 'text' | 'number' | 'boolean' = 'text') {
+function renderRow(props: Partial<Parameters<typeof SettingsFieldRow>[0]> & { field: SettingsField | BootstrapField }) {
+  const onChange = vi.fn();
+  const onClear = vi.fn().mockResolvedValue(undefined);
   render(
     <I18nextProvider i18n={i18n}>
-      <SettingsFieldRow label="API key" field={field} type={type} onSave={onSave} onClear={onClear} />
+      <SettingsFieldRow label="API key" onChange={onChange} onClear={onClear} {...props} />
     </I18nextProvider>
   );
-  return { onSave, onClear };
+  return { onChange, onClear };
 }
 
 const sensitiveUnset: SettingsField = {
@@ -26,53 +28,74 @@ const plainField: SettingsField = {
 const restartRequiredField: SettingsField = {
   key: 'tmdb.api_key', is_set: false, sensitive: true, origin: 'config', restart_required: true,
 };
+const booleanField: SettingsField = {
+  key: 'radarr.enabled', value: true, sensitive: false, origin: 'config', restart_required: false,
+};
 
 describe('SettingsFieldRow', () => {
   afterEach(() => cleanup());
 
   it('never displays the raw value for a sensitive field, only whether one is set', () => {
-    renderRow(sensitiveSet);
+    renderRow({ field: sensitiveSet });
     expect(screen.getByPlaceholderText('Set')).toBeInTheDocument();
-    renderRow(sensitiveUnset);
+    cleanup();
+    renderRow({ field: sensitiveUnset });
     expect(screen.getByPlaceholderText('Not set')).toBeInTheDocument();
   });
 
-  it('does not submit any change when a sensitive field is left untouched', () => {
-    const { onSave } = renderRow(sensitiveSet);
-    fireEvent.click(screen.getByText('Save'));
-    expect(onSave).not.toHaveBeenCalled();
-  });
-
-  it('submits the typed value when a sensitive field is edited', () => {
-    const { onSave } = renderRow(sensitiveUnset);
+  it('reports typed changes upward without any save button', () => {
+    const { onChange } = renderRow({ field: sensitiveUnset });
     const input = screen.getByPlaceholderText('Not set');
     fireEvent.change(input, { target: { value: 'new-secret-key' } });
-    fireEvent.click(screen.getByText('Save'));
-    expect(onSave).toHaveBeenCalledWith('new-secret-key');
+    expect(onChange).toHaveBeenCalledWith('new-secret-key');
+    expect(screen.queryByText('Save')).not.toBeInTheDocument();
+  });
+
+  it('renders a toggle switch for boolean fields', () => {
+    const { onChange } = renderRow({ field: booleanField, type: 'boolean', value: 'true' });
+    const checkbox = screen.getByRole('checkbox');
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    expect(onChange).toHaveBeenCalledWith('false');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
   it('shows the "restart required" indicator only for flagged fields', () => {
-    renderRow(restartRequiredField);
+    renderRow({ field: restartRequiredField });
     expect(screen.getByText('Restart required')).toBeInTheDocument();
     cleanup();
-    renderRow(plainField);
+    renderRow({ field: plainField });
     expect(screen.queryByText('Restart required')).not.toBeInTheDocument();
   });
 
-  it('shows the Interface badge when overridden and Config otherwise', () => {
-    renderRow(plainField);
-    expect(screen.getByText('Config')).toBeInTheDocument();
-    expect(screen.queryByText('Reset to config')).not.toBeInTheDocument();
+  it('hides the origin label until the compact indicator is hovered or focused', () => {
+    renderRow({ field: { ...plainField, origin: 'interface' } });
+    expect(screen.queryByText('Interface')).not.toBeInTheDocument();
 
-    cleanup();
-    renderRow({ ...plainField, origin: 'interface' });
+    const indicator = screen.getByRole('button', { name: 'Interface' });
+    fireEvent.focus(indicator);
     expect(screen.getByText('Interface')).toBeInTheDocument();
-    expect(screen.getByText('Reset to config')).toBeInTheDocument();
   });
 
-  it('calls onClear when "Reset to config" is clicked', () => {
-    const { onClear } = renderRow({ ...plainField, origin: 'interface' });
-    fireEvent.click(screen.getByText('Reset to config'));
+  it('shows the Config indicator when not overridden and no reset icon', () => {
+    renderRow({ field: plainField });
+    expect(screen.getByRole('button', { name: 'Config' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Reset to config')).not.toBeInTheDocument();
+  });
+
+  it('shows an icon-only reset control (not a text button) when overridden, and calls onClear', () => {
+    const { onClear } = renderRow({ field: { ...plainField, origin: 'interface' } });
+    expect(screen.queryByText('Reset to config')).not.toBeInTheDocument();
+    const resetBtn = screen.getByLabelText('Reset to config');
+    fireEvent.click(resetBtn);
     expect(onClear).toHaveBeenCalled();
+  });
+
+  it('renders read-only with no reset control and no editable input', () => {
+    const { onClear } = renderRow({ field: { ...plainField, origin: 'interface' }, readOnly: true });
+    expect(screen.queryByLabelText('Reset to config')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByText('http://example.com')).toBeInTheDocument();
+    expect(onClear).not.toHaveBeenCalled();
   });
 });

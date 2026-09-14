@@ -7,6 +7,7 @@ import {
   ConfigPaths,
   StatsResponse,
   FilterConfig,
+  FilterOriginEntry,
   TMDBSearchResult,
   RenameDownloadResponse,
   ResyncPathResponse,
@@ -191,6 +192,12 @@ export const api = {
 
   async getFilters(): Promise<{ filters: FilterConfig[] }> {
     const res = await fetch('/api/v1/filters');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getFilterOrigin(): Promise<{ origin: FilterOriginEntry[] }> {
+    const res = await fetch('/api/v1/filters/origin');
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

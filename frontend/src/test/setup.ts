@@ -15,3 +15,14 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     dispatchEvent: () => false,
   })) as unknown as typeof window.matchMedia;
 }
+
+// jsdom does not implement ResizeObserver, which Radix's Tooltip (via
+// @radix-ui/react-use-size) reads to measure its trigger. A no-op stub is
+// enough for tests that don't assert on actual measured sizes.
+if (typeof window !== 'undefined' && !window.ResizeObserver) {
+  window.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}

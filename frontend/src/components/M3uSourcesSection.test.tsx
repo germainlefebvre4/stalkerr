@@ -14,11 +14,10 @@ const originSource: M3uSource = {
 const overriddenSource: M3uSource = { ...originSource, name: 'b', is_runtime: true };
 const runtimeOnlySource: M3uSource = { ...originSource, name: 'c', is_runtime: true };
 
-function renderSection(sources: M3uSource[], originNames: Set<string>) {
+function renderSection(sources: M3uSource[], originNames: Set<string>, searchQuery?: string) {
   const onCreate = vi.fn().mockResolvedValue(undefined);
   const onUpdate = vi.fn().mockResolvedValue(undefined);
   const onDelete = vi.fn().mockResolvedValue(undefined);
-  const onFetchSources = vi.fn();
 
   render(
     <I18nextProvider i18n={i18n}>
@@ -27,10 +26,10 @@ function renderSection(sources: M3uSource[], originNames: Set<string>) {
         sources={sources}
         originNames={originNames}
         loading={false}
-        onFetchSources={onFetchSources}
         onCreate={onCreate}
         onUpdate={onUpdate}
         onDelete={onDelete}
+        searchQuery={searchQuery}
       />
     </I18nextProvider>
   );
@@ -66,18 +65,19 @@ describe('M3uSourcesSection', () => {
     expect(onUpdate.mock.calls[0][1].file_path).toBe('/tmp/a-override.m3u');
   });
 
-  it('warns before replacing an existing runtime-only source when creating with a colliding name', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('shows an inline warning banner (not a native confirm) before replacing an existing runtime-only source', async () => {
     const { onCreate } = renderSection([runtimeOnlySource], new Set());
 
     fireEvent.click(screen.getByText('+ Add source'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'c' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('already exists as a source created here');
+
     fireEvent.change(screen.getByLabelText('File path'), { target: { value: '/tmp/c-new.m3u' } });
     fireEvent.click(screen.getByText('Save'));
 
-    await vi.waitFor(() => expect(confirmSpy).toHaveBeenCalled());
-    expect(onCreate).toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    await vi.waitFor(() => expect(onCreate).toHaveBeenCalled());
   });
 
   it('deleting a runtime-overridden source calls onDelete with its name', () => {
@@ -93,5 +93,11 @@ describe('M3uSourcesSection', () => {
   it('does not show a delete button for an origin-only source', () => {
     renderSection([originSource], new Set(['a']));
     expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+  });
+
+  it('filters the visible source list by the search query', () => {
+    renderSection([originSource, overriddenSource], new Set(['a']), 'b');
+    expect(screen.getByText('b')).toBeInTheDocument();
+    expect(screen.queryByText('a')).not.toBeInTheDocument();
   });
 });

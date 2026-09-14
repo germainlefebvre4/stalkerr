@@ -23,7 +23,6 @@ describe('NotificationsSection', () => {
           isExpanded
           settings={settings}
           loading={false}
-          onFetchSettings={vi.fn()}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
         />
@@ -33,5 +32,23 @@ describe('NotificationsSection', () => {
     expect(screen.getByDisplayValue('https://ntfy.sh')).toBeInTheDocument();
     expect(screen.getByDisplayValue('stalkeer')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Not set')).toBeInTheDocument();
+    // Both boolean fields render as toggles.
+    expect(screen.getAllByRole('checkbox').length).toBe(2);
+  });
+
+  it('renders nothing when collapsed', () => {
+    const { container } = render(
+      <I18nextProvider i18n={i18n}>
+        <NotificationsSection
+          isExpanded={false}
+          settings={settings}
+          loading={false}
+          onSetSetting={vi.fn()}
+          onClearSetting={vi.fn()}
+        />
+      </I18nextProvider>
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

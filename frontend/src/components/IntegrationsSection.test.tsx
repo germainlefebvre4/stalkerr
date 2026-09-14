@@ -23,7 +23,6 @@ describe('IntegrationsSection', () => {
           isExpanded
           settings={settings}
           loading={false}
-          onFetchSettings={vi.fn()}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
         />
@@ -40,6 +39,8 @@ describe('IntegrationsSection', () => {
     expect(screen.getByDisplayValue('http://jellyfin.example.com')).toBeInTheDocument();
     // The TMDB API key is sensitive: masked, never showing the raw value.
     expect(screen.getByPlaceholderText('Set')).toBeInTheDocument();
+    // The boolean Radarr "enabled" field renders as a toggle, not a select.
+    expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0);
   });
 
   it('renders nothing when collapsed', () => {
@@ -49,7 +50,6 @@ describe('IntegrationsSection', () => {
           isExpanded={false}
           settings={settings}
           loading={false}
-          onFetchSettings={vi.fn()}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
         />
@@ -57,5 +57,29 @@ describe('IntegrationsSection', () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('filters visible fields by the search query, hiding non-matching fields and groups with no match', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <IntegrationsSection
+          isExpanded
+          settings={settings}
+          loading={false}
+          onSetSetting={vi.fn()}
+          onClearSetting={vi.fn()}
+          searchQuery="url"
+        />
+      </I18nextProvider>
+    );
+
+    // Radarr, Sonarr, and Jellyfin each have a matching "URL" field.
+    expect(screen.getByDisplayValue('http://radarr.example.com')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('http://sonarr.example.com')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('http://jellyfin.example.com')).toBeInTheDocument();
+    // Radarr's non-matching "Enabled" boolean field is hidden.
+    expect(screen.queryAllByRole('checkbox').length).toBe(0);
+    // TMDB's only present field (API key) doesn't match "url": the whole group hides.
+    expect(screen.queryByText('TMDB')).not.toBeInTheDocument();
   });
 });
