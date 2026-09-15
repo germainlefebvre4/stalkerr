@@ -409,6 +409,7 @@ export function ConfigurationPage({
               filtersLoading={filtersLoading}
               onDeleteFilter={onDeleteFilter}
               onOpenCreate={onOpenCreateFilter}
+              sources={sources}
               searchQuery={searchQuery}
             />
             <div style={{ height: '1.75rem' }} />

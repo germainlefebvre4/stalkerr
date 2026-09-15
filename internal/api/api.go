@@ -200,6 +200,7 @@ func (s *Server) setupRoutes() {
 			filters.GET("", s.listFilters)
 			filters.GET("/origin", s.listOriginFilters)
 			filters.POST("", s.createFilter)
+			filters.POST("/dryrun", s.filterDryRun)
 			filters.PATCH("/:id", s.updateFilter)
 			filters.DELETE("/:id", s.deleteFilter)
 			filters.DELETE("/runtime", s.clearRuntimeFilters)

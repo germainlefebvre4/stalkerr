@@ -315,6 +315,43 @@ func TestManager_GetFilterCount(t *testing.T) {
 	}
 }
 
+func TestCompilePatterns(t *testing.T) {
+	t.Run("exclude wins over include", func(t *testing.T) {
+		cf, err := CompilePatterns([]string{"^Movies"}, []string{"XXX"})
+		if err != nil {
+			t.Fatalf("CompilePatterns() error = %v", err)
+		}
+		if cf.Matches("Movies XXX") {
+			t.Errorf("Matches() = true, want false (exclude should win)")
+		}
+	})
+
+	t.Run("empty include patterns means include all", func(t *testing.T) {
+		cf, err := CompilePatterns([]string{}, []string{"XXX"})
+		if err != nil {
+			t.Fatalf("CompilePatterns() error = %v", err)
+		}
+		if !cf.Matches("Movies HD") {
+			t.Errorf("Matches() = false, want true (no include patterns should allow all not excluded)")
+		}
+		if cf.Matches("Movies XXX") {
+			t.Errorf("Matches() = true, want false (excluded)")
+		}
+	})
+
+	t.Run("invalid include regex returns compile error", func(t *testing.T) {
+		if _, err := CompilePatterns([]string{"^(Movies"}, nil); err == nil {
+			t.Errorf("CompilePatterns() error = nil, want error for invalid include pattern")
+		}
+	})
+
+	t.Run("invalid exclude regex returns compile error", func(t *testing.T) {
+		if _, err := CompilePatterns(nil, []string{"^(Movies"}); err == nil {
+			t.Errorf("CompilePatterns() error = nil, want error for invalid exclude pattern")
+		}
+	})
+}
+
 func BenchmarkMatches(b *testing.B) {
 	m := NewManager()
 	m.loadFilterSet("group_title", []string{"^Movies.*HD$"}, []string{"XXX", "Adult"}, false)

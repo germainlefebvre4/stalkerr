@@ -133,25 +133,12 @@ func (m *Manager) Matches(attribute, value string) bool {
 
 	// Apply filters
 	for _, filter := range filtersToApply {
-		// Check exclude patterns first
-		for _, excludePattern := range filter.ExcludePatterns {
-			if excludePattern.MatchString(value) {
-				return false // Excluded
-			}
+		cf := CompiledFilter{
+			IncludePatterns: filter.IncludePatterns,
+			ExcludePatterns: filter.ExcludePatterns,
 		}
-
-		// If there are include patterns, at least one must match
-		if len(filter.IncludePatterns) > 0 {
-			matched := false
-			for _, includePattern := range filter.IncludePatterns {
-				if includePattern.MatchString(value) {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				return false // Didn't match any include pattern
-			}
+		if !cf.Matches(value) {
+			return false
 		}
 	}
 
@@ -190,30 +177,17 @@ func (m *Manager) MatchesItem(item models.ProcessedLine) bool {
 
 // loadFilterSet loads and compiles a set of filter patterns
 func (m *Manager) loadFilterSet(attribute string, includePatterns, excludePatterns []string, isRuntime bool) error {
+	compiled, err := CompilePatterns(includePatterns, excludePatterns)
+	if err != nil {
+		return err
+	}
+
 	filter := Filter{
 		Name:            fmt.Sprintf("%s_filter", attribute),
 		Attribute:       attribute,
-		IncludePatterns: make([]*regexp.Regexp, 0),
-		ExcludePatterns: make([]*regexp.Regexp, 0),
+		IncludePatterns: compiled.IncludePatterns,
+		ExcludePatterns: compiled.ExcludePatterns,
 		IsRuntime:       isRuntime,
-	}
-
-	// Compile include patterns
-	for _, pattern := range includePatterns {
-		compiled, err := regexp.Compile(pattern)
-		if err != nil {
-			return fmt.Errorf("failed to compile include pattern '%s': %w", pattern, err)
-		}
-		filter.IncludePatterns = append(filter.IncludePatterns, compiled)
-	}
-
-	// Compile exclude patterns
-	for _, pattern := range excludePatterns {
-		compiled, err := regexp.Compile(pattern)
-		if err != nil {
-			return fmt.Errorf("failed to compile exclude pattern '%s': %w", pattern, err)
-		}
-		filter.ExcludePatterns = append(filter.ExcludePatterns, compiled)
 	}
 
 	// Only add filter if it has patterns
@@ -222,6 +196,61 @@ func (m *Manager) loadFilterSet(attribute string, includePatterns, excludePatter
 	}
 
 	return nil
+}
+
+// CompiledFilter holds a compiled set of include/exclude patterns, independent
+// of the Manager, so a single ad-hoc pattern combination can be evaluated
+// without loading it into the Manager singleton used by real ingestion.
+type CompiledFilter struct {
+	IncludePatterns []*regexp.Regexp
+	ExcludePatterns []*regexp.Regexp
+}
+
+// CompilePatterns compiles the given include/exclude patterns into a CompiledFilter.
+func CompilePatterns(includePatterns, excludePatterns []string) (*CompiledFilter, error) {
+	cf := &CompiledFilter{
+		IncludePatterns: make([]*regexp.Regexp, 0, len(includePatterns)),
+		ExcludePatterns: make([]*regexp.Regexp, 0, len(excludePatterns)),
+	}
+
+	for _, pattern := range includePatterns {
+		compiled, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile include pattern '%s': %w", pattern, err)
+		}
+		cf.IncludePatterns = append(cf.IncludePatterns, compiled)
+	}
+
+	for _, pattern := range excludePatterns {
+		compiled, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile exclude pattern '%s': %w", pattern, err)
+		}
+		cf.ExcludePatterns = append(cf.ExcludePatterns, compiled)
+	}
+
+	return cf, nil
+}
+
+// Matches reports whether value passes this compiled filter: exclude patterns
+// win over include patterns, and empty include patterns means "include all".
+func (cf *CompiledFilter) Matches(value string) bool {
+	for _, excludePattern := range cf.ExcludePatterns {
+		if excludePattern.MatchString(value) {
+			return false
+		}
+	}
+
+	if len(cf.IncludePatterns) > 0 {
+		for _, includePattern := range cf.IncludePatterns {
+			if includePattern.MatchString(value) {
+				return true
+			}
+		}
+		return false
+	}
+
+	return true
 }
 
 // ValidatePattern validates a regex pattern

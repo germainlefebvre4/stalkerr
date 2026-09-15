@@ -15,5 +15,24 @@
   "groupTitleLabel": "Group Title",
   "tvgNameLabel": "TVG Name",
   "originLabel": "Origine (config.yml)",
-  "overrideLabel": "Override actif"
+  "overrideLabel": "Override actif",
+  "dryRun": {
+    "sourceLabel": "Source M3U à tester",
+    "sourcePlaceholder": "Sélectionner une source…",
+    "testButton": "Tester",
+    "testing": "Test en cours…",
+    "totalLines": "{{count}} lignes analysées",
+    "matchedCount": "{{count}} seraient acceptées",
+    "excludedCount": "{{count}} seraient exclues",
+    "topMatched": "Valeurs les plus acceptées",
+    "topExcluded": "Valeurs les plus exclues",
+    "noArchive": "Aucune archive n'a encore été téléchargée pour cette source. Lancez d'abord un téléchargement.",
+    "invalidPattern": "Pattern invalide : {{message}}",
+    "searchLabel": "Vérifier une ligne précise",
+    "searchPlaceholder": "Ex: un nom de chaîne ou de groupe",
+    "searchNoResults": "Aucune ligne correspondante trouvée.",
+    "wouldMatch": "Serait acceptée",
+    "wouldBeExcluded": "Serait exclue",
+    "truncated": "Affichage des 100 premiers résultats. Affinez votre recherche pour réduire les résultats."
+  }
 }

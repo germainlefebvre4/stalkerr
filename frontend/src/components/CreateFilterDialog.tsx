@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
-import { FilterConfig, FilterOriginEntry } from '../types';
+import { useM3uSources } from '../hooks/useM3uSources';
+import { FilterConfig, FilterOriginEntry, FilterDryRunSummaryResponse } from '../types';
 import { DialogReplaceWarning } from './DialogReplaceWarning';
+import { FilterDryRunPanel, FilterDryRunStatus } from './FilterDryRunPanel';
 
 interface CreateFilterDialogProps {
   isOpen: boolean;
@@ -24,6 +26,12 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
   const [isFilterCreating, setIsFilterCreating] = useState(false);
   const [filterError, setFilterError] = useState<string | null>(null);
 
+  const { sources, fetchSources } = useM3uSources();
+  const [testSourceName, setTestSourceName] = useState('');
+  const [dryRunStatus, setDryRunStatus] = useState<FilterDryRunStatus>('idle');
+  const [dryRunSummary, setDryRunSummary] = useState<FilterDryRunSummaryResponse | null>(null);
+  const [dryRunError, setDryRunError] = useState<string | null>(null);
+
   // Reset the form once the dialog finishes closing - adjusted during render
   // (rather than a useEffect+setState pair) per this codebase's convention
   // for "reset local state when a prop transitions" (see SettingsFieldRow).
@@ -36,8 +44,53 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
       setNewFilterIncludes('');
       setNewFilterExcludes('');
       setFilterError(null);
+      setTestSourceName('');
+      setDryRunStatus('idle');
+      setDryRunSummary(null);
+      setDryRunError(null);
     }
   }
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchSources();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Editing the in-progress values invalidates any previous test result -
+  // see the "switching attribute/source or editing patterns resets any
+  // previous test result" scenario in frontend-filters-management.
+  useEffect(() => {
+    setDryRunStatus('idle');
+    setDryRunSummary(null);
+    setDryRunError(null);
+  }, [newFilterAttribute, newFilterIncludes, newFilterExcludes, testSourceName]);
+
+  const handleTestFilter = () => {
+    if (!testSourceName) return;
+    setDryRunStatus('testing');
+    setDryRunError(null);
+
+    api.dryRunFilter({
+      source_name: testSourceName,
+      attribute: newFilterAttribute,
+      include_patterns: newFilterIncludes,
+      exclude_patterns: newFilterExcludes,
+    })
+      .then(res => {
+        if (res.no_archive) {
+          setDryRunStatus('no_archive');
+          return;
+        }
+        setDryRunSummary(res as FilterDryRunSummaryResponse);
+        setDryRunStatus('summary');
+      })
+      .catch((err: unknown) => {
+        setDryRunError(translateApiError(err));
+        setDryRunStatus('error');
+      });
+  };
 
   const existingOverride = filters.find(f => f.attribute === newFilterAttribute);
   const originForAttribute = filterOrigin.find(o => o.attribute === newFilterAttribute);
@@ -147,6 +200,41 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
                 value={newFilterExcludes}
                 onChange={e => setNewFilterExcludes(e.target.value)}
                 className="custom-input"
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.testSourceLabel')}</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <select
+                  value={testSourceName}
+                  onChange={e => setTestSourceName(e.target.value)}
+                  className="custom-select"
+                  style={{ flex: 1 }}
+                >
+                  <option value="">{t('createFilter.testSourcePlaceholder')}</option>
+                  {sources.map(source => (
+                    <option key={source.name} value={source.name}>{source.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleTestFilter}
+                  disabled={!testSourceName || dryRunStatus === 'testing'}
+                  className="btn-secondary"
+                >
+                  {t('createFilter.testButton')}
+                </button>
+              </div>
+
+              <FilterDryRunPanel
+                status={dryRunStatus}
+                summary={dryRunSummary}
+                errorMessage={dryRunError}
+                sourceName={testSourceName}
+                attribute={newFilterAttribute}
+                includePatterns={newFilterIncludes}
+                excludePatterns={newFilterExcludes}
               />
             </div>
 

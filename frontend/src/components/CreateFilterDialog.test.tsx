@@ -9,6 +9,9 @@ import { FilterConfig, FilterOriginEntry } from '../types';
 vi.mock('../services/api', () => ({
   api: {
     createFilter: vi.fn(),
+    getM3uSources: vi.fn().mockResolvedValue({ sources: [{ name: 'main', is_runtime: false }, { name: 'backup', is_runtime: false }] }),
+    getM3uSourcesOrigin: vi.fn().mockResolvedValue({ sources: [] }),
+    dryRunFilter: vi.fn(),
   },
   ApiError: class ApiError extends Error {
     code: string;
@@ -84,5 +87,85 @@ describe('CreateFilterDialog', () => {
 
     await waitFor(() => expect(api.createFilter).toHaveBeenCalled());
     expect(onSuccess).toHaveBeenCalled();
+  });
+
+  describe('dry-run testing', () => {
+    async function selectTestSource(name = 'main') {
+      const option = await screen.findByText('main') as HTMLOptionElement;
+      const select = option.closest('select') as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: name } });
+    }
+
+    it('lists the M3U sources in the test source select', async () => {
+      renderDialog([]);
+      await screen.findByText('main');
+      expect(screen.getByText('backup')).toBeInTheDocument();
+    });
+
+    it('tests the in-progress patterns without submitting the create request', async () => {
+      vi.mocked(api.createFilter).mockClear();
+      vi.mocked(api.dryRunFilter).mockResolvedValue({
+        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
+      });
+      renderDialog([]);
+
+      await selectTestSource();
+      fireEvent.change(screen.getByPlaceholderText('E.g.: FRENCH, TRUEFRENCH, VFF'), { target: { value: 'FRENCH' } });
+      fireEvent.click(screen.getByText('Test'));
+
+      await waitFor(() => expect(api.dryRunFilter).toHaveBeenCalledWith({
+        source_name: 'main',
+        attribute: 'group_title',
+        include_patterns: 'FRENCH',
+        exclude_patterns: '',
+      }));
+      expect(api.createFilter).not.toHaveBeenCalled();
+      expect(await screen.findByText('5 lines scanned')).toBeInTheDocument();
+    });
+
+    it('resets a previous test result when the attribute changes', async () => {
+      vi.mocked(api.dryRunFilter).mockResolvedValue({
+        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
+      });
+      renderDialog([]);
+
+      await selectTestSource();
+      fireEvent.click(screen.getByText('Test'));
+      await screen.findByText('5 lines scanned');
+
+      fireEvent.change(screen.getByDisplayValue('Group Title (E.g.: VOD-FR, SERIES-US)'), { target: { value: 'tvg_name' } });
+
+      expect(screen.queryByText('5 lines scanned')).not.toBeInTheDocument();
+    });
+
+    it('resets a previous test result when the include/exclude patterns are edited', async () => {
+      vi.mocked(api.dryRunFilter).mockResolvedValue({
+        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
+      });
+      renderDialog([]);
+
+      await selectTestSource();
+      fireEvent.click(screen.getByText('Test'));
+      await screen.findByText('5 lines scanned');
+
+      fireEvent.change(screen.getByPlaceholderText('E.g.: FRENCH, TRUEFRENCH, VFF'), { target: { value: 'FRENCH' } });
+
+      expect(screen.queryByText('5 lines scanned')).not.toBeInTheDocument();
+    });
+
+    it('resets a previous test result when the test source changes', async () => {
+      vi.mocked(api.dryRunFilter).mockResolvedValue({
+        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
+      });
+      renderDialog([]);
+
+      await selectTestSource('main');
+      fireEvent.click(screen.getByText('Test'));
+      await screen.findByText('5 lines scanned');
+
+      await selectTestSource('backup');
+
+      expect(screen.queryByText('5 lines scanned')).not.toBeInTheDocument();
+    });
   });
 });
