@@ -65,6 +65,12 @@
     "true": "Enabled",
     "false": "Disabled"
   },
+  "logLevels": {
+    "debug": "Debug",
+    "info": "Info",
+    "warn": "Warning",
+    "error": "Error"
+  },
   "groups": {
     "radarr": "Radarr",
     "sonarr": "Sonarr",
@@ -72,10 +78,8 @@
     "jellyfin": "Jellyfin",
     "downloads": "Downloads",
     "logging": "Logging",
-    "m3u": "M3U",
-    "bootstrap": "Database & ports (read-only)"
+    "m3u": "M3U"
   },
-  "bootstrapHint": "These values come from config.yml or environment variables. They cannot be changed here because the app needs them before it can reach its own database or bind its ports.",
   "fields": {
     "radarr": {
       "url": "URL",
@@ -131,18 +135,6 @@
     },
     "m3u": {
       "updateInterval": "Refresh interval (seconds)"
-    },
-    "bootstrap": {
-      "databaseHost": "Database host",
-      "databasePort": "Database port",
-      "databaseUser": "Database user",
-      "databasePassword": "Database password",
-      "databaseName": "Database name",
-      "databaseSslMode": "Database SSL mode",
-      "apiPort": "API port",
-      "metricsEnabled": "Metrics enabled",
-      "metricsPort": "Metrics port",
-      "metricsPath": "Metrics path"
     }
   },
   "m3uSources": {

@@ -9,7 +9,6 @@ import { FilterConfig, SettingsField, M3uSource } from '../types';
 vi.mock('../services/api', () => ({
   api: {
     getSettings: vi.fn().mockResolvedValue({ settings: [] }),
-    getBootstrapSettings: vi.fn().mockResolvedValue({ bootstrap: [] }),
     setSetting: vi.fn(),
     clearSetting: vi.fn(),
     getM3uSources: vi.fn().mockResolvedValue({ sources: [] }),
@@ -56,7 +55,6 @@ describe('ConfigurationPage', () => {
     localStorage.clear();
     window.history.replaceState(null, '', '/');
     vi.mocked(api.getSettings).mockReset().mockResolvedValue({ settings: [] });
-    vi.mocked(api.getBootstrapSettings).mockReset().mockResolvedValue({ bootstrap: [] });
     vi.mocked(api.getM3uSources).mockReset().mockResolvedValue({ sources: [] });
     vi.mocked(api.getM3uSourcesOrigin).mockReset().mockResolvedValue({ sources: [] });
   });

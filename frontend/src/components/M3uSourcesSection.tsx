@@ -96,9 +96,9 @@ export function M3uSourcesSection({
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <div>{t('m3uSources.filePathLabel')}: <code>{source.file_path || '—'}</code></div>
                 <div>{t('m3uSources.urlLabel')}: <code>{source.url || '—'}</code></div>
-                <div>
-                  {t('m3uSources.authPasswordLabel')}: {source.has_auth_password ? t('sensitive.set') : t('sensitive.notSet')}
-                </div>
+                {source.has_auth_password && (
+                  <div>{t('m3uSources.authPasswordLabel')}: {t('sensitive.set')}</div>
+                )}
               </div>
             </div>
           ))}

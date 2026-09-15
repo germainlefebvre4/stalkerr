@@ -1036,6 +1036,11 @@ input, select {
 /* --- Configuration page (redesign-configuration-page): tabs, summary
    banner, search, and the card/grid layout for overridable field groups --- */
 
+.configuration-page-content {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
 .configuration-summary-banner {
   display: flex;
   align-items: center;
@@ -1046,8 +1051,7 @@ input, select {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 0.85rem 1.25rem;
-  margin: 0 auto 1.25rem;
-  max-width: 960px;
+  margin: 0 0 1.25rem;
   box-shadow: var(--shadow-sm);
 }
 
@@ -1088,8 +1092,7 @@ input, select {
 }
 
 .settings-search-input-wrap {
-  max-width: 960px;
-  margin: 0 auto 1.25rem;
+  margin: 0 0 1.25rem;
   position: relative;
 }
 
@@ -1105,11 +1108,6 @@ input, select {
   transform: translateY(-50%);
   color: var(--text-muted);
   pointer-events: none;
-}
-
-.settings-tab-panel {
-  max-width: 960px;
-  margin: 0 auto;
 }
 
 .settings-cards-grid {

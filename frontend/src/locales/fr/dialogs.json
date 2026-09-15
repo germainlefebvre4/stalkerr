@@ -89,6 +89,9 @@
     "refresh": "Rafraîchir",
     "loading": "Vérification en cours...",
     "error": "Échec du chargement de l'état du système.",
+    "health": {
+      "title": "État des services"
+    },
     "rows": {
       "database": "Base de données",
       "radarr": "Radarr",

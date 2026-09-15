@@ -123,6 +123,15 @@ export function M3uSourceDialog({ isOpen, onOpenChange, source, existingNames, r
               <DialogReplaceWarning message={t('m3uSources.confirmReplaceRuntime', { name })} />
             )}
 
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={input.enabled}
+                onChange={e => setInput(prev => ({ ...prev, enabled: e.target.checked }))}
+              />
+              {t('m3uSources.enabledLabel')}
+            </label>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label htmlFor="m3u-source-file-path" style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('m3uSources.filePathLabel')}</label>
               <input
@@ -193,15 +202,6 @@ export function M3uSourceDialog({ isOpen, onOpenChange, source, existingNames, r
                 />
               </div>
             </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-              <input
-                type="checkbox"
-                checked={input.enabled}
-                onChange={e => setInput(prev => ({ ...prev, enabled: e.target.checked }))}
-              />
-              {t('m3uSources.enabledLabel')}
-            </label>
 
             {error && (
               <div style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--status-failed-bg)', color: 'var(--status-failed-text)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', fontWeight: 600 }}>

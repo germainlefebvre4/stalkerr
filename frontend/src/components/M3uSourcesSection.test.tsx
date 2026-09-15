@@ -100,4 +100,14 @@ describe('M3uSourcesSection', () => {
     expect(screen.getByText('b')).toBeInTheDocument();
     expect(screen.queryByText('a')).not.toBeInTheDocument();
   });
+
+  it('shows no auth-password text for a source with no password set', () => {
+    renderSection([originSource], new Set(['a']));
+    expect(screen.queryByText(/Auth password/)).not.toBeInTheDocument();
+  });
+
+  it('shows the "set" indicator for a source with a password set', () => {
+    renderSection([{ ...originSource, has_auth_password: true }], new Set(['a']));
+    expect(screen.getByText('Auth password: Set')).toBeInTheDocument();
+  });
 });

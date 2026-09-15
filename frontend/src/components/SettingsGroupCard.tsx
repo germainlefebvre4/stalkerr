@@ -8,7 +8,9 @@ import { api } from '../services/api';
 export interface SettingsGroupFieldSpec {
   key: string;
   label: string;
-  type?: 'text' | 'number' | 'boolean';
+  type?: 'text' | 'number' | 'boolean' | 'select';
+  /** Used only when `type === 'select'`: the fixed set of technical values, each with a localized label key. */
+  options?: { value: string; labelKey: string }[];
 }
 
 export interface SettingsGroupCardTestConfig {
@@ -35,7 +37,7 @@ function draftFromField(field: SettingsField): string {
   return field.sensitive ? '' : String(field.value ?? '');
 }
 
-function applyType(raw: string, type?: 'text' | 'number' | 'boolean'): unknown {
+function applyType(raw: string, type?: 'text' | 'number' | 'boolean' | 'select'): unknown {
   if (type === 'number') return Number(raw);
   if (type === 'boolean') return raw === 'true';
   return raw;
@@ -56,7 +58,8 @@ export function SettingsGroupCard({ title, fields, settings, onSetSetting, onCle
   const [testReason, setTestReason] = useState<string | undefined>(undefined);
 
   const query = (searchQuery ?? '').trim().toLowerCase();
-  const visibleFields = query
+  const titleMatches = !!query && !!title && title.toLowerCase().includes(query);
+  const visibleFields = query && !titleMatches
     ? fields.filter(f => f.label.toLowerCase().includes(query))
     : fields;
 
@@ -161,6 +164,7 @@ export function SettingsGroupCard({ title, fields, settings, onSetSetting, onCle
               label={spec.label}
               field={field}
               type={spec.type}
+              options={spec.options}
               value={isFieldPending(spec.key) ? pending[spec.key] : draftFromField(field)}
               pending={isFieldPending(spec.key)}
               onChange={raw => handleChange(spec, field, raw)}

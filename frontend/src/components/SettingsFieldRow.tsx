@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { RotateCcw } from 'lucide-react';
-import { SettingsField, BootstrapField } from '../types';
+import { SettingsField } from '../types';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
 import { ToggleSwitch } from './ToggleSwitch';
 
 interface SettingsFieldRowProps {
   label: string;
-  field: SettingsField | BootstrapField;
-  type?: 'text' | 'number' | 'boolean';
-  /** Read-only rendering: value + compact origin indicator, no edit/save/clear controls. */
-  readOnly?: boolean;
+  field: SettingsField;
+  type?: 'text' | 'number' | 'boolean' | 'select';
+  /** Used only when `type === 'select'`: the fixed set of technical values, each with a localized label key. */
+  options?: { value: string; labelKey: string }[];
   /** Controlled draft value (raw string, `'true'`/`'false'` for booleans). Defaults to the field's effective value. */
   value?: string;
   /** Whether this field currently has an unsaved staged change (owned by the enclosing group card). */
@@ -20,7 +20,7 @@ interface SettingsFieldRowProps {
   onClear?: () => Promise<unknown>;
 }
 
-function draftFromField(field: SettingsField | BootstrapField): string {
+function draftFromField(field: SettingsField): string {
   return field.sensitive ? '' : String(field.value ?? '');
 }
 
@@ -54,14 +54,14 @@ function OriginIndicator({ isOverridden }: { isOverridden: boolean }) {
 // on hover/focus, and an icon-only reset-to-config control. Saving is owned
 // by the enclosing group card (see SettingsGroupCard) - this component only
 // reports draft changes upward via onChange. See frontend-app-settings-management.
-export function SettingsFieldRow({ label, field, type = 'text', readOnly = false, value, pending, onChange, onClear }: SettingsFieldRowProps) {
+export function SettingsFieldRow({ label, field, type = 'text', options, value, pending, onChange, onClear }: SettingsFieldRowProps) {
   const { t } = useTranslation('settings');
   const translateApiError = useApiErrorMessage();
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isOverridden = field.origin === 'interface';
-  const restartRequired = 'restart_required' in field && !!field.restart_required;
+  const restartRequired = field.restart_required;
   const draft = value ?? draftFromField(field);
 
   const handleClear = async () => {
@@ -88,7 +88,7 @@ export function SettingsFieldRow({ label, field, type = 'text', readOnly = false
             </span>
           )}
           <OriginIndicator isOverridden={isOverridden} />
-          {!readOnly && isOverridden && onClear && (
+          {isOverridden && onClear && (
             <button
               type="button"
               className="settings-reset-icon-btn"
@@ -103,16 +103,23 @@ export function SettingsFieldRow({ label, field, type = 'text', readOnly = false
         </div>
       </div>
 
-      {readOnly ? (
-        <div className="custom-input settings-readonly-value" aria-readonly="true">
-          {field.sensitive ? (field.is_set ? t('sensitive.set') : t('sensitive.notSet')) : String(field.value ?? '')}
-        </div>
-      ) : type === 'boolean' ? (
+      {type === 'boolean' ? (
         <ToggleSwitch
           checked={draft === 'true'}
           onChange={checked => onChange?.(checked ? 'true' : 'false')}
           ariaLabel={label}
         />
+      ) : type === 'select' ? (
+        <select
+          className="custom-select"
+          value={draft}
+          aria-label={label}
+          onChange={e => onChange?.(e.target.value)}
+        >
+          {options?.map(option => (
+            <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+          ))}
+        </select>
       ) : (
         <input
           type={field.sensitive ? 'password' : type === 'number' ? 'number' : 'text'}

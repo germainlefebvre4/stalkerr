@@ -1,21 +1,18 @@
 import { useState, useCallback } from 'react';
 import { api } from '../services/api';
-import { SettingsField, BootstrapField } from '../types';
+import { SettingsField } from '../types';
 
 // Fetches and mutates the app-settings-backed fields (Radarr, Sonarr, TMDB,
-// Jellyfin, Notifications, Downloads, logging) plus the read-only bootstrap
-// configuration. See the app-settings spec.
+// Jellyfin, Notifications, Downloads, logging). See the app-settings spec.
 export function useAppSettings() {
   const [settings, setSettings] = useState<SettingsField[]>([]);
-  const [bootstrap, setBootstrap] = useState<BootstrapField[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchSettings = useCallback(() => {
     setLoading(true);
-    return Promise.all([api.getSettings(), api.getBootstrapSettings()])
-      .then(([settingsRes, bootstrapRes]) => {
+    return api.getSettings()
+      .then(settingsRes => {
         setSettings(settingsRes.settings || []);
-        setBootstrap(bootstrapRes.bootstrap || []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -38,5 +35,5 @@ export function useAppSettings() {
     [settings]
   );
 
-  return { settings, bootstrap, loading, fetchSettings, setSetting, clearSetting, getField };
+  return { settings, loading, fetchSettings, setSetting, clearSetting, getField };
 }

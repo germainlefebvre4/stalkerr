@@ -7,7 +7,7 @@ Protects the Radarr and Sonarr integrations from a downed or degraded instance b
 ## Requirements
 
 ### Requirement: Circuit breaker protects Radarr and Sonarr calls
-The system SHALL maintain one shared circuit breaker per external service (Radarr, Sonarr) that every call to that service's API passes through. The breaker SHALL track consecutive failures across calls for the lifetime of the process (or, for the `download` command, for the lifetime of that run) rather than resetting per individual request.
+The system SHALL maintain one shared circuit breaker per external service (Radarr, Sonarr) that every call to that service's API passes through, with one explicit exception: the on-demand connectivity-test check (`integration-connectivity-test`) SHALL bypass that breaker entirely — it always attempts a live call regardless of the breaker's state, and its outcome is never recorded against the breaker. The breaker SHALL track consecutive failures across calls for the lifetime of the process (or, for the `download` command, for the lifetime of that run) rather than resetting per individual request.
 
 #### Scenario: Consecutive failures open the circuit
 - **WHEN** calls to a service fail repeatedly in a row, reaching the configured failure threshold
@@ -16,6 +16,10 @@ The system SHALL maintain one shared circuit breaker per external service (Radar
 #### Scenario: Circuit stays closed during isolated failures
 - **WHEN** a call to a service fails but is followed by a successful call before the failure threshold is reached
 - **THEN** the circuit breaker remains closed and the failure count resets, so the breaker keeps allowing calls through
+
+#### Scenario: Connectivity test bypasses the breaker
+- **WHEN** the shared circuit breaker for a service is currently open
+- **THEN** an on-demand connectivity test for that service still attempts a live call, and the test's outcome does not alter the breaker's open/closed state
 
 ### Requirement: Open circuit recovers via a bounded probe
 Once the configured timeout has elapsed since a circuit opened, the breaker SHALL allow a limited number of trial calls through (half-open) to test whether the service has recovered, closing the circuit again on success or reopening it on failure.

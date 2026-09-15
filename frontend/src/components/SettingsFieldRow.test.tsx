@@ -3,9 +3,9 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { SettingsFieldRow } from './SettingsFieldRow';
-import { SettingsField, BootstrapField } from '../types';
+import { SettingsField } from '../types';
 
-function renderRow(props: Partial<Parameters<typeof SettingsFieldRow>[0]> & { field: SettingsField | BootstrapField }) {
+function renderRow(props: Partial<Parameters<typeof SettingsFieldRow>[0]> & { field: SettingsField }) {
   const onChange = vi.fn();
   const onClear = vi.fn().mockResolvedValue(undefined);
   render(
@@ -91,11 +91,27 @@ describe('SettingsFieldRow', () => {
     expect(onClear).toHaveBeenCalled();
   });
 
-  it('renders read-only with no reset control and no editable input', () => {
-    const { onClear } = renderRow({ field: { ...plainField, origin: 'interface' }, readOnly: true });
-    expect(screen.queryByLabelText('Reset to config')).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByText('http://example.com')).toBeInTheDocument();
-    expect(onClear).not.toHaveBeenCalled();
+  it('renders a select with the given options for a select field, staging the chosen value via onChange', () => {
+    const options = [
+      { value: 'debug', labelKey: 'logLevels.debug' },
+      { value: 'info', labelKey: 'logLevels.info' },
+      { value: 'warn', labelKey: 'logLevels.warn' },
+      { value: 'error', labelKey: 'logLevels.error' },
+    ];
+    const { onChange } = renderRow({
+      field: { key: 'logging.app.level', value: 'info', sensitive: false, origin: 'config', restart_required: false },
+      type: 'select',
+      options,
+      value: 'info',
+    });
+
+    const select = screen.getByRole('combobox');
+    expect(screen.getByRole('option', { name: 'Debug' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Info' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Warning' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Error' })).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: 'error' } });
+    expect(onChange).toHaveBeenCalledWith('error');
   });
 });

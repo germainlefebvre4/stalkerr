@@ -89,6 +89,9 @@
     "refresh": "Refresh",
     "loading": "Checking status...",
     "error": "Failed to load system status.",
+    "health": {
+      "title": "Service health"
+    },
     "rows": {
       "database": "Database",
       "radarr": "Radarr",

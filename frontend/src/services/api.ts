@@ -22,7 +22,6 @@ import {
   IntegrationTestService,
   IntegrationTestResult,
   SettingsField,
-  BootstrapField,
   M3uSource,
   M3uSourceInput
 } from '../types';
@@ -372,12 +371,6 @@ export const api = {
 
   async getSettings(): Promise<{ settings: SettingsField[] }> {
     const res = await fetch('/api/v1/settings');
-    if (!res.ok) return throwApiError(res);
-    return res.json();
-  },
-
-  async getBootstrapSettings(): Promise<{ bootstrap: BootstrapField[] }> {
-    const res = await fetch('/api/v1/settings/origin');
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

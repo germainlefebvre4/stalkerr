@@ -13,9 +13,7 @@ interface AdvancedSectionProps {
 }
 
 // Renders the Avancé tab's editable-only groups (Downloads tuning, Logging,
-// M3U update interval). The read-only bootstrap fields formerly shown here
-// now live in their own card under the Système tab - see BootstrapConfigCard
-// and the Bootstrap Configuration Display requirement.
+// M3U update interval).
 export function AdvancedSection({
   isExpanded, settings, loading, onSetSetting, onClearSetting, searchQuery,
 }: AdvancedSectionProps) {

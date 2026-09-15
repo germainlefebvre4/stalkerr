@@ -65,6 +65,12 @@
     "true": "Activé",
     "false": "Désactivé"
   },
+  "logLevels": {
+    "debug": "Debug",
+    "info": "Info",
+    "warn": "Avertissement",
+    "error": "Erreur"
+  },
   "groups": {
     "radarr": "Radarr",
     "sonarr": "Sonarr",
@@ -72,10 +78,8 @@
     "jellyfin": "Jellyfin",
     "downloads": "Téléchargements",
     "logging": "Journalisation",
-    "m3u": "M3U",
-    "bootstrap": "Base de données et ports (lecture seule)"
+    "m3u": "M3U"
   },
-  "bootstrapHint": "Ces valeurs viennent de config.yml ou des variables d'environnement. Elles ne peuvent pas être modifiées ici car l'application en a besoin avant de pouvoir joindre sa base de données ou ouvrir ses ports.",
   "fields": {
     "radarr": {
       "url": "URL",
@@ -131,18 +135,6 @@
     },
     "m3u": {
       "updateInterval": "Intervalle de rafraîchissement (secondes)"
-    },
-    "bootstrap": {
-      "databaseHost": "Hôte de la base de données",
-      "databasePort": "Port de la base de données",
-      "databaseUser": "Utilisateur de la base de données",
-      "databasePassword": "Mot de passe de la base de données",
-      "databaseName": "Nom de la base de données",
-      "databaseSslMode": "Mode SSL de la base de données",
-      "apiPort": "Port de l'API",
-      "metricsEnabled": "Métriques activées",
-      "metricsPort": "Port des métriques",
-      "metricsPath": "Chemin des métriques"
     }
   },
   "m3uSources": {

@@ -8,7 +8,6 @@ import { useM3uSources } from '../hooks/useM3uSources';
 import { useURLState, URLStateSchema } from '../hooks/useURLState';
 import { ToggleSwitch } from './ToggleSwitch';
 import { SystemStatusSection } from './SystemStatusSection';
-import { BootstrapConfigCard } from './BootstrapConfigCard';
 import { FiltersSection } from './FiltersSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { NotificationsSection } from './NotificationsSection';
@@ -118,7 +117,7 @@ export function ConfigurationPage({
     patchSettingsTabURL({ settingsTab: tabId });
   };
 
-  const { settings, bootstrap, loading: settingsLoading, fetchSettings, setSetting, clearSetting } = useAppSettings();
+  const { settings, loading: settingsLoading, fetchSettings, setSetting, clearSetting } = useAppSettings();
   const {
     sources, originNames, loading: sourcesLoading, fetchSources, createSource, updateSource, deleteSource,
   } = useM3uSources();
@@ -277,169 +276,167 @@ export function ConfigurationPage({
 
   return (
     <div className="configuration-page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)', margin: 0 }}>
-          {t('title')}
-        </h2>
-        <button className="btn-secondary" onClick={onBack} style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}>
-          {t('close')}
-        </button>
-      </div>
+      <div className="configuration-page-content">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary-slate)', margin: 0 }}>
+            {t('title')}
+          </h2>
+          <button className="btn-secondary" onClick={onBack} style={{ padding: '0.25rem 0.6rem', fontSize: '0.8rem', borderRadius: 'var(--radius-sm)' }}>
+            {t('close')}
+          </button>
+        </div>
 
-      <div className="configuration-summary-banner">
-        <span className="configuration-summary-banner-text">
-          {totalOverrideCount === 0
-            ? t('overview.noOverrides')
-            : t('overview.totalOverrides', { count: totalOverrideCount })}
-        </span>
-        {restartRequiredCount > 0 && (
-          <div className="configuration-summary-banner-counts">
-            <span className="badge badge-warning">{t('overview.restartRequired', { count: restartRequiredCount })}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="settings-search-input-wrap">
-        <Search size={16} className="settings-search-icon" aria-hidden="true" />
-        <input
-          type="text"
-          className="custom-input settings-search-input"
-          placeholder={t('search.placeholder')}
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          aria-label={t('search.placeholder')}
-        />
-      </div>
-
-      <Tabs.Root value={activeSettingsTab} onValueChange={v => setActiveSettingsTab(v as SettingsTabId)}>
-        <Tabs.List className="settings-tabs-list">
-          <Tabs.Trigger value="general" className="segmented-tabs-trigger">{t('tabs.general')}</Tabs.Trigger>
-          <Tabs.Trigger value="integrations" className="segmented-tabs-trigger">
-            {t('tabs.integrations')}
-            {renderTabBadge(integrationsOverrideCount, integrationsRestartRequired)}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="content" className="segmented-tabs-trigger">
-            {t('tabs.content')}
-            {renderTabBadge(contentOverrideCount, false)}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="notifications" className="segmented-tabs-trigger">
-            {t('tabs.notifications')}
-            {renderTabBadge(notificationsOverrideCount, notificationsRestartRequired)}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="advanced" className="segmented-tabs-trigger">
-            {t('tabs.advanced')}
-            {renderTabBadge(advancedOverrideCount, advancedRestartRequired)}
-          </Tabs.Trigger>
-          <Tabs.Trigger value="system" className="segmented-tabs-trigger">{t('tabs.system')}</Tabs.Trigger>
-        </Tabs.List>
-
-        <Tabs.Content value="general" className="settings-tab-panel">
-          <div className="settings-cards-grid">
-            {appearanceFields.length > 0 && (
-              <div className="settings-group-card settings-group-card--compact">
-                <h4 className="settings-group-card-title">{t('sections.appearance')}</h4>
-                <div className="settings-group-card-fields">{appearanceFields.map(f => f.node)}</div>
-              </div>
-            )}
-            {languageFields.length > 0 && (
-              <div className="settings-group-card settings-group-card--compact">
-                <h4 className="settings-group-card-title">{t('sections.language')}</h4>
-                <div className="settings-group-card-fields">{languageFields.map(f => f.node)}</div>
-              </div>
-            )}
-            {preferencesFields.length > 0 && (
-              <div className="settings-group-card settings-group-card--compact">
-                <h4 className="settings-group-card-title">{t('sections.preferences')}</h4>
-                <div className="settings-group-card-fields">{preferencesFields.map(f => f.node)}</div>
-              </div>
-            )}
-          </div>
-        </Tabs.Content>
-
-        <Tabs.Content value="integrations" className="settings-tab-panel">
-          <IntegrationsSection
-            isExpanded={activeSettingsTab === 'integrations'}
-            settings={settings}
-            loading={settingsLoading}
-            onSetSetting={setSetting}
-            onClearSetting={clearSetting}
-            searchQuery={searchQuery}
-          />
-        </Tabs.Content>
-
-        <Tabs.Content value="content" className="settings-tab-panel">
-          <FiltersSection
-            isExpanded={activeSettingsTab === 'content'}
-            filters={filters}
-            filterOrigin={filterOrigin}
-            filtersLoading={filtersLoading}
-            onDeleteFilter={onDeleteFilter}
-            onOpenCreate={onOpenCreateFilter}
-            searchQuery={searchQuery}
-          />
-          <div style={{ height: '1.75rem' }} />
-          <M3uSourcesSection
-            isExpanded={activeSettingsTab === 'content'}
-            sources={sources}
-            originNames={originNames}
-            loading={sourcesLoading}
-            onCreate={createSource}
-            onUpdate={updateSource}
-            onDelete={deleteSource}
-            searchQuery={searchQuery}
-          />
-        </Tabs.Content>
-
-        <Tabs.Content value="notifications" className="settings-tab-panel">
-          <NotificationsSection
-            isExpanded={activeSettingsTab === 'notifications'}
-            settings={settings}
-            loading={settingsLoading}
-            onSetSetting={setSetting}
-            onClearSetting={clearSetting}
-            searchQuery={searchQuery}
-          />
-        </Tabs.Content>
-
-        <Tabs.Content value="advanced" className="settings-tab-panel">
-          <AdvancedSection
-            isExpanded={activeSettingsTab === 'advanced'}
-            settings={settings}
-            loading={settingsLoading}
-            onSetSetting={setSetting}
-            onClearSetting={clearSetting}
-            searchQuery={searchQuery}
-          />
-        </Tabs.Content>
-
-        <Tabs.Content value="system" className="settings-tab-panel">
-          <SystemStatusSection isExpanded={activeSettingsTab === 'system'} />
-
-          <div className="settings-cards-grid" style={{ marginTop: '1.5rem' }}>
-            <BootstrapConfigCard bootstrap={bootstrap} searchQuery={searchQuery} />
-          </div>
-
-          {matchesQuery(t('sections.about')) && (
-            <section className="settings-section" style={{ marginTop: '1.5rem' }}>
-              <h3 className="settings-section-header">{t('sections.about')}</h3>
-              <div className="settings-field">
-                <div style={{ fontWeight: 700, color: 'var(--primary-slate)', marginBottom: '0.35rem' }}>
-                  {t('about.appName')}
-                </div>
-                <a
-                  href={REPOSITORY_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  style={{ display: 'inline-flex', textDecoration: 'none', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
-                >
-                  {t('about.repositoryLink')}
-                </a>
-              </div>
-            </section>
+        <div className="configuration-summary-banner">
+          <span className="configuration-summary-banner-text">
+            {totalOverrideCount === 0
+              ? t('overview.noOverrides')
+              : t('overview.totalOverrides', { count: totalOverrideCount })}
+          </span>
+          {restartRequiredCount > 0 && (
+            <div className="configuration-summary-banner-counts">
+              <span className="badge badge-warning">{t('overview.restartRequired', { count: restartRequiredCount })}</span>
+            </div>
           )}
-        </Tabs.Content>
-      </Tabs.Root>
+        </div>
+
+        <div className="settings-search-input-wrap">
+          <Search size={16} className="settings-search-icon" aria-hidden="true" />
+          <input
+            type="text"
+            className="custom-input settings-search-input"
+            placeholder={t('search.placeholder')}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            aria-label={t('search.placeholder')}
+          />
+        </div>
+
+        <Tabs.Root value={activeSettingsTab} onValueChange={v => setActiveSettingsTab(v as SettingsTabId)}>
+          <Tabs.List className="settings-tabs-list">
+            <Tabs.Trigger value="general" className="segmented-tabs-trigger">{t('tabs.general')}</Tabs.Trigger>
+            <Tabs.Trigger value="integrations" className="segmented-tabs-trigger">
+              {t('tabs.integrations')}
+              {renderTabBadge(integrationsOverrideCount, integrationsRestartRequired)}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="content" className="segmented-tabs-trigger">
+              {t('tabs.content')}
+              {renderTabBadge(contentOverrideCount, false)}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="notifications" className="segmented-tabs-trigger">
+              {t('tabs.notifications')}
+              {renderTabBadge(notificationsOverrideCount, notificationsRestartRequired)}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="advanced" className="segmented-tabs-trigger">
+              {t('tabs.advanced')}
+              {renderTabBadge(advancedOverrideCount, advancedRestartRequired)}
+            </Tabs.Trigger>
+            <Tabs.Trigger value="system" className="segmented-tabs-trigger">{t('tabs.system')}</Tabs.Trigger>
+          </Tabs.List>
+
+          <Tabs.Content value="general" className="settings-tab-panel">
+            <div className="settings-cards-grid">
+              {appearanceFields.length > 0 && (
+                <div className="settings-group-card settings-group-card--compact">
+                  <h4 className="settings-group-card-title">{t('sections.appearance')}</h4>
+                  <div className="settings-group-card-fields">{appearanceFields.map(f => f.node)}</div>
+                </div>
+              )}
+              {languageFields.length > 0 && (
+                <div className="settings-group-card settings-group-card--compact">
+                  <h4 className="settings-group-card-title">{t('sections.language')}</h4>
+                  <div className="settings-group-card-fields">{languageFields.map(f => f.node)}</div>
+                </div>
+              )}
+              {preferencesFields.length > 0 && (
+                <div className="settings-group-card settings-group-card--compact">
+                  <h4 className="settings-group-card-title">{t('sections.preferences')}</h4>
+                  <div className="settings-group-card-fields">{preferencesFields.map(f => f.node)}</div>
+                </div>
+              )}
+            </div>
+          </Tabs.Content>
+
+          <Tabs.Content value="integrations" className="settings-tab-panel">
+            <IntegrationsSection
+              isExpanded={activeSettingsTab === 'integrations'}
+              settings={settings}
+              loading={settingsLoading}
+              onSetSetting={setSetting}
+              onClearSetting={clearSetting}
+              searchQuery={searchQuery}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="content" className="settings-tab-panel">
+            <FiltersSection
+              isExpanded={activeSettingsTab === 'content'}
+              filters={filters}
+              filterOrigin={filterOrigin}
+              filtersLoading={filtersLoading}
+              onDeleteFilter={onDeleteFilter}
+              onOpenCreate={onOpenCreateFilter}
+              searchQuery={searchQuery}
+            />
+            <div style={{ height: '1.75rem' }} />
+            <M3uSourcesSection
+              isExpanded={activeSettingsTab === 'content'}
+              sources={sources}
+              originNames={originNames}
+              loading={sourcesLoading}
+              onCreate={createSource}
+              onUpdate={updateSource}
+              onDelete={deleteSource}
+              searchQuery={searchQuery}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="notifications" className="settings-tab-panel">
+            <NotificationsSection
+              isExpanded={activeSettingsTab === 'notifications'}
+              settings={settings}
+              loading={settingsLoading}
+              onSetSetting={setSetting}
+              onClearSetting={clearSetting}
+              searchQuery={searchQuery}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="advanced" className="settings-tab-panel">
+            <AdvancedSection
+              isExpanded={activeSettingsTab === 'advanced'}
+              settings={settings}
+              loading={settingsLoading}
+              onSetSetting={setSetting}
+              onClearSetting={clearSetting}
+              searchQuery={searchQuery}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="system" className="settings-tab-panel">
+            <SystemStatusSection isExpanded={activeSettingsTab === 'system'} />
+
+            {matchesQuery(t('sections.about')) && (
+              <section className="settings-section" style={{ marginTop: '1.5rem' }}>
+                <h3 className="settings-section-header">{t('sections.about')}</h3>
+                <div className="settings-field">
+                  <div style={{ fontWeight: 700, color: 'var(--primary-slate)', marginBottom: '0.35rem' }}>
+                    {t('about.appName')}
+                  </div>
+                  <a
+                    href={REPOSITORY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary"
+                    style={{ display: 'inline-flex', textDecoration: 'none', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                  >
+                    {t('about.repositoryLink')}
+                  </a>
+                </div>
+              </section>
+            )}
+          </Tabs.Content>
+        </Tabs.Root>
+      </div>
     </div>
   );
 }

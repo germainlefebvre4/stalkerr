@@ -59,9 +59,16 @@ export const DOWNLOADS_FIELDS: SettingsGroupFieldSpec[] = [
   { key: 'downloads.force_tier_probability', label: 'forceTierProbability', type: 'number' },
 ];
 
+const LOG_LEVEL_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'debug', labelKey: 'logLevels.debug' },
+  { value: 'info', labelKey: 'logLevels.info' },
+  { value: 'warn', labelKey: 'logLevels.warn' },
+  { value: 'error', labelKey: 'logLevels.error' },
+];
+
 export const LOGGING_FIELDS: SettingsGroupFieldSpec[] = [
-  { key: 'logging.app.level', label: 'appLevel' },
-  { key: 'logging.database.level', label: 'databaseLevel' },
+  { key: 'logging.app.level', label: 'appLevel', type: 'select', options: LOG_LEVEL_OPTIONS },
+  { key: 'logging.database.level', label: 'databaseLevel', type: 'select', options: LOG_LEVEL_OPTIONS },
   { key: 'logging.format', label: 'format' },
 ];
 

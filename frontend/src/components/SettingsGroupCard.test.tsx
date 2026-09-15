@@ -79,6 +79,24 @@ describe('SettingsGroupCard', () => {
     expect(screen.getByDisplayValue('http://old.example.com')).toBeInTheDocument();
   });
 
+  it('shows every field when the search query matches the group title, even if no field label matches', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SettingsGroupCard
+          title="Radarr"
+          fields={fields}
+          settings={settings}
+          onSetSetting={vi.fn()}
+          onClearSetting={vi.fn()}
+          searchQuery="rad"
+        />
+      </I18nextProvider>
+    );
+
+    expect(screen.getByDisplayValue('http://old.example.com')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+  });
+
   it('resets a field to config immediately and independently of a pending edit on another field', async () => {
     const overriddenSettings: SettingsField[] = [
       { key: 'radarr.url', value: 'http://overridden.example.com', sensitive: false, origin: 'interface', restart_required: false },

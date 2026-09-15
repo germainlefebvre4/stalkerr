@@ -284,14 +284,6 @@ export interface SettingsField {
   restart_required: boolean;
 }
 
-export interface BootstrapField {
-  key: string;
-  value?: string | number | boolean;
-  is_set?: boolean;
-  sensitive: boolean;
-  origin: SettingsOrigin;
-}
-
 export interface M3uSource {
   name: string;
   file_path: string;
