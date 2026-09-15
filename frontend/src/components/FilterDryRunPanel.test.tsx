@@ -57,14 +57,22 @@ describe('FilterDryRunPanel', () => {
     expect(screen.queryByPlaceholderText('E.g.: a channel or group name')).not.toBeInTheDocument();
   });
 
-  it('renders the summary counts and top matched/excluded values', () => {
-    renderPanel({ status: 'summary', summary: baseSummary });
+  it('renders the summary counts and top matched/excluded values side by side in a grid', () => {
+    const { container } = renderPanel({ status: 'summary', summary: baseSummary });
 
     expect(screen.getByText('10 lines scanned')).toBeInTheDocument();
     expect(screen.getByText('7 would match')).toBeInTheDocument();
     expect(screen.getByText('3 would be excluded')).toBeInTheDocument();
     expect(screen.getByText('Movies HD (5)')).toBeInTheDocument();
     expect(screen.getByText('Adult XXX (3)')).toBeInTheDocument();
+
+    const columns = container.querySelector('.dry-run-columns');
+    expect(columns).not.toBeNull();
+    expect(columns).toContainElement(screen.getByText('Movies HD (5)'));
+    expect(columns).toContainElement(screen.getByText('Adult XXX (3)'));
+    // Both lists are direct children of the same grid container, not nested
+    // one inside the other in a single stacked column.
+    expect(columns?.children).toHaveLength(2);
   });
 
   it('shows the no-archive message', () => {
@@ -102,5 +110,24 @@ describe('FilterDryRunPanel', () => {
 
     expect(await screen.findByText('Would match')).toBeInTheDocument();
     expect(await screen.findByText('Would be excluded')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+  });
+
+  it('renders the truncated message when the search result is truncated', async () => {
+    vi.mocked(api.dryRunFilter).mockResolvedValue({
+      no_archive: false,
+      truncated: true,
+      results: [
+        { group_title: 'Movies HD', tvg_name: 'A', matched: true },
+      ],
+    });
+
+    renderPanel({ status: 'summary', summary: baseSummary });
+
+    const searchInput = screen.getByPlaceholderText('E.g.: a channel or group name');
+    fireEvent.change(searchInput, { target: { value: 'Movies' } });
+
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(screen.getByText(/Showing the first 100 matches/)).toBeInTheDocument();
   });
 });

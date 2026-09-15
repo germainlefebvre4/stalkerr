@@ -86,25 +86,29 @@ export function FilterDryRunPanel({ status, summary, errorMessage, sourceName, a
         <span className="badge badge-failed">{t('dryRun.excludedCount', { count: summary.excluded_count })}</span>
       </div>
 
-      {summary.top_matched.length > 0 && (
-        <div>
-          <strong style={{ color: 'var(--status-success-text)' }}>{t('dryRun.topMatched')}</strong>
-          <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
-            {summary.top_matched.map(v => (
-              <li key={v.value}>{v.value} ({v.count})</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {(summary.top_matched.length > 0 || summary.top_excluded.length > 0) && (
+        <div className="dry-run-columns">
+          {summary.top_matched.length > 0 && (
+            <div>
+              <strong style={{ color: 'var(--status-success-text)' }}>{t('dryRun.topMatched')}</strong>
+              <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
+                {summary.top_matched.map(v => (
+                  <li key={v.value}>{v.value} ({v.count})</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-      {summary.top_excluded.length > 0 && (
-        <div>
-          <strong style={{ color: 'var(--status-failed-text)' }}>{t('dryRun.topExcluded')}</strong>
-          <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
-            {summary.top_excluded.map(v => (
-              <li key={v.value}>{v.value} ({v.count})</li>
-            ))}
-          </ul>
+          {summary.top_excluded.length > 0 && (
+            <div>
+              <strong style={{ color: 'var(--status-failed-text)' }}>{t('dryRun.topExcluded')}</strong>
+              <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
+                {summary.top_excluded.map(v => (
+                  <li key={v.value}>{v.value} ({v.count})</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -131,14 +135,22 @@ export function FilterDryRunPanel({ status, summary, errorMessage, sourceName, a
             <span className="settings-field-hint">{t('dryRun.searchNoResults')}</span>
           ) : (
             <>
-              {searchResult.results.map((line, idx) => (
-                <div key={`${line.group_title}-${line.tvg_name}-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <span>{attribute === 'tvg_name' ? line.tvg_name : line.group_title}</span>
-                  <span className={`badge ${line.matched ? 'badge-success' : 'badge-failed'}`}>
-                    {line.matched ? t('dryRun.wouldMatch') : t('dryRun.wouldBeExcluded')}
-                  </span>
-                </div>
-              ))}
+              <div className="dry-run-search-table-container">
+                <table className="dry-run-search-table">
+                  <tbody>
+                    {searchResult.results.map((line, idx) => (
+                      <tr key={`${line.group_title}-${line.tvg_name}-${idx}`}>
+                        <td>{attribute === 'tvg_name' ? line.tvg_name : line.group_title}</td>
+                        <td>
+                          <span className={`badge ${line.matched ? 'badge-success' : 'badge-failed'}`}>
+                            {line.matched ? t('dryRun.wouldMatch') : t('dryRun.wouldBeExcluded')}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {searchResult.truncated && <span className="settings-field-hint">{t('dryRun.truncated')}</span>}
             </>
           )}
