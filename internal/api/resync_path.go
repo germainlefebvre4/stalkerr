@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"gorm.io/gorm"
 )
 
@@ -251,7 +251,7 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 	}
 	line := dl.ProcessedLines[0]
 
-	cfg := config.Get()
+	cfg := settings.Effective()
 	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
 	defer cancel()
 

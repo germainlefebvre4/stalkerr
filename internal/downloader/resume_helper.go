@@ -11,6 +11,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/jellyfin"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/settings"
 )
 
 // ResumeStats holds statistics about resume operations
@@ -116,7 +117,7 @@ func (rh *ResumeHelper) ResumeDownloads(ctx context.Context, opts ResumeOptions)
 		"dry_run": opts.DryRun,
 	}).Info("processing incomplete downloads")
 
-	cfg := config.Get()
+	cfg := settings.Effective()
 	parallel := opts.Parallel
 	if parallel <= 0 {
 		parallel = cfg.Downloads.MaxParallel

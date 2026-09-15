@@ -378,9 +378,10 @@ func validate() error {
 	if cfg.Database.DBName == "" {
 		return fmt.Errorf("database.dbname is required")
 	}
-	if len(cfg.M3U.Sources) == 0 {
-		return fmt.Errorf("m3u.sources must be a non-empty list")
-	}
+	// m3u.sources may be empty or absent: it is applicative configuration,
+	// settable at runtime via the app-settings/m3u-source-overrides
+	// mechanism, and the app must boot successfully with none configured
+	// anywhere (see the app-settings and m3u-multi-source specs).
 
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	validFormats := map[string]bool{"json": true, "text": true}

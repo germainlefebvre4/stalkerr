@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, cleanup, act } from '@testing-library/react';
+import { render, screen, cleanup, act, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from './i18n';
 import App from './App';
@@ -119,6 +119,92 @@ describe('App default tab', () => {
     });
 
     expect(screen.queryByText('Last Processing Run')).not.toBeInTheDocument();
+  });
+});
+
+describe('App settings navigation', () => {
+  it('replaces the active tab with the Configuration page and restores it on close', async () => {
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    // Starts on Home.
+    expect(screen.getByText('Last Processing Run')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Settings'));
+
+    // Home's tab content is replaced by the Configuration page - distinct
+    // from the tabs, per frontend-configuration-page.
+    expect(screen.queryByText('Last Processing Run')).not.toBeInTheDocument();
+    expect(screen.getByText('Appearance')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Close'));
+
+    // Home is restored, unchanged - the active tab was never touched.
+    expect(screen.getByText('Last Processing Run')).toBeInTheDocument();
+  });
+});
+
+describe('App settings navigation via URL', () => {
+  it('opens the Configuration page directly when the URL carries tab=settings', async () => {
+    window.history.replaceState(null, '', '/?tab=settings');
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.getByText('Appearance')).toBeInTheDocument();
+  });
+
+  it('opens the Configuration page directly on the tab identified by settingsTab', async () => {
+    window.history.replaceState(null, '', '/?tab=settings&settingsTab=advanced');
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.getByRole('tab', { name: /Advanced/ })).toHaveAttribute('data-state', 'active');
+  });
+
+  it('restores the previously active main tab on Close, regardless of which Configuration-page tab was last selected', async () => {
+    window.history.replaceState(null, '', '/?tab=playlist');
+    setMatchMedia(false);
+
+    await act(async () => {
+      render(
+        <I18nextProvider i18n={i18n}>
+          <App />
+        </I18nextProvider>
+      );
+    });
+
+    expect(screen.getByPlaceholderText('Search by title...')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Settings'));
+    expect(screen.getByText('Appearance')).toBeInTheDocument();
+
+    // Switch to a different Configuration-page tab before closing.
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Advanced/ }));
+
+    fireEvent.click(screen.getByText('Close'));
+
+    expect(screen.getByPlaceholderText('Search by title...')).toBeInTheDocument();
   });
 });
 

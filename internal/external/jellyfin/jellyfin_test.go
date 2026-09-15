@@ -3,6 +3,7 @@ package jellyfin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -140,6 +141,88 @@ func TestNotifyPathsUpdatedNetworkError(t *testing.T) {
 	err := client.NotifyPathsUpdated(context.Background(), []string{"/media/movies/Foo (2020)"})
 	if err == nil {
 		t.Fatal("expected error for unreachable server")
+	}
+}
+
+func TestSystemStatusOK(t *testing.T) {
+	var gotPath, gotToken string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotToken = r.Header.Get("X-Emby-Token")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"Version":"10.8.0"}`))
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	if err := client.SystemStatus(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotPath != "/System/Info" {
+		t.Errorf("expected path /System/Info, got %s", gotPath)
+	}
+	if gotToken != "test-key" {
+		t.Errorf("expected X-Emby-Token header 'test-key', got %q", gotToken)
+	}
+}
+
+func TestSystemStatusUnauthorized(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("invalid api key"))
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "bad-key",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	err := client.SystemStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected error for 401 response")
+	}
+
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("expected *StatusError, got %T: %v", err, err)
+	}
+	if statusErr.StatusCode() != http.StatusUnauthorized {
+		t.Errorf("expected status code %d, got %d", http.StatusUnauthorized, statusErr.StatusCode())
+	}
+}
+
+func TestSystemStatusConnectionFailure(t *testing.T) {
+	client := New(Config{
+		BaseURL: "http://127.0.0.1:1",
+		APIKey:  "test-key",
+		Timeout: 500 * time.Millisecond,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	err := client.SystemStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+
+	var statusErr *StatusError
+	if errors.As(err, &statusErr) {
+		t.Fatalf("expected a connection-level error, not *StatusError: %v", err)
 	}
 }
 

@@ -3,14 +3,18 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
+import { FilterConfig, FilterOriginEntry } from '../types';
+import { DialogReplaceWarning } from './DialogReplaceWarning';
 
 interface CreateFilterDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (message: string) => void;
+  filters: FilterConfig[];
+  filterOrigin: FilterOriginEntry[];
 }
 
-export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFilterDialogProps) {
+export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, filterOrigin }: CreateFilterDialogProps) {
   const { t } = useTranslation('dialogs');
   const translateApiError = useApiErrorMessage();
   const [newFilterName, setNewFilterName] = useState('');
@@ -19,6 +23,34 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
   const [newFilterExcludes, setNewFilterExcludes] = useState('');
   const [isFilterCreating, setIsFilterCreating] = useState(false);
   const [filterError, setFilterError] = useState<string | null>(null);
+
+  // Reset the form once the dialog finishes closing - adjusted during render
+  // (rather than a useEffect+setState pair) per this codebase's convention
+  // for "reset local state when a prop transitions" (see SettingsFieldRow).
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) {
+      setNewFilterName('');
+      setNewFilterAttribute('group_title');
+      setNewFilterIncludes('');
+      setNewFilterExcludes('');
+      setFilterError(null);
+    }
+  }
+
+  const existingOverride = filters.find(f => f.attribute === newFilterAttribute);
+  const originForAttribute = filterOrigin.find(o => o.attribute === newFilterAttribute);
+
+  const handleLoadCurrentConfig = () => {
+    if (existingOverride) {
+      setNewFilterIncludes(existingOverride.include_patterns || '');
+      setNewFilterExcludes(existingOverride.exclude_patterns || '');
+    } else {
+      setNewFilterIncludes((originForAttribute?.include_patterns || []).join(', '));
+      setNewFilterExcludes((originForAttribute?.exclude_patterns || []).join(', '));
+    }
+  };
 
   const handleCreateFilter = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,9 +73,6 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
       .then(() => {
         onSuccess(t('createFilter.successMessage'));
         onOpenChange(false);
-        setNewFilterName('');
-        setNewFilterIncludes('');
-        setNewFilterExcludes('');
       })
       .catch((err: unknown) => {
         setFilterError(translateApiError(err));
@@ -77,7 +106,12 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.attributeLabel')}</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.attributeLabel')}</label>
+                <button type="button" onClick={handleLoadCurrentConfig} className="btn-secondary" style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}>
+                  {t('createFilter.loadCurrentConfig')}
+                </button>
+              </div>
               <select
                 value={newFilterAttribute}
                 onChange={e => setNewFilterAttribute(e.target.value)}
@@ -87,6 +121,12 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess }: CreateFi
                 <option value="tvg_name">{t('createFilter.attributeTvgName')}</option>
               </select>
             </div>
+
+            {existingOverride && (
+              <DialogReplaceWarning
+                message={t('createFilter.replaceWarning', { name: existingOverride.name })}
+              />
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.includeLabel')}</label>

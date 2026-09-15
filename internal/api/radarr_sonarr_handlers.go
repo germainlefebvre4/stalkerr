@@ -10,13 +10,13 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/matcher"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
+	"github.com/glefebvre/stalkeer/internal/settings"
 )
 
 // radarrSonarrDefaultPageSize/radarrSonarrMaxPageSize bound these endpoints' page
@@ -100,7 +100,7 @@ type SonarrSeriesEpisodesResponse struct {
 // openspec/changes/radarr-sonarr-monitoring-view and
 // openspec/changes/radarr-sonarr-match-filters-and-counts.
 func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
-	cfg := config.Get()
+	cfg := settings.Effective()
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
 		respondError(c, http.StatusServiceUnavailable, "radarr_not_configured", "Radarr is not configured")
 		return
@@ -232,7 +232,7 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 // manual refresh action) clears that cache first. See
 // openspec/changes/radarr-sonarr-match-filters-and-counts.
 func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
-	cfg := config.Get()
+	cfg := settings.Effective()
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
 		respondError(c, http.StatusServiceUnavailable, "sonarr_not_configured", "Sonarr is not configured")
 		return
@@ -418,7 +418,7 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
 	defer cancel()
 
-	cfg := config.Get()
+	cfg := settings.Effective()
 	resp := RadarrSonarrStatsResponse{}
 
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
@@ -521,7 +521,7 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 // the matched local Movie metadata (if any) and its full playlist occurrence list,
 // regardless of pipeline state.
 func (s *Server) getRadarrMovieMatches(c *gin.Context) {
-	cfg := config.Get()
+	cfg := settings.Effective()
 	if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
 		respondError(c, http.StatusServiceUnavailable, "radarr_not_configured", "Radarr is not configured")
 		return
@@ -578,7 +578,7 @@ func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 // returning per-monitored-episode match detail underlying a series' aggregate
 // ratio in the list view.
 func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
-	cfg := config.Get()
+	cfg := settings.Effective()
 	if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
 		respondError(c, http.StatusServiceUnavailable, "sonarr_not_configured", "Sonarr is not configured")
 		return

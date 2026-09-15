@@ -11,9 +11,9 @@ import (
 
 // withM3USourcesConfig writes a temp config.yaml containing a minimal
 // m3u.sources list, chdirs into that directory for the duration of the test,
-// and restores the original working directory on cleanup. This satisfies the
-// m3u.sources non-empty requirement for tests that don't otherwise care about
-// M3U configuration.
+// and restores the original working directory on cleanup. m3u.sources is not
+// required to load configuration, but some tests still use this to keep a
+// stable, known M3U section while asserting on unrelated fields.
 func withM3USourcesConfig(t *testing.T) {
 	t.Helper()
 
@@ -256,7 +256,11 @@ m3u:
 	}
 }
 
-func TestLoad_EmptySourcesRejected(t *testing.T) {
+// TestLoad_EmptySourcesAccepted asserts the app-settings requirement "Boot
+// Without Applicative Configuration": m3u.sources is applicative
+// configuration, settable at runtime via the UI, so its absence must not
+// prevent the app from loading its configuration and starting.
+func TestLoad_EmptySourcesAccepted(t *testing.T) {
 	// Reset viper's global state so no m3u.sources config leaks in from a
 	// config file read by an earlier test in this package.
 	viper.Reset()
@@ -269,12 +273,12 @@ func TestLoad_EmptySourcesRejected(t *testing.T) {
 	}()
 
 	cfg = nil
-	err := Load()
-	if err == nil {
-		t.Fatalf("expected error when m3u.sources is absent, got nil")
+	if err := Load(); err != nil {
+		t.Fatalf("expected no error when m3u.sources is absent, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "m3u.sources must be a non-empty list") {
-		t.Errorf("expected error about m3u.sources, got: %s", err.Error())
+
+	if config := Get(); len(config.M3U.Sources) != 0 {
+		t.Errorf("expected 0 sources, got %d", len(config.M3U.Sources))
 	}
 }
 

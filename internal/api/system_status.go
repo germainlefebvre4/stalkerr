@@ -18,6 +18,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/retry"
+	"github.com/glefebvre/stalkeer/internal/settings"
 )
 
 // systemStatusCheckTimeout bounds each individual dependency check performed
@@ -109,7 +110,7 @@ type statusCoder interface {
 // check is independent: one dependency's failure never affects another
 // section's reported status, and the endpoint always returns HTTP 200.
 func (s *Server) getSystemStatus(c *gin.Context) {
-	cfg := config.Get()
+	cfg := settings.Effective()
 	ctx := c.Request.Context()
 
 	var wg sync.WaitGroup

@@ -40,7 +40,7 @@ function ServiceRow({ label, status, t }: { label: string; status: ServiceStatus
 function DiskUsageRow({ entry, t }: { entry: DiskUsageEntry; t: (key: string) => string }) {
   return (
     <div style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
-      <div style={{ fontWeight: 600 }}>{entry.paths.join(', ')}</div>
+      <div className="settings-value-wrap" style={{ fontWeight: 600 }}>{entry.paths.join(', ')}</div>
       {entry.unavailable || entry.total == null || entry.available == null ? (
         <div style={{ color: 'var(--status-failed-text)' }}>
           {t(`systemStatus.reasons.${entry.reason || 'unavailable'}`)}
@@ -55,8 +55,9 @@ function DiskUsageRow({ entry, t }: { entry: DiskUsageEntry; t: (key: string) =>
   );
 }
 
-// Content for the drawer's "Système" disclosure. Fetches only while expanded:
-// no request before the first expand, and a fresh one on every re-expand.
+// Content for the Configuration page's "Système" tab. Fetches only while
+// active: no request before the tab's first activation, and a fresh one on
+// every re-activation.
 export function SystemStatusSection({ isExpanded }: SystemStatusSectionProps) {
   const { t } = useTranslation('dialogs');
   const { status, loading, error, fetchStatus } = useSystemStatus();
@@ -82,18 +83,17 @@ export function SystemStatusSection({ isExpanded }: SystemStatusSectionProps) {
       )}
 
       {status && !loading && (
-        <>
-          <div style={{ marginBottom: '1.5rem' }}>
+        <div className="settings-cards-grid">
+          <div className="settings-group-card settings-group-card--compact">
+            <h4 className="settings-group-card-title">{t('systemStatus.health.title')}</h4>
             <ServiceRow label={t('systemStatus.rows.database')} status={status.database} t={t} />
             <ServiceRow label={t('systemStatus.rows.radarr')} status={status.radarr} t={t} />
             <ServiceRow label={t('systemStatus.rows.sonarr')} status={status.sonarr} t={t} />
             <ServiceRow label={t('systemStatus.rows.tmdb')} status={status.tmdb} t={t} />
           </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-              {t('systemStatus.disk.title')}
-            </h4>
+          <div className="settings-group-card settings-group-card--compact">
+            <h4 className="settings-group-card-title">{t('systemStatus.disk.title')}</h4>
             {status.disk.length === 0 ? (
               <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('systemStatus.disk.empty')}</p>
             ) : (
@@ -101,17 +101,15 @@ export function SystemStatusSection({ isExpanded }: SystemStatusSectionProps) {
             )}
           </div>
 
-          <div>
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-              {t('systemStatus.build.title')}
-            </h4>
+          <div className="settings-group-card settings-group-card--compact">
+            <h4 className="settings-group-card-title">{t('systemStatus.build.title')}</h4>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               <div>{t('systemStatus.build.version')}: {status.version}</div>
               <div>{t('systemStatus.build.commit')}: {status.commit}</div>
               <div>{t('systemStatus.build.date')}: {status.date}</div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '1rem' }}>

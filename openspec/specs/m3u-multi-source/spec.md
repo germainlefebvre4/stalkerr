@@ -6,16 +6,16 @@ Defines how the system configures, downloads, archives, and processes more than 
 
 ## Requirements
 
-### Requirement: Configurable list of M3U sources
-The system SHALL support an `m3u.sources` configuration list, where each entry has a unique `name` and its own `file_path` and `download` settings. `m3u.sources` SHALL be required and MUST be a non-empty list; the system SHALL fail to load configuration with a clear error when `m3u.sources` is absent or empty.
+### Requirement: Configurable, optionally empty list of M3U sources
+The system SHALL support an `m3u.sources` configuration list, where each entry has a unique `name` and its own `file_path` and `download` settings. `m3u.sources` MAY be empty or absent; the system SHALL NOT fail to load configuration on that basis. The effective list of M3U sources used by the rest of this specification is the one resolved per the `m3u-source-overrides` capability (file-defined sources plus any runtime overrides or additions), and MAY be empty.
 
 #### Scenario: Sources list defines every M3U source
-- **WHEN** a configuration file sets a non-empty `m3u.sources` list
+- **WHEN** a configuration file sets a non-empty `m3u.sources` list and no runtime sources are stored
 - **THEN** the system SHALL use every entry in `m3u.sources`, each identified by its own `name`, `file_path`, and `download` settings
 
-#### Scenario: Missing or empty sources list is rejected
-- **WHEN** a configuration file omits `m3u.sources` or sets it to an empty list
-- **THEN** the system SHALL fail to load configuration and SHALL report a clear error indicating that at least one M3U source must be configured
+#### Scenario: Missing or empty sources list is accepted
+- **WHEN** a configuration file omits `m3u.sources` or sets it to an empty list, and no runtime sources are stored
+- **THEN** the system SHALL load configuration successfully and SHALL proceed with an empty effective source list, rather than failing to start
 
 ### Requirement: Per-source download and archive isolation
 The `m3u-download` command SHALL attempt the download and archive step for every configured source independently within a single run. A failure downloading or archiving one source SHALL be logged and SHALL NOT prevent the remaining sources from being attempted. The command SHALL exit with a non-zero status if at least one source failed, but only after every configured source has been attempted. Each source SHALL download and archive into its own subdirectory (named after the source) so that two sources' files or archives never overwrite each other.

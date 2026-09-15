@@ -9,6 +9,8 @@
     "attributeLabel": "Targeted media attribute:",
     "attributeGroupTitle": "Group Title (E.g.: VOD-FR, SERIES-US)",
     "attributeTvgName": "TVG Name (E.g.: Inception.2010.mkv)",
+    "loadCurrentConfig": "Load current configuration",
+    "replaceWarning": "An active override named \"{{name}}\" already exists for this attribute and will be replaced.",
     "includeLabel": "Inclusion patterns (comma-separated):",
     "includePlaceholder": "E.g.: FRENCH, TRUEFRENCH, VFF",
     "excludeLabel": "Exclusion patterns (comma-separated):",
@@ -87,6 +89,9 @@
     "refresh": "Refresh",
     "loading": "Checking status...",
     "error": "Failed to load system status.",
+    "health": {
+      "title": "Service health"
+    },
     "rows": {
       "database": "Database",
       "radarr": "Radarr",

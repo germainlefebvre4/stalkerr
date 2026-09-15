@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +14,7 @@ var configCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		showSecrets, _ := cmd.Flags().GetBool("show-secrets")
 
-		cfg := config.Get()
+		cfg := settings.Effective()
 		fmt.Println("=== Stalkeer Configuration ===")
 		fmt.Printf("Database Host: %s\n", cfg.Database.Host)
 		fmt.Printf("Database Port: %d\n", cfg.Database.Port)

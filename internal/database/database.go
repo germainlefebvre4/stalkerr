@@ -129,6 +129,8 @@ func runMigrations() error {
 		&models.ProcessedLine{},
 		&models.ManualMapping{},
 		&models.JobRun{},
+		&models.SettingsOverride{},
+		&models.M3USourceConfig{},
 	); err != nil {
 		return err
 	}

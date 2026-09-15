@@ -1,15 +1,43 @@
 {
   "trigger": "Settings",
   "title": "Settings",
-  "description": "App preferences: appearance, language, filters, startup defaults, and system status.",
+  "description": "App preferences: appearance, language, filters, integrations, startup defaults, and system status.",
   "close": "Close",
+  "loading": "Loading…",
+  "save": "Save",
+  "saving": "Saving…",
+  "cancel": "Cancel",
+  "resetToConfig": "Reset to config",
+  "testConnection": "Test connection",
+  "testing": "Testing…",
   "sections": {
     "appearance": "Appearance",
     "language": "Language",
     "filters": "Filters",
+    "m3uSources": "M3U Sources",
+    "integrations": "Integrations",
+    "notifications": "Notifications",
+    "advanced": "Advanced",
     "preferences": "Preferences",
     "system": "System",
     "about": "About"
+  },
+  "tabs": {
+    "general": "General",
+    "integrations": "Integrations",
+    "content": "Content",
+    "notifications": "Notifications",
+    "advanced": "Advanced",
+    "system": "System",
+    "selectLabel": "Settings section"
+  },
+  "overview": {
+    "noOverrides": "No settings are currently overridden.",
+    "totalOverrides": "{{count}} active overrides",
+    "restartRequired": "{{count}} require a restart"
+  },
+  "search": {
+    "placeholder": "Search settings…"
   },
   "language": {
     "label": "Language",
@@ -21,6 +49,119 @@
     "switchToLight": "Switch to light theme",
     "switchToDark": "Switch to dark theme",
     "reduceMotionLabel": "Reduce animations"
+  },
+  "origin": {
+    "interface": "Interface",
+    "config": "Config"
+  },
+  "restartRequired": {
+    "label": "Restart required",
+    "hint": "This change only takes effect after the application restarts."
+  },
+  "sensitive": {
+    "set": "Set",
+    "notSet": "Not set"
+  },
+  "boolean": {
+    "true": "Enabled",
+    "false": "Disabled"
+  },
+  "logLevels": {
+    "debug": "Debug",
+    "info": "Info",
+    "warn": "Warning",
+    "error": "Error"
+  },
+  "groups": {
+    "radarr": "Radarr",
+    "sonarr": "Sonarr",
+    "tmdb": "TMDB",
+    "jellyfin": "Jellyfin",
+    "downloads": "Downloads",
+    "logging": "Logging",
+    "m3u": "M3U"
+  },
+  "fields": {
+    "radarr": {
+      "url": "URL",
+      "apiKey": "API key",
+      "enabled": "Enabled",
+      "syncInterval": "Sync interval (seconds)",
+      "qualityProfileId": "Quality profile ID"
+    },
+    "sonarr": {
+      "url": "URL",
+      "apiKey": "API key",
+      "enabled": "Enabled",
+      "syncInterval": "Sync interval (seconds)",
+      "qualityProfileId": "Quality profile ID"
+    },
+    "tmdb": {
+      "enabled": "Enabled",
+      "apiKey": "API key",
+      "language": "Language",
+      "requestsPerSecond": "Requests per second"
+    },
+    "jellyfin": {
+      "enabled": "Enabled",
+      "url": "URL",
+      "apiKey": "API key"
+    },
+    "notifications": {
+      "enabled": "Notifications enabled",
+      "ntfyEnabled": "ntfy enabled",
+      "ntfyServerUrl": "ntfy server URL",
+      "ntfyTopic": "ntfy topic",
+      "ntfyAuthToken": "ntfy auth token"
+    },
+    "downloads": {
+      "moviesPath": "Movies path",
+      "tvshowsPath": "TV shows path",
+      "tempDir": "Temp directory",
+      "maxParallel": "Max parallel downloads",
+      "timeout": "Timeout (seconds)",
+      "retryAttempts": "Retry attempts",
+      "resumeEnabled": "Resume enabled",
+      "progressIntervalMb": "Progress interval (MB)",
+      "progressIntervalSeconds": "Progress interval (seconds)",
+      "lockTimeoutMinutes": "Lock timeout (minutes)",
+      "maxRetryAttempts": "Max retry attempts",
+      "minFileSizeMb": "Min file size (MB)",
+      "forceTierProbability": "Force-tier probability"
+    },
+    "logging": {
+      "appLevel": "App log level",
+      "databaseLevel": "Database log level",
+      "format": "Log format"
+    },
+    "m3u": {
+      "updateInterval": "Refresh interval (seconds)"
+    }
+  },
+  "m3uSources": {
+    "heading": "M3U sources",
+    "subtitle": "Sources currently in effect, whether defined in config.yml or created here.",
+    "createButton": "+ Add source",
+    "emptyTitle": "No M3U sources configured yet.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "overridesOrigin": "overrides config",
+    "createTitle": "Add M3U source",
+    "editTitle": "Edit M3U source",
+    "description": "A source added or edited here is stored in the app and takes priority over any config.yml entry with the same name.",
+    "nameLabel": "Name",
+    "nameRequired": "Name is required.",
+    "nameCollidesWithOrigin": "This name matches a config.yml source: saving will override it.",
+    "filePathLabel": "File path",
+    "urlLabel": "Download URL",
+    "authUsernameLabel": "Auth username",
+    "authPasswordLabel": "Auth password",
+    "passwordWillChange": "This will replace the stored password when saved.",
+    "retentionCountLabel": "Archive retention count",
+    "retryAttemptsLabel": "Retry attempts",
+    "enabledLabel": "Download enabled",
+    "confirmReplaceRuntime": "\"{{name}}\" already exists as a source created here. Saving will replace it.",
+    "confirmDelete": "Delete the stored override for \"{{name}}\"? If it came from config.yml, it will revert to that definition."
   },
   "preferences": {
     "startupTabLabel": "Startup tab",

@@ -15,6 +15,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
+	"github.com/glefebvre/stalkeer/internal/settings"
 	"gorm.io/gorm"
 )
 
@@ -73,7 +74,7 @@ func (s *Server) forceDownloadItem(c *gin.Context) {
 		return
 	}
 
-	cfg := config.Get()
+	cfg := settings.Effective()
 	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
 	defer cancel()
 

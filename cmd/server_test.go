@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -29,6 +30,8 @@ func setupServerMetricsTestDB(t *testing.T) *gorm.DB {
 		&models.ProcessingLog{},
 		&models.JobRun{},
 		&models.DownloadInfo{},
+		&models.SettingsOverride{},
+		&models.M3USourceConfig{},
 	))
 
 	database.SetDB(db)
@@ -107,5 +110,33 @@ func TestMaybeStartMetricsServer_EnabledServesPrometheusBody(t *testing.T) {
 	case err := <-errCh:
 		t.Fatalf("expected no error from the metrics server, got %v", err)
 	default:
+	}
+}
+
+// 10.1: the app SHALL start successfully when no applicative configuration
+// (Radarr/Sonarr/TMDB/Jellyfin/Notifications/M3U sources) exists anywhere -
+// only bootstrap configuration is set. See app-settings's "Boot Without
+// Applicative Configuration" and m3u-multi-source's relaxed "Configurable,
+// optionally empty list of M3U sources".
+func TestServerBoot_WithOnlyBootstrapConfig(t *testing.T) {
+	setupServerMetricsTestDB(t)
+	config.SetConfig(&config.Config{
+		Database: config.DatabaseConfig{Host: "localhost", Port: 5432, User: "stalkeer", DBName: "stalkeer", SSLMode: "disable"},
+		API:      config.APIConfig{Port: 8080},
+		Metrics:  config.MetricsConfig{Enabled: false, Port: 8081, Path: "/metrics"},
+		// Radarr, Sonarr, TMDB, Jellyfin, Notifications, Downloads, and
+		// M3U are intentionally left at their zero value: no applicative
+		// configuration exists anywhere, in the file/env sense or as a
+		// stored override.
+	})
+
+	server := api.NewServer()
+
+	req, _ := http.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected /health to return 200 with zero applicative config, got %d: %s", w.Code, w.Body.String())
 	}
 }

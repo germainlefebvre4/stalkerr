@@ -110,6 +110,51 @@ func (c *Client) postMediaUpdated(ctx context.Context, body mediaUpdatedRequest)
 	return nil
 }
 
+// StatusError wraps a non-2xx HTTP response so callers can distinguish an
+// authorization failure (401) from other reachability failures without
+// parsing message strings. StatusCode() satisfies the structural
+// `interface{ StatusCode() int }` the aggregation endpoint's classifier
+// checks for, without that package needing to import jellyfin.
+type StatusError struct {
+	Code int
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("unexpected status code %d: %s", e.Code, e.Body)
+}
+
+// StatusCode returns the HTTP status code that produced this error.
+func (e *StatusError) StatusCode() int {
+	return e.Code
+}
+
+// SystemStatus performs a lightweight, unretried reachability-and-auth check
+// against Jellyfin's /System/Info endpoint, which (unlike the unauthenticated
+// /System/Info/Public) requires the X-Emby-Token header and returns 401 on an
+// invalid key. Unlike NotifyPathsUpdated, it does not go through retry.Do: a
+// diagnostic check must fail fast under the caller's ctx deadline rather than
+// retry like a real data fetch.
+func (c *Client) SystemStatus(ctx context.Context) error {
+	req, err := c.newRequest(ctx, http.MethodGet, "/System/Info", nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return &StatusError{Code: resp.StatusCode, Body: string(body)}
+	}
+
+	return nil
+}
+
 func (c *Client) newRequest(ctx context.Context, method, endpoint string, body interface{}) (*http.Request, error) {
 	url := c.baseURL + endpoint
 
