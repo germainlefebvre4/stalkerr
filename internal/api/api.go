@@ -241,5 +241,8 @@ func (s *Server) setupRoutes() {
 
 		// System status endpoint
 		v1.GET("/system/status", s.getSystemStatus)
+
+		// On-demand integration connectivity test (no settings read/write)
+		v1.POST("/settings/integrations/test", s.testIntegrationConnectivity)
 	}
 }

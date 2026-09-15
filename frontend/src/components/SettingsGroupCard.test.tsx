@@ -4,6 +4,13 @@ import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { SettingsGroupCard } from './SettingsGroupCard';
 import { SettingsField } from '../types';
+import { api } from '../services/api';
+
+vi.mock('../services/api', () => ({
+  api: {
+    testIntegration: vi.fn(),
+  },
+}));
 
 const settings: SettingsField[] = [
   { key: 'radarr.url', value: 'http://old.example.com', sensitive: false, origin: 'config', restart_required: false },
@@ -103,5 +110,114 @@ describe('SettingsGroupCard', () => {
     // The unrelated pending boolean change is untouched.
     expect(onSetSetting).not.toHaveBeenCalled();
     expect(screen.getByText('Save')).toBeInTheDocument();
+  });
+});
+
+describe('SettingsGroupCard testConfig', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  const testSettings: SettingsField[] = [
+    { key: 'radarr.url', value: 'http://old.example.com', sensitive: false, origin: 'config', restart_required: false },
+    { key: 'radarr.api_key', value: null, sensitive: true, is_set: true, origin: 'config', restart_required: false },
+  ];
+
+  const testFields = [
+    { key: 'radarr.url', label: 'URL' },
+    { key: 'radarr.api_key', label: 'API Key' },
+  ];
+
+  function renderTestCard() {
+    const onSetSetting = vi.fn().mockResolvedValue(undefined);
+    const onClearSetting = vi.fn().mockResolvedValue(undefined);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SettingsGroupCard
+          title="Radarr"
+          fields={testFields}
+          settings={testSettings}
+          onSetSetting={onSetSetting}
+          onClearSetting={onClearSetting}
+          testConfig={{ service: 'radarr', urlKey: 'radarr.url', apiKeyKey: 'radarr.api_key' }}
+        />
+      </I18nextProvider>
+    );
+    return { onSetSetting, onClearSetting };
+  }
+
+  it('does not show the Test action without an unsaved change', () => {
+    renderTestCard();
+    expect(screen.queryByText('Test connection')).not.toBeInTheDocument();
+  });
+
+  it('shows the Test action once a field has an unsaved change, using the resolved in-form values', async () => {
+    (api.testIntegration as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
+    renderTestCard();
+
+    fireEvent.change(screen.getByDisplayValue('http://old.example.com'), { target: { value: 'http://new.example.com' } });
+    expect(screen.getByText('Test connection')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Test connection'));
+    await waitFor(() => expect(api.testIntegration).toHaveBeenCalledWith('radarr', 'http://new.example.com', ''));
+  });
+
+  it('disables the Test action when the resolved url is empty', () => {
+    renderTestCard();
+
+    fireEvent.change(screen.getByDisplayValue('http://old.example.com'), { target: { value: '' } });
+
+    expect(screen.getByText('Test connection')).toBeDisabled();
+  });
+
+  it('disables the Test action while a test is in flight and shows a testing label', async () => {
+    let resolveTest: (value: { status: string }) => void = () => {};
+    (api.testIntegration as ReturnType<typeof vi.fn>).mockReturnValue(
+      new Promise(resolve => { resolveTest = resolve; })
+    );
+    renderTestCard();
+
+    fireEvent.change(screen.getByDisplayValue('http://old.example.com'), { target: { value: 'http://new.example.com' } });
+    fireEvent.click(screen.getByText('Test connection'));
+
+    expect(await screen.findByText('Testing…')).toBeDisabled();
+
+    resolveTest({ status: 'ok' });
+    await waitFor(() => expect(screen.getByText('Test connection')).toBeInTheDocument());
+  });
+
+  it('renders an OK badge on a successful test', async () => {
+    (api.testIntegration as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
+    renderTestCard();
+
+    fireEvent.change(screen.getByDisplayValue('http://old.example.com'), { target: { value: 'http://new.example.com' } });
+    fireEvent.click(screen.getByText('Test connection'));
+
+    await waitFor(() => expect(screen.getByText('OK')).toBeInTheDocument());
+  });
+
+  it('renders a KO badge with its reason on a failed test', async () => {
+    (api.testIntegration as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ko', reason: 'unauthorized' });
+    renderTestCard();
+
+    fireEvent.change(screen.getByDisplayValue('http://old.example.com'), { target: { value: 'http://new.example.com' } });
+    fireEvent.click(screen.getByText('Test connection'));
+
+    await waitFor(() => expect(screen.getByText(/KO/)).toBeInTheDocument());
+    expect(screen.getByText(/Identifiants invalides|Invalid credentials/)).toBeInTheDocument();
+  });
+
+  it('clears the result badge on the next field edit in the card', async () => {
+    (api.testIntegration as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'ok' });
+    renderTestCard();
+
+    fireEvent.change(screen.getByDisplayValue('http://old.example.com'), { target: { value: 'http://new.example.com' } });
+    fireEvent.click(screen.getByText('Test connection'));
+    await waitFor(() => expect(screen.getByText('OK')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByDisplayValue('http://new.example.com'), { target: { value: 'http://another.example.com' } });
+
+    expect(screen.queryByText('OK')).not.toBeInTheDocument();
   });
 });

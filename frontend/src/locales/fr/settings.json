@@ -8,6 +8,8 @@
   "saving": "Enregistrement…",
   "cancel": "Annuler",
   "resetToConfig": "Réinitialiser",
+  "testConnection": "Tester la connexion",
+  "testing": "Test en cours…",
   "sections": {
     "appearance": "Apparence",
     "language": "Langue",

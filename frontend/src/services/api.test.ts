@@ -34,3 +34,38 @@ describe('api.getGroupItems', () => {
     expect(url).not.toContain('processing_log_id');
   });
 });
+
+describe('api.testIntegration', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('posts the service/url/api_key to the connectivity-test endpoint and returns the result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ok' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await api.testIntegration('radarr', 'http://radarr.local', 'my-key');
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/settings/integrations/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: 'radarr', url: 'http://radarr.local', api_key: 'my-key' }),
+    });
+    expect(result).toEqual({ status: 'ok' });
+  });
+
+  it('returns a KO result with reason', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'ko', reason: 'unauthorized' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await api.testIntegration('jellyfin', 'http://jellyfin.local', '');
+
+    expect(result).toEqual({ status: 'ko', reason: 'unauthorized' });
+  });
+});

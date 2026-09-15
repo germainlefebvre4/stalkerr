@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { IntegrationsSection } from './IntegrationsSection';
@@ -81,5 +81,26 @@ describe('IntegrationsSection', () => {
     expect(screen.queryAllByRole('checkbox').length).toBe(0);
     // TMDB's only present field (API key) doesn't match "url": the whole group hides.
     expect(screen.queryByText('TMDB')).not.toBeInTheDocument();
+  });
+
+  it('shows the Test connection action only for the Radarr, Sonarr, and Jellyfin cards once each has an unsaved change', () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <IntegrationsSection
+          isExpanded
+          settings={settings}
+          loading={false}
+          onSetSetting={vi.fn()}
+          onClearSetting={vi.fn()}
+        />
+      </I18nextProvider>
+    );
+
+    fireEvent.change(screen.getByDisplayValue('http://radarr.example.com'), { target: { value: 'http://new-radarr.example.com' } });
+    fireEvent.change(screen.getByDisplayValue('http://sonarr.example.com'), { target: { value: 'http://new-sonarr.example.com' } });
+    fireEvent.change(screen.getByDisplayValue('http://jellyfin.example.com'), { target: { value: 'http://new-jellyfin.example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Set'), { target: { value: 'new-tmdb-key' } });
+
+    expect(screen.getAllByText('Test connection')).toHaveLength(3);
   });
 });

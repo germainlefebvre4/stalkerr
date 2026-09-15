@@ -258,6 +258,11 @@ export interface SystemStatusResponse {
   date: string;
 }
 
+export type IntegrationTestService = 'radarr' | 'sonarr' | 'jellyfin';
+
+/** On-demand connectivity-test result: reuses ServiceStatus's status/reason shape (the endpoint only ever returns 'ok' or 'ko', never 'not_configured'). */
+export type IntegrationTestResult = ServiceStatus;
+
 export interface TMDBSearchResult {
   id: number;
   title: string;

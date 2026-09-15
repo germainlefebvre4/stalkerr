@@ -19,6 +19,8 @@ import {
   RadarrSonarrStats,
   MatchStatusFilter,
   SystemStatusResponse,
+  IntegrationTestService,
+  IntegrationTestResult,
   SettingsField,
   BootstrapField,
   M3uSource,
@@ -354,6 +356,16 @@ export const api = {
 
   async getSystemStatus(): Promise<SystemStatusResponse> {
     const res = await fetch('/api/v1/system/status');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async testIntegration(service: IntegrationTestService, url: string, apiKey: string): Promise<IntegrationTestResult> {
+    const res = await fetch('/api/v1/settings/integrations/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service, url, api_key: apiKey }),
+    });
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

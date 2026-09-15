@@ -37,6 +37,7 @@ export function IntegrationsSection({
         onSetSetting={onSetSetting}
         onClearSetting={onClearSetting}
         searchQuery={searchQuery}
+        testConfig={{ service: 'radarr', urlKey: 'radarr.url', apiKeyKey: 'radarr.api_key' }}
       />
       <SettingsGroupCard
         title={t('groups.sonarr')}
@@ -45,6 +46,7 @@ export function IntegrationsSection({
         onSetSetting={onSetSetting}
         onClearSetting={onClearSetting}
         searchQuery={searchQuery}
+        testConfig={{ service: 'sonarr', urlKey: 'sonarr.url', apiKeyKey: 'sonarr.api_key' }}
       />
       <SettingsGroupCard
         title={t('groups.tmdb')}
@@ -61,6 +63,7 @@ export function IntegrationsSection({
         onSetSetting={onSetSetting}
         onClearSetting={onClearSetting}
         searchQuery={searchQuery}
+        testConfig={{ service: 'jellyfin', urlKey: 'jellyfin.url', apiKeyKey: 'jellyfin.api_key' }}
       />
     </div>
   );

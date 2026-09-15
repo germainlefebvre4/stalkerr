@@ -8,6 +8,8 @@
   "saving": "Saving…",
   "cancel": "Cancel",
   "resetToConfig": "Reset to config",
+  "testConnection": "Test connection",
+  "testing": "Testing…",
   "sections": {
     "appearance": "Appearance",
     "language": "Language",
