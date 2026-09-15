@@ -94,8 +94,8 @@ export function M3uSourcesSection({
               </div>
 
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <div>{t('m3uSources.filePathLabel')}: <code>{source.file_path || '—'}</code></div>
-                <div>{t('m3uSources.urlLabel')}: <code>{source.url || '—'}</code></div>
+                <div>{t('m3uSources.filePathLabel')}: <code className="settings-value-wrap">{source.file_path || '—'}</code></div>
+                <div>{t('m3uSources.urlLabel')}: <code className="settings-value-wrap">{source.url || '—'}</code></div>
                 {source.has_auth_password && (
                   <div>{t('m3uSources.authPasswordLabel')}: {t('sensitive.set')}</div>
                 )}

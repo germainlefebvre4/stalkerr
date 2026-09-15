@@ -55,7 +55,7 @@ For settings fields the backend reports as not taking effect until the process r
 - **THEN** the frontend SHALL display a "restart required" indicator for that field after the change is saved
 
 ### Requirement: M3U Sources Management
-The frontend SHALL provide a "Sources M3U" section within the Configuration page's "Contenu" tab, listing the effective M3U sources (origin and runtime), and allowing the user to create a new source, edit an existing source (creating or replacing its runtime override), and delete a runtime-only source or a runtime override (reverting an overridden source to its origin definition). If the name submitted for a new source already identifies an existing runtime-only source, the frontend SHALL warn the user that the existing runtime source will be replaced before submitting, using the same trigger, dialog layout, and inline replace-warning presentation as the Filtres creation dialog (see `frontend-filters-management`). In the create/edit dialog, the source's enabled/disabled control SHALL appear before its other configuration fields (name excepted).
+The frontend SHALL provide a "Sources M3U" section within the Configuration page's "Contenu" tab, listing the effective M3U sources (origin and runtime), and allowing the user to create a new source, edit an existing source (creating or replacing its runtime override), and delete a runtime-only source or a runtime override (reverting an overridden source to its origin definition). If the name submitted for a new source already identifies an existing runtime-only source, the frontend SHALL warn the user that the existing runtime source will be replaced before submitting, using the same trigger, dialog layout, and inline replace-warning presentation as the Filtres creation dialog (see `frontend-filters-management`). In the create/edit dialog, the source's enabled/disabled control SHALL appear before its other configuration fields (name excepted). A source's displayed file path and URL SHALL wrap or break as needed to stay within their card's width, regardless of length, and SHALL NOT force the Configuration page to scroll horizontally.
 
 #### Scenario: Viewing the effective sources list
 - **WHEN** the user views the "Contenu" tab's "Sources M3U" section
@@ -96,6 +96,10 @@ The frontend SHALL provide a "Sources M3U" section within the Configuration page
 #### Scenario: Enabled control appears first in the dialog
 - **WHEN** the user opens the create or edit dialog for an M3U source
 - **THEN** the enabled/disabled control SHALL appear immediately after the name field and before the file path, URL, authentication, and tuning fields
+
+#### Scenario: A long source URL wraps instead of overflowing
+- **WHEN** a source's `url` has no natural break point and is wider than its card
+- **THEN** the frontend SHALL wrap or break that URL within the card, and the Configuration page SHALL NOT gain a horizontal scrollbar
 
 ### Requirement: Settings Field Layout
 Overridable field groups (e.g. Radarr, Sonarr, TMDB, Jellyfin, Notifications, Downloads tuning, Logging, M3U update interval) SHALL each render as a card within a content column capped at 960px, centered within its tab panel. A group of 6 or fewer fields SHALL render as a compact card with a minimum width of 280px, allowing multiple compact cards to share a row at sufficient width. A group of more than 6 fields SHALL always span the tab panel's full width. Within a card, boolean, numeric, and short-selection fields SHALL lay out on an internal multi-column grid; text, URL, and secret fields SHALL span the card's full width.

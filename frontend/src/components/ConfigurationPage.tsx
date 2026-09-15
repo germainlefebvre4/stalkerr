@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Theme } from '../hooks/useTheme';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useM3uSources } from '../hooks/useM3uSources';
 import { useURLState, URLStateSchema } from '../hooks/useURLState';
@@ -24,6 +25,21 @@ const LANGUAGES: { code: 'en' | 'fr'; labelKey: string }[] = [
 const PLAYLIST_LIMIT_OPTIONS = [10, 50, 100];
 
 const REPOSITORY_URL = 'https://github.com/germainlefebvre4/Stalkeer';
+
+function GithubIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
 
 const SETTINGS_TAB_IDS = ['general', 'integrations', 'content', 'notifications', 'advanced', 'system'] as const;
 type SettingsTabId = typeof SETTINGS_TAB_IDS[number];
@@ -106,6 +122,7 @@ export function ConfigurationPage({
 }: ConfigurationPageProps) {
   const { t, i18n } = useTranslation('settings');
   const activeLanguage = i18n.language.startsWith('fr') ? 'fr' : 'en';
+  const isMobile = useIsMobile();
 
   const [activeSettingsTab, setActiveSettingsTabState] = useState<SettingsTabId>(readInitialSettingsTab);
   const [, patchSettingsTabURL] = useURLState(SETTINGS_TAB_URL_SCHEMA);
@@ -274,6 +291,22 @@ export function ConfigurationPage({
     </>
   );
 
+  // Mirrors renderTabBadge's "no badge when zero / no marker when not
+  // restart-required" logic, serialized to text since a native <option>
+  // can't render a colored badge. See the "Option label encodes override
+  // count and restart marker as text" design decision.
+  const buildTabOptionLabel = (label: string, count: number, restartRequired: boolean) =>
+    `${restartRequired ? '⚠ ' : ''}${label}${count > 0 ? ` (${count})` : ''}`;
+
+  const settingsTabs: { id: SettingsTabId; label: string; count: number; restartRequired: boolean }[] = [
+    { id: 'general', label: t('tabs.general'), count: 0, restartRequired: false },
+    { id: 'integrations', label: t('tabs.integrations'), count: integrationsOverrideCount, restartRequired: integrationsRestartRequired },
+    { id: 'content', label: t('tabs.content'), count: contentOverrideCount, restartRequired: false },
+    { id: 'notifications', label: t('tabs.notifications'), count: notificationsOverrideCount, restartRequired: notificationsRestartRequired },
+    { id: 'advanced', label: t('tabs.advanced'), count: advancedOverrideCount, restartRequired: advancedRestartRequired },
+    { id: 'system', label: t('tabs.system'), count: 0, restartRequired: false },
+  ];
+
   return (
     <div className="configuration-page">
       <div className="configuration-page-content">
@@ -312,26 +345,27 @@ export function ConfigurationPage({
         </div>
 
         <Tabs.Root value={activeSettingsTab} onValueChange={v => setActiveSettingsTab(v as SettingsTabId)}>
-          <Tabs.List className="settings-tabs-list">
-            <Tabs.Trigger value="general" className="segmented-tabs-trigger">{t('tabs.general')}</Tabs.Trigger>
-            <Tabs.Trigger value="integrations" className="segmented-tabs-trigger">
-              {t('tabs.integrations')}
-              {renderTabBadge(integrationsOverrideCount, integrationsRestartRequired)}
-            </Tabs.Trigger>
-            <Tabs.Trigger value="content" className="segmented-tabs-trigger">
-              {t('tabs.content')}
-              {renderTabBadge(contentOverrideCount, false)}
-            </Tabs.Trigger>
-            <Tabs.Trigger value="notifications" className="segmented-tabs-trigger">
-              {t('tabs.notifications')}
-              {renderTabBadge(notificationsOverrideCount, notificationsRestartRequired)}
-            </Tabs.Trigger>
-            <Tabs.Trigger value="advanced" className="segmented-tabs-trigger">
-              {t('tabs.advanced')}
-              {renderTabBadge(advancedOverrideCount, advancedRestartRequired)}
-            </Tabs.Trigger>
-            <Tabs.Trigger value="system" className="segmented-tabs-trigger">{t('tabs.system')}</Tabs.Trigger>
-          </Tabs.List>
+          {isMobile ? (
+            <select
+              className="custom-select settings-tabs-select"
+              aria-label={t('tabs.selectLabel')}
+              value={activeSettingsTab}
+              onChange={e => setActiveSettingsTab(e.target.value as SettingsTabId)}
+            >
+              {settingsTabs.map(({ id, label, count, restartRequired }) => (
+                <option key={id} value={id}>{buildTabOptionLabel(label, count, restartRequired)}</option>
+              ))}
+            </select>
+          ) : (
+            <Tabs.List className="settings-tabs-list">
+              {settingsTabs.map(({ id, label, count, restartRequired }) => (
+                <Tabs.Trigger key={id} value={id} className="segmented-tabs-trigger">
+                  {label}
+                  {renderTabBadge(count, restartRequired)}
+                </Tabs.Trigger>
+              ))}
+            </Tabs.List>
+          )}
 
           <Tabs.Content value="general" className="settings-tab-panel">
             <div className="settings-cards-grid">
@@ -427,8 +461,9 @@ export function ConfigurationPage({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-secondary"
-                    style={{ display: 'inline-flex', textDecoration: 'none', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
                   >
+                    <GithubIcon size={14} />
                     {t('about.repositoryLink')}
                   </a>
                 </div>

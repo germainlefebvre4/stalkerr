@@ -28,7 +28,8 @@
     "content": "Content",
     "notifications": "Notifications",
     "advanced": "Advanced",
-    "system": "System"
+    "system": "System",
+    "selectLabel": "Settings section"
   },
   "overview": {
     "noOverrides": "No settings are currently overridden.",

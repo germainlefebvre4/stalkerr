@@ -28,7 +28,8 @@
     "content": "Contenu",
     "notifications": "Notifications",
     "advanced": "Avancé",
-    "system": "Système"
+    "system": "Système",
+    "selectLabel": "Section des paramètres"
   },
   "overview": {
     "noOverrides": "Aucun paramètre n'est actuellement surchargé.",

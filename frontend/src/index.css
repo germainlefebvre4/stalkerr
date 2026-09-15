@@ -244,6 +244,14 @@ input, select {
   box-shadow: var(--shadow-md);
 }
 
+/* Lets a long, space-free technical value (a URL, a mount path) wrap within
+   its card instead of forcing the page to scroll horizontally, without
+   affecting normal word breaking elsewhere. Scoped to the value element
+   itself, not the whole card. */
+.settings-value-wrap {
+  overflow-wrap: anywhere;
+}
+
 /* Segmented Control Tabs (Radix tabs list styled like capsule macOS widget) */
 .segmented-tabs-list {
   display: inline-flex;
@@ -1078,6 +1086,10 @@ input, select {
   border: 1px solid var(--tabs-well-border);
 }
 
+.settings-tabs-select {
+  margin-bottom: 1.5rem;
+}
+
 .settings-tab-badge {
   margin-left: 0.35rem;
 }
@@ -1273,18 +1285,6 @@ input, select {
   font-size: 0.85rem;
   font-weight: 600;
   border: 1px solid var(--status-pending-border);
-}
-
-@media (max-width: 767.98px) {
-  .settings-tabs-list {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .settings-tabs-list .segmented-tabs-trigger {
-    flex-shrink: 0;
-  }
 }
 
 /* Full-width table on desktop, flush with the surrounding card's padding */

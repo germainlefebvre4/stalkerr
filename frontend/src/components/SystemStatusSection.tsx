@@ -40,7 +40,7 @@ function ServiceRow({ label, status, t }: { label: string; status: ServiceStatus
 function DiskUsageRow({ entry, t }: { entry: DiskUsageEntry; t: (key: string) => string }) {
   return (
     <div style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
-      <div style={{ fontWeight: 600 }}>{entry.paths.join(', ')}</div>
+      <div className="settings-value-wrap" style={{ fontWeight: 600 }}>{entry.paths.join(', ')}</div>
       {entry.unavailable || entry.total == null || entry.available == null ? (
         <div style={{ color: 'var(--status-failed-text)' }}>
           {t(`systemStatus.reasons.${entry.reason || 'unavailable'}`)}

@@ -1,10 +1,15 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { ConfigurationPage, ConfigurationPageProps } from './ConfigurationPage';
 import { api } from '../services/api';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import { FilterConfig, SettingsField, M3uSource } from '../types';
+
+vi.mock('../hooks/useMediaQuery', () => ({
+  useIsMobile: vi.fn(() => false),
+}));
 
 vi.mock('../services/api', () => ({
   api: {
@@ -57,6 +62,7 @@ describe('ConfigurationPage', () => {
     vi.mocked(api.getSettings).mockReset().mockResolvedValue({ settings: [] });
     vi.mocked(api.getM3uSources).mockReset().mockResolvedValue({ sources: [] });
     vi.mocked(api.getM3uSourcesOrigin).mockReset().mockResolvedValue({ sources: [] });
+    vi.mocked(useIsMobile).mockReturnValue(false);
   });
 
   it('renders the six tabs in order', () => {
@@ -225,6 +231,49 @@ describe('ConfigurationPage', () => {
 
       expect(localStorage.getItem('stalkeer_configuration_tab')).toBe('advanced');
       expect(new URLSearchParams(window.location.search).get('settingsTab')).toBe('advanced');
+    });
+  });
+
+  describe('mobile tab dropdown', () => {
+    beforeEach(() => {
+      vi.mocked(useIsMobile).mockReturnValue(true);
+    });
+
+    it('renders a select with the six tabs instead of the tab bar', () => {
+      renderPage();
+
+      expect(screen.queryByRole('tablist')).toBeNull();
+      const select = screen.getByRole('combobox', { name: 'Settings section' });
+      const options = Array.from(select.querySelectorAll('option')).map(o => o.textContent);
+      expect(options).toEqual(['General', 'Integrations', 'Content', 'Notifications', 'Advanced', 'System']);
+    });
+
+    it('encodes the override count and restart marker as option text', async () => {
+      vi.mocked(api.getSettings).mockResolvedValueOnce({
+        settings: [
+          { key: 'radarr.url', value: 'http://x', sensitive: false, origin: 'interface', restart_required: true },
+        ] as SettingsField[],
+      });
+
+      renderPage();
+
+      const select = screen.getByRole('combobox', { name: 'Settings section' }) as HTMLSelectElement;
+      await waitFor(() => {
+        const integrationsOption = Array.from(select.querySelectorAll('option')).find(o => o.value === 'integrations');
+        expect(integrationsOption?.textContent).toBe('⚠ Integrations (1)');
+      });
+    });
+
+    it('switches the active tab, updates the URL, and matches desktop tab-switch behavior', () => {
+      renderPage();
+
+      const select = screen.getByRole('combobox', { name: 'Settings section' }) as HTMLSelectElement;
+      fireEvent.change(select, { target: { value: 'system' } });
+
+      expect(select.value).toBe('system');
+      expect(localStorage.getItem('stalkeer_configuration_tab')).toBe('system');
+      expect(new URLSearchParams(window.location.search).get('settingsTab')).toBe('system');
+      expect(screen.getByText('Stalkeer Dashboard')).toBeInTheDocument();
     });
   });
 });
