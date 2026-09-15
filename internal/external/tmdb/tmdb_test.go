@@ -218,8 +218,12 @@ func TestRetryAfterHTTPDateFormat(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempt++
 		if attempt == 1 {
-			// Set Retry-After to 1 second from now in HTTP-date format
-			retryAt := time.Now().Add(1 * time.Second).UTC().Format(http.TimeFormat)
+			// Set Retry-After to a time in HTTP-date format. HTTP-date (RFC1123)
+			// has only whole-second precision, so the base time is truncated to
+			// the second boundary before adding the margin — otherwise the
+			// truncation performed by Format could drop up to ~999ms and push
+			// the encoded time below the 1s the assertion below expects.
+			retryAt := time.Now().Truncate(time.Second).Add(2 * time.Second).UTC().Format(http.TimeFormat)
 			w.Header().Set("Retry-After", retryAt)
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
@@ -239,8 +243,12 @@ func TestRetryAfterHTTPDateFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected success after retry, got: %v", err)
 	}
-	if elapsed < 1*time.Second {
-		t.Errorf("expected at least 1s wait for HTTP-date Retry-After, elapsed: %v", elapsed)
+	// Upper bound is generous: elapsed includes not just the Retry-After wait
+	// (up to ~2s from the truncation margin above) but also makeRequest's own
+	// retry.Config backoff (InitialBackoff 1s, +/-10% jitter) applied before
+	// the retry fires, pushing the worst case to ~3.2s.
+	if elapsed < 1*time.Second || elapsed >= 5*time.Second {
+		t.Errorf("expected wait between 1s and 5s for HTTP-date Retry-After, elapsed: %v", elapsed)
 	}
 	if attempt != 2 {
 		t.Errorf("expected 2 attempts, got %d", attempt)
