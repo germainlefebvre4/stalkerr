@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.1.0...v1.2.0) (2026-09-15)
+
+
+### Features
+
+* **settings:** App settings overrides ([#44](https://github.com/germainlefebvre4/stalkerr/issues/44)) ([c6fbb49](https://github.com/germainlefebvre4/stalkerr/commit/c6fbb49d10cec86092154de0de76585d4822b2bb))
+
 ## [1.1.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.0.0...v1.1.0) (2026-09-13)
 
 
