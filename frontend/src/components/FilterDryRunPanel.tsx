@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
@@ -34,12 +34,16 @@ export function FilterDryRunPanel({ status, summary, errorMessage, sourceName, a
   const [searchError, setSearchError] = useState<string | null>(null);
 
   // A fresh test (new source/attribute/patterns) invalidates any previous
-  // search result.
-  useEffect(() => {
+  // search result. Adjusted during render rather than a useEffect+setState
+  // pair (see CreateFilterDialog's dryRunInputsKey for the same convention).
+  const dryRunResultKey = `${sourceName}|${attribute}|${includePatterns}|${excludePatterns}|${status}`;
+  const [lastDryRunResultKey, setLastDryRunResultKey] = useState(dryRunResultKey);
+  if (dryRunResultKey !== lastDryRunResultKey) {
+    setLastDryRunResultKey(dryRunResultKey);
     setSearchTerm('');
     setSearchResult(null);
     setSearchError(null);
-  }, [sourceName, attribute, includePatterns, excludePatterns, status]);
+  }
 
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);

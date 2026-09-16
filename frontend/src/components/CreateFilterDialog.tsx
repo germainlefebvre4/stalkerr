@@ -60,12 +60,17 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
 
   // Editing the in-progress values invalidates any previous test result -
   // see the "switching attribute/source or editing patterns resets any
-  // previous test result" scenario in frontend-filters-management.
-  useEffect(() => {
+  // previous test result" scenario in frontend-filters-management. Adjusted
+  // during render (same convention as wasOpen above) rather than a
+  // useEffect+setState pair.
+  const dryRunInputsKey = `${newFilterAttribute}|${newFilterIncludes}|${newFilterExcludes}|${testSourceName}`;
+  const [lastDryRunInputsKey, setLastDryRunInputsKey] = useState(dryRunInputsKey);
+  if (dryRunInputsKey !== lastDryRunInputsKey) {
+    setLastDryRunInputsKey(dryRunInputsKey);
     setDryRunStatus('idle');
     setDryRunSummary(null);
     setDryRunError(null);
-  }, [newFilterAttribute, newFilterIncludes, newFilterExcludes, testSourceName]);
+  }
 
   const handleTestFilter = () => {
     if (!testSourceName) return;
