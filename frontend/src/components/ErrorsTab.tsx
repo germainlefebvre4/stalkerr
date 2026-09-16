@@ -74,7 +74,7 @@ export function ErrorsTab({
         setPage={setErrorsPage}
         limit={errorsLimit}
         setLimit={setErrorsLimit}
-        limitOptions={[10, 50, 100]}
+        limitOptions={[10, 20, 50, 100]}
       />
 
       <ErrorsSidepanel item={selectedItem} onOpenChange={(open) => !open && setSelectedId(null)} />

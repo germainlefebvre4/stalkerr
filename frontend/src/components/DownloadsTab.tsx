@@ -221,7 +221,7 @@ export function DownloadsTab({
         setPage={setDownloadsPage}
         limit={downloadsLimit}
         setLimit={setDownloadsLimit}
-        limitOptions={[10, 50, 100]}
+        limitOptions={[10, 20, 50, 100]}
       />
 
       {/* Sidepanel de Détails Interactif (Drawer) */}
