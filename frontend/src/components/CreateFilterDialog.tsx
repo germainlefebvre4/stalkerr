@@ -73,11 +73,15 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
   }, [isOpen]);
 
   // Editing the in-progress values invalidates the current test target/
-  // result - see the "editing patterns resets any previous test result"
-  // scenario in frontend-filters-management.
-  useEffect(() => {
+  // result - adjusted during render (rather than a useEffect+setState pair),
+  // same convention as `wasOpen` above - see the "editing patterns resets
+  // any previous test result" scenario in frontend-filters-management.
+  const testInputsKey = `${newFilterAttribute}|${newFilterIncludes}|${newFilterExcludes}`;
+  const [lastTestInputsKey, setLastTestInputsKey] = useState(testInputsKey);
+  if (testInputsKey !== lastTestInputsKey) {
+    setLastTestInputsKey(testInputsKey);
     setTestTarget(null);
-  }, [newFilterAttribute, newFilterIncludes, newFilterExcludes]);
+  }
 
   const handleTestFilter = () => {
     const attributeLabel = newFilterAttribute === 'tvg_name' ? t('filters:tvgNameLabel') : t('filters:groupTitleLabel');

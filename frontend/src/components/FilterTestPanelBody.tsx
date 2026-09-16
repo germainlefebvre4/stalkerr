@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { api } from '../services/api';
@@ -141,8 +141,12 @@ export function FilterTestPanelBody({ target, sources }: FilterTestPanelBodyProp
   const targetKey = JSON.stringify(target);
 
   // A new target (different card, different in-progress patterns, or
-  // "Tester l'ensemble") invalidates the previous test result and search.
-  useEffect(() => {
+  // "Tester l'ensemble") invalidates the previous test result and search -
+  // adjusted during render (rather than a useEffect+setState pair), same
+  // convention as CreateFilterDialog's `wasOpen`.
+  const [lastTargetKey, setLastTargetKey] = useState(targetKey);
+  if (targetKey !== lastTargetKey) {
+    setLastTargetKey(targetKey);
     setStatus('idle');
     setSummary(null);
     setErrorMessage(null);
@@ -150,8 +154,7 @@ export function FilterTestPanelBody({ target, sources }: FilterTestPanelBodyProp
     setSearchTerm('');
     setSearchResult(null);
     setSearchError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetKey]);
+  }
 
   const runSearch = (term: string, attribute: 'group_title' | 'tvg_name') => {
     if (!term.trim()) {
