@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { FiltersSection } from './FiltersSection';
@@ -107,36 +107,21 @@ describe('FiltersSection', () => {
   describe('dry-run testing', () => {
     afterEach(() => vi.mocked(api.dryRunFilter).mockReset());
 
-    function testerControlsFor(card: HTMLElement) {
-      const select = card.querySelector('select') as HTMLSelectElement;
-      const button = Array.from(card.querySelectorAll('button')).find(b => b.textContent === 'Test') as HTMLButtonElement;
-      return { select, button };
+    function testButtonFor(card: HTMLElement) {
+      return Array.from(card.querySelectorAll('button')).find(b => b.textContent === 'Test') as HTMLButtonElement;
     }
 
-    it("tests the origin card's own patterns without a save/delete request", async () => {
-      vi.mocked(api.dryRunFilter).mockResolvedValue({
-        no_archive: false, total_lines: 4, matched_count: 4, excluded_count: 0, top_matched: [], top_excluded: [],
-      });
+    it("opens the shared drawer with the origin card's own patterns, without a save/delete request", async () => {
       const { onDeleteFilter } = renderSection([]);
 
       const card = screen.getByText('Group Title').closest('.filter-card') as HTMLElement;
-      const { select, button } = testerControlsFor(card);
-      fireEvent.change(select, { target: { value: 'main' } });
-      fireEvent.click(button);
+      fireEvent.click(testButtonFor(card));
 
-      await waitFor(() => expect(api.dryRunFilter).toHaveBeenCalledWith({
-        source_name: 'main',
-        attribute: 'group_title',
-        include_patterns: 'FRENCH',
-        exclude_patterns: '',
-      }));
+      expect(await screen.findByText('Test: Group Title — Origin (config.yml)')).toBeInTheDocument();
       expect(onDeleteFilter).not.toHaveBeenCalled();
     });
 
-    it("tests the override card's own patterns, distinct from the origin's", async () => {
-      vi.mocked(api.dryRunFilter).mockResolvedValue({
-        no_archive: false, total_lines: 4, matched_count: 4, excluded_count: 0, top_matched: [], top_excluded: [],
-      });
+    it("opens the shared drawer with the override card's own patterns, distinct from the origin's", async () => {
       const filters: FilterConfig[] = [
         { id: 1, name: 'My Override', attribute: 'group_title', include_patterns: 'OVERRIDE_INC', exclude_patterns: 'OVERRIDE_EXC', is_runtime: true },
       ];
@@ -144,17 +129,61 @@ describe('FiltersSection', () => {
 
       const overrideBadge = screen.getByText('Active override');
       const overrideBlock = overrideBadge.closest('div')!.parentElement as HTMLElement;
-      const { select, button } = testerControlsFor(overrideBlock);
-      fireEvent.change(select, { target: { value: 'main' } });
-      fireEvent.click(button);
+      fireEvent.click(testButtonFor(overrideBlock));
 
-      await waitFor(() => expect(api.dryRunFilter).toHaveBeenCalledWith({
-        source_name: 'main',
-        attribute: 'group_title',
-        include_patterns: 'OVERRIDE_INC',
-        exclude_patterns: 'OVERRIDE_EXC',
-      }));
+      expect(await screen.findByText('Test: Group Title — Active override')).toBeInTheDocument();
       expect(onDeleteFilter).not.toHaveBeenCalled();
+    });
+
+    it('reuses the same drawer when testing a different card', async () => {
+      const filters: FilterConfig[] = [
+        { id: 1, name: 'My Override', attribute: 'group_title', include_patterns: 'OVERRIDE_INC', is_runtime: true },
+      ];
+      renderSection(filters);
+
+      const groupCard = screen.getByText('Group Title').closest('.filter-card') as HTMLElement;
+      fireEvent.click(testButtonFor(groupCard));
+      expect(await screen.findByText('Test: Group Title — Origin (config.yml)')).toBeInTheDocument();
+
+      const tvgCard = screen.getByText('TVG Name').closest('.filter-card') as HTMLElement;
+      fireEvent.click(testButtonFor(tvgCard));
+
+      expect(await screen.findByText('Test: TVG Name — Origin (config.yml)')).toBeInTheDocument();
+      expect(screen.queryByText('Test: Group Title — Origin (config.yml)')).not.toBeInTheDocument();
+      // Still exactly one drawer/dialog, not a second one stacked on top.
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    });
+
+    it('opens the combined "test everything" drawer using the effective patterns (override if present, else origin)', async () => {
+      vi.mocked(api.dryRunFilter).mockResolvedValue({
+        no_archive: false, total_lines: 4, kept_count: 4,
+        excluded_by_group_title_only: 0, excluded_by_tvg_name_only: 0, excluded_by_both: 0,
+        group_title_top_matched: [], group_title_top_excluded: [],
+        tvg_name_top_matched: [], tvg_name_top_excluded: [],
+      });
+      const filters: FilterConfig[] = [
+        { id: 1, name: 'My Override', attribute: 'group_title', include_patterns: 'OVERRIDE_INC', exclude_patterns: 'OVERRIDE_EXC', is_runtime: true },
+      ];
+      renderSection(filters);
+
+      fireEvent.click(screen.getByText('Test everything'));
+
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText('Test everything')).toBeInTheDocument();
+
+      fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'main' } });
+      fireEvent.click(within(dialog).getByText('Test'));
+
+      // group_title uses the active override, tvg_name falls back to origin
+      // (empty patterns since no origin entry has any in this fixture).
+      expect(api.dryRunFilter).toHaveBeenCalledWith({
+        source_name: 'main',
+        attributes: ['group_title', 'tvg_name'],
+        group_title_include_patterns: 'OVERRIDE_INC',
+        group_title_exclude_patterns: 'OVERRIDE_EXC',
+        tvg_name_include_patterns: '',
+        tvg_name_exclude_patterns: '',
+      });
     });
   });
 });

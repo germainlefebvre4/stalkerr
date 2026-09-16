@@ -90,82 +90,50 @@ describe('CreateFilterDialog', () => {
   });
 
   describe('dry-run testing', () => {
-    async function selectTestSource(name = 'main') {
-      const option = await screen.findByText('main') as HTMLOptionElement;
-      const select = option.closest('select') as HTMLSelectElement;
-      fireEvent.change(select, { target: { value: name } });
-    }
-
-    it('lists the M3U sources in the test source select', async () => {
-      renderDialog([]);
-      await screen.findByText('main');
-      expect(screen.getByText('backup')).toBeInTheDocument();
-    });
-
-    it('tests the in-progress patterns without submitting the create request', async () => {
+    it('opens the test drawer with a single target built from the in-progress attribute/patterns', async () => {
       vi.mocked(api.createFilter).mockClear();
-      vi.mocked(api.dryRunFilter).mockResolvedValue({
-        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
-      });
       renderDialog([]);
 
-      await selectTestSource();
       fireEvent.change(screen.getByPlaceholderText('E.g.: FRENCH, TRUEFRENCH, VFF'), { target: { value: 'FRENCH' } });
       fireEvent.click(screen.getByText('Test'));
 
-      await waitFor(() => expect(api.dryRunFilter).toHaveBeenCalledWith({
-        source_name: 'main',
-        attribute: 'group_title',
-        include_patterns: 'FRENCH',
-        exclude_patterns: '',
-      }));
+      expect(await screen.findByText('Test: Group Title — in progress')).toBeInTheDocument();
+      // The M3U source selector now lives inside the drawer.
+      expect(await screen.findByText('main')).toBeInTheDocument();
       expect(api.createFilter).not.toHaveBeenCalled();
-      expect(await screen.findByText('5 lines scanned')).toBeInTheDocument();
     });
 
-    it('resets a previous test result when the attribute changes', async () => {
-      vi.mocked(api.dryRunFilter).mockResolvedValue({
-        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
-      });
+    it('reflects the tvg_name attribute in the drawer title', async () => {
       renderDialog([]);
-
-      await selectTestSource();
-      fireEvent.click(screen.getByText('Test'));
-      await screen.findByText('5 lines scanned');
 
       fireEvent.change(screen.getByDisplayValue('Group Title (E.g.: VOD-FR, SERIES-US)'), { target: { value: 'tvg_name' } });
+      fireEvent.click(screen.getByText('Test'));
 
-      expect(screen.queryByText('5 lines scanned')).not.toBeInTheDocument();
+      expect(await screen.findByText('Test: TVG Name — in progress')).toBeInTheDocument();
     });
 
-    it('resets a previous test result when the include/exclude patterns are edited', async () => {
-      vi.mocked(api.dryRunFilter).mockResolvedValue({
-        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
-      });
+    it('closes the drawer (invalidating the target) when a pattern is edited afterward', async () => {
       renderDialog([]);
 
-      await selectTestSource();
       fireEvent.click(screen.getByText('Test'));
-      await screen.findByText('5 lines scanned');
+      expect(await screen.findByText('Test: Group Title — in progress')).toBeInTheDocument();
 
       fireEvent.change(screen.getByPlaceholderText('E.g.: FRENCH, TRUEFRENCH, VFF'), { target: { value: 'FRENCH' } });
 
-      expect(screen.queryByText('5 lines scanned')).not.toBeInTheDocument();
+      expect(screen.queryByText('Test: Group Title — in progress')).not.toBeInTheDocument();
     });
 
-    it('resets a previous test result when the test source changes', async () => {
-      vi.mocked(api.dryRunFilter).mockResolvedValue({
-        no_archive: false, total_lines: 5, matched_count: 3, excluded_count: 2, top_matched: [], top_excluded: [],
-      });
-      renderDialog([]);
-
-      await selectTestSource('main');
+    it('does not close the create dialog when the drawer is dismissed', async () => {
+      const { onSuccess } = renderDialog([]);
       fireEvent.click(screen.getByText('Test'));
-      await screen.findByText('5 lines scanned');
+      expect(await screen.findByText('Test: Group Title — in progress')).toBeInTheDocument();
 
-      await selectTestSource('backup');
+      fireEvent.click(screen.getByText('Close'));
 
-      expect(screen.queryByText('5 lines scanned')).not.toBeInTheDocument();
+      expect(screen.queryByText('Test: Group Title — in progress')).not.toBeInTheDocument();
+      // The create dialog itself (its title) is still shown.
+      expect(screen.getByText('🔍 Configure a New Sorting Filter')).toBeInTheDocument();
+      expect(onSuccess).not.toHaveBeenCalled();
     });
   });
 });

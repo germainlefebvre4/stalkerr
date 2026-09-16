@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FilterConfig, FilterOriginEntry, M3uSource, FilterDryRunSummaryResponse } from '../types';
-import { api } from '../services/api';
-import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
-import { FilterDryRunPanel, FilterDryRunStatus } from './FilterDryRunPanel';
+import { FilterConfig, FilterOriginEntry, M3uSource, FilterTestTarget } from '../types';
+import { FilterTestDrawer } from './FilterTestDrawer';
 
 interface FiltersSectionProps {
   isExpanded: boolean;
@@ -22,86 +20,6 @@ function joinPatterns(patterns: string[]): string {
   return patterns.join(', ');
 }
 
-// A read-only dry-run "Tester" for one filter card block (origin or active
-// override): its own source selection and its own result panel, testing
-// exactly that block's existing patterns without opening the create dialog
-// or affecting any saved filter. See frontend-filters-management's "Dry-Run
-// Filter Testing" - "Testing an already-saved filter from its card".
-function FilterCardTester({ attribute, includePatterns, excludePatterns, sources }: {
-  attribute: string;
-  includePatterns: string;
-  excludePatterns: string;
-  sources: M3uSource[];
-}) {
-  const { t } = useTranslation('filters');
-  const translateApiError = useApiErrorMessage();
-  const [testSourceName, setTestSourceName] = useState('');
-  const [status, setStatus] = useState<FilterDryRunStatus>('idle');
-  const [summary, setSummary] = useState<FilterDryRunSummaryResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const handleTest = () => {
-    if (!testSourceName) return;
-    setStatus('testing');
-    setErrorMessage(null);
-
-    api.dryRunFilter({
-      source_name: testSourceName,
-      attribute,
-      include_patterns: includePatterns,
-      exclude_patterns: excludePatterns,
-    })
-      .then(res => {
-        if (res.no_archive) {
-          setStatus('no_archive');
-          return;
-        }
-        setSummary(res as FilterDryRunSummaryResponse);
-        setStatus('summary');
-      })
-      .catch((err: unknown) => {
-        setErrorMessage(translateApiError(err));
-        setStatus('error');
-      });
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <select
-          value={testSourceName}
-          onChange={e => { setTestSourceName(e.target.value); setStatus('idle'); setSummary(null); setErrorMessage(null); }}
-          className="custom-select"
-          style={{ flex: 1, fontSize: '0.8rem' }}
-        >
-          <option value="">{t('dryRun.sourcePlaceholder')}</option>
-          {sources.map(source => (
-            <option key={source.name} value={source.name}>{source.name}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={handleTest}
-          disabled={!testSourceName || status === 'testing'}
-          className="btn-secondary"
-          style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-        >
-          {t('dryRun.testButton')}
-        </button>
-      </div>
-      <FilterDryRunPanel
-        status={status}
-        summary={summary}
-        errorMessage={errorMessage}
-        sourceName={testSourceName}
-        attribute={attribute}
-        includePatterns={includePatterns}
-        excludePatterns={excludePatterns}
-      />
-    </div>
-  );
-}
-
 // The "Filtres" section within the Configuration page's "Contenu" tab: one
 // block per attribute (Group Title, TVG Name) showing the origin config.yml
 // patterns alongside the active runtime override, if any. See the Filters
@@ -117,6 +35,7 @@ export function FiltersSection({
   searchQuery,
 }: FiltersSectionProps) {
   const { t } = useTranslation('filters');
+  const [testTarget, setTestTarget] = useState<FilterTestTarget | null>(null);
 
   if (!isExpanded) return null;
 
@@ -135,6 +54,44 @@ export function FiltersSection({
       return label.includes(query) || (group.override?.name.toLowerCase().includes(query) ?? false);
     });
 
+  const testSingle = (attribute: 'group_title' | 'tvg_name', includePatterns: string, excludePatterns: string, isOverride: boolean) => {
+    setTestTarget({
+      mode: 'single',
+      attribute,
+      includePatterns,
+      excludePatterns,
+      label: t(isOverride ? 'dryRun.titleOverride' : 'dryRun.titleOrigin', { attribute: attributeLabel(attribute) }),
+    });
+  };
+
+  // Resolves each attribute's effective patterns - the active override if
+  // one exists, otherwise the origin config.yml patterns - the same
+  // resolution already used per card above.
+  const effectivePatterns = (attribute: 'group_title' | 'tvg_name') => {
+    const override = filters.find(f => f.attribute === attribute);
+    if (override) {
+      return { include: override.include_patterns || '', exclude: override.exclude_patterns || '' };
+    }
+    const origin = filterOrigin.find(o => o.attribute === attribute);
+    return {
+      include: origin ? joinPatterns(origin.include_patterns) : '',
+      exclude: origin ? joinPatterns(origin.exclude_patterns) : '',
+    };
+  };
+
+  const testAll = () => {
+    const groupTitle = effectivePatterns('group_title');
+    const tvgName = effectivePatterns('tvg_name');
+    setTestTarget({
+      mode: 'combined',
+      groupTitleInclude: groupTitle.include,
+      groupTitleExclude: groupTitle.exclude,
+      tvgNameInclude: tvgName.include,
+      tvgNameExclude: tvgName.exclude,
+      label: t('dryRun.titleCombined'),
+    });
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -142,9 +99,14 @@ export function FiltersSection({
           <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary-slate)' }}>{t('heading')}</h4>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem', fontWeight: 500 }}>{t('subtitle')}</p>
         </div>
-        <button onClick={onOpenCreate} className="btn-primary">
-          {t('configureButton')}
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={testAll} className="btn-secondary">
+            {t('dryRun.testAllButton')}
+          </button>
+          <button onClick={onOpenCreate} className="btn-primary">
+            {t('configureButton')}
+          </button>
+        </div>
       </div>
 
       {filtersLoading && filterOrigin.length === 0 ? (
@@ -171,12 +133,14 @@ export function FiltersSection({
                     {origin && origin.exclude_patterns.length > 0 ? joinPatterns(origin.exclude_patterns) : t('excludeNone')}
                   </code>
                 </div>
-                <FilterCardTester
-                  attribute={attribute}
-                  includePatterns={origin ? joinPatterns(origin.include_patterns) : ''}
-                  excludePatterns={origin ? joinPatterns(origin.exclude_patterns) : ''}
-                  sources={sources}
-                />
+                <button
+                  type="button"
+                  onClick={() => testSingle(attribute, origin ? joinPatterns(origin.include_patterns) : '', origin ? joinPatterns(origin.exclude_patterns) : '', false)}
+                  className="btn-secondary"
+                  style={{ alignSelf: 'flex-start', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                >
+                  {t('dryRun.testButton')}
+                </button>
               </div>
 
               {override && (
@@ -200,18 +164,26 @@ export function FiltersSection({
                       {override.exclude_patterns || t('excludeNone')}
                     </code>
                   </div>
-                  <FilterCardTester
-                    attribute={attribute}
-                    includePatterns={override.include_patterns || ''}
-                    excludePatterns={override.exclude_patterns || ''}
-                    sources={sources}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => testSingle(attribute, override.include_patterns || '', override.exclude_patterns || '', true)}
+                    className="btn-secondary"
+                    style={{ alignSelf: 'flex-start', padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
+                  >
+                    {t('dryRun.testButton')}
+                  </button>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
+
+      <FilterTestDrawer
+        target={testTarget}
+        onOpenChange={(open) => { if (!open) setTestTarget(null); }}
+        sources={sources}
+      />
     </div>
   );
 }

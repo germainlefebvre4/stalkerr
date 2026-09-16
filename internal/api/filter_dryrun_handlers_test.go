@@ -69,19 +69,19 @@ func TestFilterDryRun_UnknownSourceRejected(t *testing.T) {
 	config.SetConfig(&config.Config{})
 	server := NewServer()
 
-	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "nope", Attribute: "group_title"})
+	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "nope", Attributes: []string{"group_title"}})
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
-func TestFilterDryRun_UnsupportedAttributeRejected(t *testing.T) {
+func TestFilterDryRun_NoAttributesRejected(t *testing.T) {
 	setupTestDB(t)
 	setupDryRunSource(t, "src")
 	server := NewServer()
 
-	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attribute: "bogus"})
+	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attributes: []string{}})
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
@@ -93,15 +93,90 @@ func TestFilterDryRun_UnsupportedAttributeRejected(t *testing.T) {
 	}
 }
 
-func TestFilterDryRun_InvalidRegexRejected(t *testing.T) {
+func TestFilterDryRun_UnsupportedAttributeRejected(t *testing.T) {
+	setupTestDB(t)
+	setupDryRunSource(t, "src")
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attributes: []string{"bogus"}})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var errResp ErrorResponse
+	json.Unmarshal(w.Body.Bytes(), &errResp)
+	if errResp.Error != "invalid_attribute" {
+		t.Errorf("expected invalid_attribute, got %q", errResp.Error)
+	}
+}
+
+func TestFilterDryRun_DuplicateAttributeRejected(t *testing.T) {
+	setupTestDB(t)
+	setupDryRunSource(t, "src")
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attributes: []string{"group_title", "group_title"}})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var errResp ErrorResponse
+	json.Unmarshal(w.Body.Bytes(), &errResp)
+	if errResp.Error != "invalid_attribute" {
+		t.Errorf("expected invalid_attribute, got %q", errResp.Error)
+	}
+}
+
+func TestFilterDryRun_SearchAttributeRequiredForCombined(t *testing.T) {
+	setupTestDB(t)
+	setupDryRunSource(t, "src")
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{
+		SourceName: "src",
+		Attributes: []string{"group_title", "tvg_name"},
+		Search:     "Sport",
+	})
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	var errResp ErrorResponse
+	json.Unmarshal(w.Body.Bytes(), &errResp)
+	if errResp.Error != "invalid_search_attribute" {
+		t.Errorf("expected invalid_search_attribute, got %q", errResp.Error)
+	}
+}
+
+func TestFilterDryRun_SearchAttributeMustBeSupplied(t *testing.T) {
 	setupTestDB(t)
 	setupDryRunSource(t, "src")
 	server := NewServer()
 
 	w := dryRunRequest(t, server, FilterDryRunRequest{
 		SourceName:      "src",
-		Attribute:       "group_title",
-		IncludePatterns: "^(Movies",
+		Attributes:      []string{"group_title"},
+		Search:          "Sport",
+		SearchAttribute: "tvg_name",
+	})
+
+	// Search-attribute mismatches are only enforced in combined mode; in
+	// single-attribute mode the tested attribute is always the search
+	// attribute, so this succeeds (the request just isn't rejected).
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestFilterDryRun_InvalidRegexRejected(t *testing.T) {
+	setupTestDB(t)
+	setupDryRunSource(t, "src")
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{
+		SourceName:        "src",
+		Attributes:        []string{"group_title"},
+		GroupTitleInclude: "^(Movies",
 	})
 
 	if w.Code != http.StatusBadRequest {
@@ -119,12 +194,29 @@ func TestFilterDryRun_NoArchiveCondition(t *testing.T) {
 	setupDryRunSource(t, "src")
 	server := NewServer()
 
-	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attribute: "group_title"})
+	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attributes: []string{"group_title"}})
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 	var resp FilterDryRunSummaryResponse
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if !resp.NoArchive {
+		t.Errorf("expected no_archive=true, got %+v", resp)
+	}
+}
+
+func TestFilterDryRun_CombinedNoArchiveCondition(t *testing.T) {
+	setupTestDB(t)
+	setupDryRunSource(t, "src")
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{SourceName: "src", Attributes: []string{"group_title", "tvg_name"}})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp FilterDryRunCombinedSummaryResponse
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if !resp.NoArchive {
 		t.Errorf("expected no_archive=true, got %+v", resp)
@@ -142,9 +234,9 @@ func TestFilterDryRun_SuccessfulSummary(t *testing.T) {
 	server := NewServer()
 
 	w := dryRunRequest(t, server, FilterDryRunRequest{
-		SourceName:      "src",
-		Attribute:       "group_title",
-		ExcludePatterns: "XXX",
+		SourceName:        "src",
+		Attributes:        []string{"group_title"},
+		GroupTitleExclude: "XXX",
 	})
 
 	if w.Code != http.StatusOK {
@@ -187,7 +279,7 @@ func TestFilterDryRun_SuccessfulSearchWithTruncation(t *testing.T) {
 
 	w := dryRunRequest(t, server, FilterDryRunRequest{
 		SourceName: "src",
-		Attribute:  "tvg_name",
+		Attributes: []string{"tvg_name"},
 		Search:     "Sport",
 	})
 
@@ -208,6 +300,97 @@ func TestFilterDryRun_SuccessfulSearchWithTruncation(t *testing.T) {
 		if !r.Matched {
 			t.Errorf("expected every result matched (no patterns supplied), got %+v", r)
 		}
+	}
+}
+
+func TestFilterDryRun_CombinedSummary(t *testing.T) {
+	setupTestDB(t)
+	archiveDir := setupDryRunSource(t, "src")
+	buildM3UFixture(t, archiveDir, []struct{ tvgName, groupTitle string }{
+		{"Good Channel", "Movies HD"}, // kept: passes both
+		{"Bad Channel", "Movies HD"},  // excluded by tvg_name only
+		{"Good Channel", "Adult XXX"}, // excluded by group_title only
+		{"Bad Channel", "Adult XXX"},  // excluded by both
+	})
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{
+		SourceName:        "src",
+		Attributes:        []string{"group_title", "tvg_name"},
+		GroupTitleExclude: "XXX",
+		TvgNameExclude:    "Bad",
+	})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp FilterDryRunCombinedSummaryResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if resp.TotalLines != 4 {
+		t.Errorf("expected 4 total lines, got %d", resp.TotalLines)
+	}
+	if resp.KeptCount != 1 {
+		t.Errorf("expected kept=1, got %d", resp.KeptCount)
+	}
+	if resp.ExcludedByGroupTitleOnly != 1 {
+		t.Errorf("expected excluded_by_group_title_only=1, got %d", resp.ExcludedByGroupTitleOnly)
+	}
+	if resp.ExcludedByTvgNameOnly != 1 {
+		t.Errorf("expected excluded_by_tvg_name_only=1, got %d", resp.ExcludedByTvgNameOnly)
+	}
+	if resp.ExcludedByBoth != 1 {
+		t.Errorf("expected excluded_by_both=1, got %d", resp.ExcludedByBoth)
+	}
+	sum := resp.KeptCount + resp.ExcludedByGroupTitleOnly + resp.ExcludedByTvgNameOnly + resp.ExcludedByBoth
+	if sum != resp.TotalLines {
+		t.Errorf("expected counts to sum to total_lines=%d, got %d", resp.TotalLines, sum)
+	}
+	if len(resp.GroupTitleTopMatched) != 1 || resp.GroupTitleTopMatched[0].Value != "Movies HD" || resp.GroupTitleTopMatched[0].Count != 2 {
+		t.Errorf("unexpected group_title top matched: %+v", resp.GroupTitleTopMatched)
+	}
+	if len(resp.TvgNameTopExcluded) != 1 || resp.TvgNameTopExcluded[0].Value != "Bad Channel" || resp.TvgNameTopExcluded[0].Count != 2 {
+		t.Errorf("unexpected tvg_name top excluded: %+v", resp.TvgNameTopExcluded)
+	}
+}
+
+func TestFilterDryRun_CombinedSearchWithVerdict(t *testing.T) {
+	setupTestDB(t)
+	archiveDir := setupDryRunSource(t, "src")
+	buildM3UFixture(t, archiveDir, []struct{ tvgName, groupTitle string }{
+		{"Good Channel", "Movies HD"},
+		{"Bad Channel", "Movies HD"},
+	})
+	server := NewServer()
+
+	w := dryRunRequest(t, server, FilterDryRunRequest{
+		SourceName:      "src",
+		Attributes:      []string{"group_title", "tvg_name"},
+		TvgNameExclude:  "Bad",
+		Search:          "Channel",
+		SearchAttribute: "tvg_name",
+	})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp FilterDryRunSearchResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d: %+v", len(resp.Results), resp.Results)
+	}
+	verdicts := map[string]string{}
+	for _, r := range resp.Results {
+		verdicts[r.TvgName] = r.Verdict
+	}
+	if verdicts["Good Channel"] != "kept" {
+		t.Errorf("expected 'Good Channel' verdict=kept, got %q", verdicts["Good Channel"])
+	}
+	if verdicts["Bad Channel"] != "excluded_by_tvg_name" {
+		t.Errorf("expected 'Bad Channel' verdict=excluded_by_tvg_name, got %q", verdicts["Bad Channel"])
 	}
 }
 

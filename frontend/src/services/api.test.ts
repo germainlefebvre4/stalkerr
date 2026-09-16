@@ -84,9 +84,9 @@ describe('api.dryRunFilter', () => {
 
     const result = await api.dryRunFilter({
       source_name: 'main',
-      attribute: 'group_title',
-      include_patterns: 'FRENCH',
-      exclude_patterns: 'XXX',
+      attributes: ['group_title'],
+      group_title_include_patterns: 'FRENCH',
+      group_title_exclude_patterns: 'XXX',
     });
 
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/filters/dryrun', {
@@ -94,9 +94,9 @@ describe('api.dryRunFilter', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         source_name: 'main',
-        attribute: 'group_title',
-        include_patterns: 'FRENCH',
-        exclude_patterns: 'XXX',
+        attributes: ['group_title'],
+        group_title_include_patterns: 'FRENCH',
+        group_title_exclude_patterns: 'XXX',
       }),
     });
     expect(result).toEqual({ no_archive: false, total_lines: 3, matched_count: 2, excluded_count: 1, top_matched: [], top_excluded: [] });
@@ -109,7 +109,7 @@ describe('api.dryRunFilter', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await api.dryRunFilter({ source_name: 'main', attribute: 'group_title', search: 'Movies' });
+    const result = await api.dryRunFilter({ source_name: 'main', attributes: ['group_title'], search: 'Movies' });
 
     expect(result).toEqual({ no_archive: false, results: [{ group_title: 'Movies', tvg_name: 'A', matched: true }], truncated: false });
   });

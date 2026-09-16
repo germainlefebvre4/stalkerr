@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { api } from '../services/api';
 import { useApiErrorMessage } from '../hooks/useApiErrorMessage';
 import { useM3uSources } from '../hooks/useM3uSources';
-import { FilterConfig, FilterOriginEntry, FilterDryRunSummaryResponse } from '../types';
+import { FilterConfig, FilterOriginEntry, FilterTestTarget } from '../types';
 import { DialogReplaceWarning } from './DialogReplaceWarning';
-import { FilterDryRunPanel, FilterDryRunStatus } from './FilterDryRunPanel';
+import { FilterTestDrawer } from './FilterTestDrawer';
 
 interface CreateFilterDialogProps {
   isOpen: boolean;
@@ -27,10 +27,27 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
   const [filterError, setFilterError] = useState<string | null>(null);
 
   const { sources, fetchSources } = useM3uSources();
-  const [testSourceName, setTestSourceName] = useState('');
-  const [dryRunStatus, setDryRunStatus] = useState<FilterDryRunStatus>('idle');
-  const [dryRunSummary, setDryRunSummary] = useState<FilterDryRunSummaryResponse | null>(null);
-  const [dryRunError, setDryRunError] = useState<string | null>(null);
+  const [testTarget, setTestTarget] = useState<FilterTestTarget | null>(null);
+
+  // Radix mounts FilterTestDrawer's Dialog.Content in its own portal, outside
+  // this dialog's own Content subtree, so dismissing the drawer looks like an
+  // "outside interaction" to this dialog's dismissable layer and would
+  // otherwise close it too. See RunItemsDialog.tsx for the same pattern.
+  const justClosedDrawerRef = useRef(false);
+
+  useEffect(() => {
+    if (testTarget !== null) return;
+    const id = setTimeout(() => { justClosedDrawerRef.current = false; }, 0);
+    return () => clearTimeout(id);
+  }, [testTarget]);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    if (!open && (testTarget || justClosedDrawerRef.current)) {
+      justClosedDrawerRef.current = false;
+      return;
+    }
+    onOpenChange(open);
+  }, [onOpenChange, testTarget]);
 
   // Reset the form once the dialog finishes closing - adjusted during render
   // (rather than a useEffect+setState pair) per this codebase's convention
@@ -44,10 +61,7 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
       setNewFilterIncludes('');
       setNewFilterExcludes('');
       setFilterError(null);
-      setTestSourceName('');
-      setDryRunStatus('idle');
-      setDryRunSummary(null);
-      setDryRunError(null);
+      setTestTarget(null);
     }
   }
 
@@ -58,43 +72,26 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // Editing the in-progress values invalidates any previous test result -
-  // see the "switching attribute/source or editing patterns resets any
-  // previous test result" scenario in frontend-filters-management. Adjusted
-  // during render (same convention as wasOpen above) rather than a
-  // useEffect+setState pair.
-  const dryRunInputsKey = `${newFilterAttribute}|${newFilterIncludes}|${newFilterExcludes}|${testSourceName}`;
-  const [lastDryRunInputsKey, setLastDryRunInputsKey] = useState(dryRunInputsKey);
-  if (dryRunInputsKey !== lastDryRunInputsKey) {
-    setLastDryRunInputsKey(dryRunInputsKey);
-    setDryRunStatus('idle');
-    setDryRunSummary(null);
-    setDryRunError(null);
+  // Editing the in-progress values invalidates the current test target/
+  // result - adjusted during render (rather than a useEffect+setState pair),
+  // same convention as `wasOpen` above - see the "editing patterns resets
+  // any previous test result" scenario in frontend-filters-management.
+  const testInputsKey = `${newFilterAttribute}|${newFilterIncludes}|${newFilterExcludes}`;
+  const [lastTestInputsKey, setLastTestInputsKey] = useState(testInputsKey);
+  if (testInputsKey !== lastTestInputsKey) {
+    setLastTestInputsKey(testInputsKey);
+    setTestTarget(null);
   }
 
   const handleTestFilter = () => {
-    if (!testSourceName) return;
-    setDryRunStatus('testing');
-    setDryRunError(null);
-
-    api.dryRunFilter({
-      source_name: testSourceName,
-      attribute: newFilterAttribute,
-      include_patterns: newFilterIncludes,
-      exclude_patterns: newFilterExcludes,
-    })
-      .then(res => {
-        if (res.no_archive) {
-          setDryRunStatus('no_archive');
-          return;
-        }
-        setDryRunSummary(res as FilterDryRunSummaryResponse);
-        setDryRunStatus('summary');
-      })
-      .catch((err: unknown) => {
-        setDryRunError(translateApiError(err));
-        setDryRunStatus('error');
-      });
+    const attributeLabel = newFilterAttribute === 'tvg_name' ? t('filters:tvgNameLabel') : t('filters:groupTitleLabel');
+    setTestTarget({
+      mode: 'single',
+      attribute: newFilterAttribute as 'group_title' | 'tvg_name',
+      includePatterns: newFilterIncludes,
+      excludePatterns: newFilterExcludes,
+      label: t('filters:dryRun.titleInProgress', { attribute: attributeLabel }),
+    });
   };
 
   const existingOverride = filters.find(f => f.attribute === newFilterAttribute);
@@ -139,7 +136,7 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
   };
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog.Root open={isOpen} onOpenChange={handleDialogOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog-content">
@@ -209,38 +206,14 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('createFilter.testSourceLabel')}</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select
-                  value={testSourceName}
-                  onChange={e => setTestSourceName(e.target.value)}
-                  className="custom-select"
-                  style={{ flex: 1 }}
-                >
-                  <option value="">{t('createFilter.testSourcePlaceholder')}</option>
-                  {sources.map(source => (
-                    <option key={source.name} value={source.name}>{source.name}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handleTestFilter}
-                  disabled={!testSourceName || dryRunStatus === 'testing'}
-                  className="btn-secondary"
-                >
-                  {t('createFilter.testButton')}
-                </button>
-              </div>
-
-              <FilterDryRunPanel
-                status={dryRunStatus}
-                summary={dryRunSummary}
-                errorMessage={dryRunError}
-                sourceName={testSourceName}
-                attribute={newFilterAttribute}
-                includePatterns={newFilterIncludes}
-                excludePatterns={newFilterExcludes}
-              />
+              <button
+                type="button"
+                onClick={handleTestFilter}
+                className="btn-secondary"
+                style={{ alignSelf: 'flex-start' }}
+              >
+                {t('createFilter.testButton')}
+              </button>
             </div>
 
             {filterError && (
@@ -272,6 +245,14 @@ export function CreateFilterDialog({ isOpen, onOpenChange, onSuccess, filters, f
           </form>
         </Dialog.Content>
       </Dialog.Portal>
+
+      <FilterTestDrawer
+        target={testTarget}
+        onOpenChange={(open) => { if (!open) { justClosedDrawerRef.current = true; setTestTarget(null); } }}
+        sources={sources}
+        modal={false}
+        withOverlay={false}
+      />
     </Dialog.Root>
   );
 }

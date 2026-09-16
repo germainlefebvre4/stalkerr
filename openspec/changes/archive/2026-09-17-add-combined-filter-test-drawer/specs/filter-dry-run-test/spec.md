@@ -1,10 +1,4 @@
-# filter-dry-run-test Specification
-
-## Purpose
-
-Provides an on-demand backend check that evaluates a caller-supplied filter attribute and include/exclude pattern combination against a chosen M3U source's most recently downloaded playlist archive, reporting how much content would match or be excluded, without persisting anything or depending on previously saved filters.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: On-Demand Dry-Run Endpoint
 The system SHALL expose an endpoint that accepts a source name and, for one or both of the attributes `group_title` and `tvg_name`, include/exclude patterns supplied by the caller, and SHALL evaluate exactly those supplied patterns against the identified source's most recently downloaded playlist archive — never the source's currently active runtime override or `config.yml` patterns for either attribute, and never a newly triggered download. An attribute for which the caller supplies no patterns SHALL impose no filtering on that attribute (every value matches), so supplying patterns for only one attribute reproduces today's single-attribute behavior unchanged.
@@ -55,13 +49,6 @@ The endpoint SHALL accept an optional search substring together with the name of
 - **WHEN** no archive line's value for the search attribute contains the search substring
 - **THEN** the system SHALL return an empty result rather than an error
 
-### Requirement: Missing Archive Handling
-When the identified source has no previously downloaded archive available, the endpoint SHALL report this explicitly as a distinct, machine-readable condition and SHALL NOT attempt to download the source live.
-
-#### Scenario: Source never downloaded
-- **WHEN** the caller requests a dry-run for a source that has no archived download yet
-- **THEN** the system SHALL respond with a distinct "no archive available" condition and SHALL NOT initiate a network download of that source
-
 ### Requirement: Input Validation
 The endpoint SHALL reject, without evaluating any archive, a request with: an unknown source name, patterns supplied for neither `group_title` nor `tvg_name`, a content-search request naming a search attribute other than `group_title` or `tvg_name`, a content-search request naming a search attribute for which no patterns were supplied, or an include/exclude pattern that fails to compile as a regular expression.
 
@@ -80,10 +67,3 @@ The endpoint SHALL reject, without evaluating any archive, a request with: an un
 #### Scenario: Invalid regular expression
 - **WHEN** an include or exclude pattern supplied by the caller fails to compile as a regular expression
 - **THEN** the system SHALL reject the request with an error identifying the invalid pattern, without evaluating the archive
-
-### Requirement: No Persistence
-The endpoint SHALL NOT create, modify, or delete any stored filter (runtime override or otherwise), and SHALL NOT modify `config.yml`, as a side effect of performing a dry-run.
-
-#### Scenario: Dry-run does not affect saved filters
-- **WHEN** a dry-run is performed with patterns that differ from the attribute's currently active filter
-- **THEN** the currently active runtime override and origin configuration for that attribute SHALL remain unchanged after the dry-run completes
