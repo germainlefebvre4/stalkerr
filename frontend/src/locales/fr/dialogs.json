@@ -15,8 +15,6 @@
     "includePlaceholder": "Ex: FRENCH, TRUEFRENCH, VFF",
     "excludeLabel": "Patterns d'Exclusion (Séparés par des virgules) :",
     "excludePlaceholder": "Ex: VOSTFR, SUBBED, HDLight",
-    "testSourceLabel": "Source à tester :",
-    "testSourcePlaceholder": "Sélectionner une source…",
     "testButton": "Tester",
     "saving": "Enregistrement...",
     "save": "✓ Enregistrer le Filtre",

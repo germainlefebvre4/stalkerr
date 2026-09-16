@@ -177,14 +177,29 @@ export interface FilterOriginEntry {
   exclude_patterns: string[];
 }
 
+// What the shared FilterTestDrawer/FilterTestPanelBody are currently testing:
+// either one attribute's patterns (the create dialog's in-progress values, or
+// a card's origin/override patterns) or both attributes together ("Tester
+// l'ensemble"). The drawer is open exactly when this is non-null; `label` is
+// the contextual title the owning component computes for its own context.
+export type FilterTestTarget =
+  | { mode: 'single'; attribute: 'group_title' | 'tvg_name'; includePatterns: string; excludePatterns: string; label: string }
+  | { mode: 'combined'; groupTitleInclude: string; groupTitleExclude: string; tvgNameInclude: string; tvgNameExclude: string; label: string };
+
 // Dry-run testing of a (not necessarily saved) attribute/pattern combination
 // against a source's latest downloaded archive. See filter-dry-run-test.
+// `attributes` lists which of "group_title"/"tvg_name" are in scope (1 or 2
+// entries); an attribute not listed imposes no filtering. `search_attribute`
+// is required when both attributes are supplied and `search` is set.
 export interface FilterDryRunRequest {
   source_name: string;
-  attribute: string;
-  include_patterns?: string;
-  exclude_patterns?: string;
+  attributes: string[];
+  group_title_include_patterns?: string;
+  group_title_exclude_patterns?: string;
+  tvg_name_include_patterns?: string;
+  tvg_name_exclude_patterns?: string;
   search?: string;
+  search_attribute?: string;
 }
 
 export interface FilterDryRunValueCount {
@@ -192,8 +207,9 @@ export interface FilterDryRunValueCount {
   count: number;
 }
 
-// The aggregate-summary shape (no content search requested). When
-// no_archive is true, every other field is zero-valued.
+// The aggregate-summary shape (no content search requested) for a
+// single-attribute request. When no_archive is true, every other field is
+// zero-valued.
 export interface FilterDryRunSummaryResponse {
   no_archive: boolean;
   total_lines: number;
@@ -203,13 +219,34 @@ export interface FilterDryRunSummaryResponse {
   top_excluded: FilterDryRunValueCount[];
 }
 
+// The aggregate-summary shape for a combined (both attributes) request: a
+// cause-ventilated breakdown plus each attribute's own top values. When
+// no_archive is true, every other field is zero-valued.
+export interface FilterDryRunCombinedSummaryResponse {
+  no_archive: boolean;
+  total_lines: number;
+  kept_count: number;
+  excluded_by_group_title_only: number;
+  excluded_by_tvg_name_only: number;
+  excluded_by_both: number;
+  group_title_top_matched: FilterDryRunValueCount[];
+  group_title_top_excluded: FilterDryRunValueCount[];
+  tvg_name_top_matched: FilterDryRunValueCount[];
+  tvg_name_top_excluded: FilterDryRunValueCount[];
+}
+
+// `matched` is populated in single-attribute mode; `verdict` is populated in
+// combined mode ("kept" | "excluded_by_group_title" | "excluded_by_tvg_name"
+// | "excluded_by_both").
 export interface FilterDryRunResultLine {
   group_title: string;
   tvg_name: string;
   matched: boolean;
+  verdict?: string;
 }
 
-// The content-search shape (a non-empty `search` was requested).
+// The content-search shape (a non-empty `search` was requested), shared by
+// single-attribute and combined modes.
 export interface FilterDryRunSearchResponse {
   no_archive: boolean;
   results: FilterDryRunResultLine[];

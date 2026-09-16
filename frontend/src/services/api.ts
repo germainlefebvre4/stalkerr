@@ -10,6 +10,7 @@ import {
   FilterOriginEntry,
   FilterDryRunRequest,
   FilterDryRunSummaryResponse,
+  FilterDryRunCombinedSummaryResponse,
   FilterDryRunSearchResponse,
   TMDBSearchResult,
   RenameDownloadResponse,
@@ -297,7 +298,7 @@ export const api = {
     return res.json();
   },
 
-  async dryRunFilter(payload: FilterDryRunRequest): Promise<FilterDryRunSummaryResponse | FilterDryRunSearchResponse> {
+  async dryRunFilter(payload: FilterDryRunRequest): Promise<FilterDryRunSummaryResponse | FilterDryRunCombinedSummaryResponse | FilterDryRunSearchResponse> {
     const res = await fetch('/api/v1/filters/dryrun', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

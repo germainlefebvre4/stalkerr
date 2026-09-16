@@ -15,8 +15,6 @@
     "includePlaceholder": "E.g.: FRENCH, TRUEFRENCH, VFF",
     "excludeLabel": "Exclusion patterns (comma-separated):",
     "excludePlaceholder": "E.g.: VOSTFR, SUBBED, HDLight",
-    "testSourceLabel": "Test source:",
-    "testSourcePlaceholder": "Select a source…",
     "testButton": "Test",
     "saving": "Saving...",
     "save": "✓ Save Filter",

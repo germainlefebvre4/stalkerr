@@ -149,16 +149,24 @@ type FilterOriginEntry struct {
 
 // FilterDryRunRequest is the request body for POST /api/v1/filters/dryrun: a
 // caller-supplied (not necessarily saved) attribute/pattern combination to
-// evaluate against a source's latest downloaded archive. IncludePatterns and
-// ExcludePatterns are comma-separated strings, matching the shape the create
-// dialog already edits. Search is optional; when non-empty it switches the
-// response from the aggregate summary to the line-level content search.
+// evaluate against a source's latest downloaded archive. Attributes lists
+// which of "group_title"/"tvg_name" are in scope for this request (1 or 2
+// entries); an attribute not listed imposes no filtering. The *Include/
+// *Exclude fields are comma-separated strings, matching the shape the create
+// dialog already edits, and are only meaningful for attributes present in
+// Attributes. Search is optional; when non-empty it switches the response
+// from the aggregate summary to the line-level content search, and
+// SearchAttribute (required when Attributes has 2 entries) names which
+// attribute the search substring is matched against.
 type FilterDryRunRequest struct {
-	SourceName      string `json:"source_name" binding:"required"`
-	Attribute       string `json:"attribute" binding:"required"`
-	IncludePatterns string `json:"include_patterns"`
-	ExcludePatterns string `json:"exclude_patterns"`
-	Search          string `json:"search"`
+	SourceName        string   `json:"source_name" binding:"required"`
+	Attributes        []string `json:"attributes" binding:"required"`
+	GroupTitleInclude string   `json:"group_title_include_patterns"`
+	GroupTitleExclude string   `json:"group_title_exclude_patterns"`
+	TvgNameInclude    string   `json:"tvg_name_include_patterns"`
+	TvgNameExclude    string   `json:"tvg_name_exclude_patterns"`
+	Search            string   `json:"search"`
+	SearchAttribute   string   `json:"search_attribute"`
 }
 
 // FilterDryRunValueCount is one distinct attribute value and how many
@@ -180,12 +188,35 @@ type FilterDryRunSummaryResponse struct {
 	TopExcluded   []FilterDryRunValueCount `json:"top_excluded"`
 }
 
+// FilterDryRunCombinedSummaryResponse is the aggregate-summary result of a
+// dry-run when patterns were supplied for both group_title and tvg_name: a
+// cause-ventilated breakdown of why a line was excluded, plus each
+// attribute's own top-20 matched/excluded values. When NoArchive is true,
+// the source has no downloaded archive yet and every other field is
+// zero-valued.
+type FilterDryRunCombinedSummaryResponse struct {
+	NoArchive                bool                     `json:"no_archive"`
+	TotalLines               int                      `json:"total_lines"`
+	KeptCount                int                      `json:"kept_count"`
+	ExcludedByGroupTitleOnly int                      `json:"excluded_by_group_title_only"`
+	ExcludedByTvgNameOnly    int                      `json:"excluded_by_tvg_name_only"`
+	ExcludedByBoth           int                      `json:"excluded_by_both"`
+	GroupTitleTopMatched     []FilterDryRunValueCount `json:"group_title_top_matched"`
+	GroupTitleTopExcluded    []FilterDryRunValueCount `json:"group_title_top_excluded"`
+	TvgNameTopMatched        []FilterDryRunValueCount `json:"tvg_name_top_matched"`
+	TvgNameTopExcluded       []FilterDryRunValueCount `json:"tvg_name_top_excluded"`
+}
+
 // FilterDryRunResultLine is a single archive line returned by the dry-run
 // content search, tagged with whether it would match or be excluded.
+// Matched is populated in single-attribute mode; Verdict is populated in
+// combined mode ("kept", "excluded_by_group_title", "excluded_by_tvg_name",
+// or "excluded_by_both").
 type FilterDryRunResultLine struct {
 	GroupTitle string `json:"group_title"`
 	TvgName    string `json:"tvg_name"`
 	Matched    bool   `json:"matched"`
+	Verdict    string `json:"verdict,omitempty"`
 }
 
 // FilterDryRunSearchResponse is the content-search result of a dry-run (a

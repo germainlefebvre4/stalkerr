@@ -36,8 +36,8 @@ func (s *Server) filterDryRun(c *gin.Context) {
 		return
 	}
 
-	if req.Attribute != "group_title" && req.Attribute != "tvg_name" {
-		respondError(c, http.StatusBadRequest, "invalid_attribute", "attribute must be 'group_title' or 'tvg_name'")
+	if errCode, msg := validateFilterDryRunRequest(req); errCode != "" {
+		respondError(c, http.StatusBadRequest, errCode, msg)
 		return
 	}
 
@@ -47,12 +47,14 @@ func (s *Server) filterDryRun(c *gin.Context) {
 		return
 	}
 
-	includePatterns := splitFilterPatterns(req.IncludePatterns)
-	excludePatterns := splitFilterPatterns(req.ExcludePatterns)
-	cf, err := filter.CompilePatterns(includePatterns, excludePatterns)
-	if err != nil {
-		respondError(c, http.StatusBadRequest, "invalid_pattern", err.Error())
-		return
+	compiled := make(map[string]*filter.CompiledFilter, len(req.Attributes))
+	for _, attribute := range req.Attributes {
+		cf, err := compileAttributeFilter(req, attribute)
+		if err != nil {
+			respondError(c, http.StatusBadRequest, "invalid_pattern", err.Error())
+			return
+		}
+		compiled[attribute] = cf
 	}
 
 	_, archiveDir := m3udownloader.SourcePaths(src.FilePath, src.Download.ArchiveDir, src.Name)
@@ -60,6 +62,8 @@ func (s *Server) filterDryRun(c *gin.Context) {
 	if err != nil {
 		if req.Search != "" {
 			c.JSON(http.StatusOK, FilterDryRunSearchResponse{NoArchive: true})
+		} else if len(req.Attributes) == 2 {
+			c.JSON(http.StatusOK, FilterDryRunCombinedSummaryResponse{NoArchive: true})
 		} else {
 			c.JSON(http.StatusOK, FilterDryRunSummaryResponse{NoArchive: true})
 		}
@@ -72,12 +76,72 @@ func (s *Server) filterDryRun(c *gin.Context) {
 		return
 	}
 
-	if req.Search != "" {
-		c.JSON(http.StatusOK, buildFilterDryRunSearchResponse(lines, req.Attribute, req.Search, cf))
+	if len(req.Attributes) == 2 {
+		cfGroupTitle, cfTvgName := compiled["group_title"], compiled["tvg_name"]
+		if req.Search != "" {
+			c.JSON(http.StatusOK, buildFilterDryRunCombinedSearchResponse(lines, req.SearchAttribute, req.Search, cfGroupTitle, cfTvgName))
+			return
+		}
+		c.JSON(http.StatusOK, buildFilterDryRunCombinedSummaryResponse(lines, cfGroupTitle, cfTvgName))
 		return
 	}
 
-	c.JSON(http.StatusOK, buildFilterDryRunSummaryResponse(lines, req.Attribute, cf))
+	attribute := req.Attributes[0]
+	cf := compiled[attribute]
+	if req.Search != "" {
+		c.JSON(http.StatusOK, buildFilterDryRunSearchResponse(lines, attribute, req.Search, cf))
+		return
+	}
+
+	c.JSON(http.StatusOK, buildFilterDryRunSummaryResponse(lines, attribute, cf))
+}
+
+// validateFilterDryRunRequest checks req against the filter-dry-run-test
+// spec's Input Validation requirement (source name is checked separately,
+// once the effective source list is resolved). Returns a non-empty error
+// code and message when the request must be rejected.
+func validateFilterDryRunRequest(req FilterDryRunRequest) (code, message string) {
+	if len(req.Attributes) == 0 {
+		return "invalid_attribute", "at least one of 'group_title' or 'tvg_name' must be supplied in attributes"
+	}
+	if len(req.Attributes) > 2 {
+		return "invalid_attribute", "attributes must contain at most 'group_title' and 'tvg_name'"
+	}
+
+	seen := make(map[string]bool, len(req.Attributes))
+	for _, attribute := range req.Attributes {
+		if attribute != "group_title" && attribute != "tvg_name" {
+			return "invalid_attribute", "attributes must be 'group_title' or 'tvg_name'"
+		}
+		if seen[attribute] {
+			return "invalid_attribute", "attributes must not contain duplicates"
+		}
+		seen[attribute] = true
+	}
+
+	if req.Search == "" {
+		return "", ""
+	}
+
+	if len(req.Attributes) == 2 {
+		if req.SearchAttribute != "group_title" && req.SearchAttribute != "tvg_name" {
+			return "invalid_search_attribute", "search_attribute must be 'group_title' or 'tvg_name'"
+		}
+		if !seen[req.SearchAttribute] {
+			return "invalid_search_attribute", "search_attribute must name an attribute supplied in attributes"
+		}
+	}
+
+	return "", ""
+}
+
+// compileAttributeFilter compiles the include/exclude patterns req supplied
+// for the given attribute ("group_title" or "tvg_name").
+func compileAttributeFilter(req FilterDryRunRequest, attribute string) (*filter.CompiledFilter, error) {
+	if attribute == "tvg_name" {
+		return filter.CompilePatterns(splitFilterPatterns(req.TvgNameInclude), splitFilterPatterns(req.TvgNameExclude))
+	}
+	return filter.CompilePatterns(splitFilterPatterns(req.GroupTitleInclude), splitFilterPatterns(req.GroupTitleExclude))
 }
 
 // findEffectiveSource resolves name against the effective M3U source list
@@ -166,6 +230,100 @@ func buildFilterDryRunSearchResponse(lines []models.ProcessedLine, attribute, se
 			GroupTitle: line.GroupTitle,
 			TvgName:    line.TvgName,
 			Matched:    cf.Matches(value),
+		})
+	}
+
+	return FilterDryRunSearchResponse{Results: results, Truncated: truncated}
+}
+
+// buildFilterDryRunCombinedSummaryResponse evaluates every line against both
+// attributes' compiled filters, mirroring filter.Manager.ShouldProcess's
+// AND-logic, and reports the cause-ventilated kept/excluded counts plus each
+// attribute's own top distinct matched/excluded values.
+func buildFilterDryRunCombinedSummaryResponse(lines []models.ProcessedLine, cfGroupTitle, cfTvgName *filter.CompiledFilter) FilterDryRunCombinedSummaryResponse {
+	groupMatchedCounts := make(map[string]int)
+	groupExcludedCounts := make(map[string]int)
+	tvgMatchedCounts := make(map[string]int)
+	tvgExcludedCounts := make(map[string]int)
+	kept, excludedByGroupOnly, excludedByTvgOnly, excludedByBoth := 0, 0, 0, 0
+
+	for _, line := range lines {
+		groupMatches := cfGroupTitle.Matches(line.GroupTitle)
+		tvgMatches := cfTvgName.Matches(line.TvgName)
+
+		if groupMatches {
+			groupMatchedCounts[line.GroupTitle]++
+		} else {
+			groupExcludedCounts[line.GroupTitle]++
+		}
+		if tvgMatches {
+			tvgMatchedCounts[line.TvgName]++
+		} else {
+			tvgExcludedCounts[line.TvgName]++
+		}
+
+		switch {
+		case groupMatches && tvgMatches:
+			kept++
+		case !groupMatches && tvgMatches:
+			excludedByGroupOnly++
+		case groupMatches && !tvgMatches:
+			excludedByTvgOnly++
+		default:
+			excludedByBoth++
+		}
+	}
+
+	return FilterDryRunCombinedSummaryResponse{
+		TotalLines:               len(lines),
+		KeptCount:                kept,
+		ExcludedByGroupTitleOnly: excludedByGroupOnly,
+		ExcludedByTvgNameOnly:    excludedByTvgOnly,
+		ExcludedByBoth:           excludedByBoth,
+		GroupTitleTopMatched:     topValueCounts(groupMatchedCounts, filterDryRunTopValues),
+		GroupTitleTopExcluded:    topValueCounts(groupExcludedCounts, filterDryRunTopValues),
+		TvgNameTopMatched:        topValueCounts(tvgMatchedCounts, filterDryRunTopValues),
+		TvgNameTopExcluded:       topValueCounts(tvgExcludedCounts, filterDryRunTopValues),
+	}
+}
+
+// combinedVerdict reports the combined kept/excluded verdict string for a
+// line already evaluated against both attributes' compiled filters.
+func combinedVerdict(groupMatches, tvgMatches bool) string {
+	switch {
+	case groupMatches && tvgMatches:
+		return "kept"
+	case !groupMatches && tvgMatches:
+		return "excluded_by_group_title"
+	case groupMatches && !tvgMatches:
+		return "excluded_by_tvg_name"
+	default:
+		return "excluded_by_both"
+	}
+}
+
+// buildFilterDryRunCombinedSearchResponse returns every line whose value for
+// searchAttribute contains search (case-insensitive), each tagged with its
+// combined verdict against both attributes' patterns, capped at
+// filterDryRunSearchCap results.
+func buildFilterDryRunCombinedSearchResponse(lines []models.ProcessedLine, searchAttribute, search string, cfGroupTitle, cfTvgName *filter.CompiledFilter) FilterDryRunSearchResponse {
+	searchLower := strings.ToLower(search)
+	results := make([]FilterDryRunResultLine, 0)
+	truncated := false
+
+	for _, line := range lines {
+		value := attributeValue(line, searchAttribute)
+		if !strings.Contains(strings.ToLower(value), searchLower) {
+			continue
+		}
+		if len(results) >= filterDryRunSearchCap {
+			truncated = true
+			break
+		}
+		results = append(results, FilterDryRunResultLine{
+			GroupTitle: line.GroupTitle,
+			TvgName:    line.TvgName,
+			Verdict:    combinedVerdict(cfGroupTitle.Matches(line.GroupTitle), cfTvgName.Matches(line.TvgName)),
 		})
 	}
 
