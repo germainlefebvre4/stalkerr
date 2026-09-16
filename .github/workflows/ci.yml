@@ -3,8 +3,12 @@ name: Go CI
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'frontend/**'
   pull_request:
     branches: [ main, develop ]
+    paths-ignore:
+      - 'frontend/**'
 
 jobs:
   test:

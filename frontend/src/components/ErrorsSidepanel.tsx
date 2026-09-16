@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { DownloadEnriched } from '../types';
 import { formatDate } from '../utils/date';
-import { getErrorReasons } from './ErrorsTable';
+import { getErrorReasons } from '../utils/errorReasons';
 
 interface ErrorsSidepanelProps {
   item: DownloadEnriched | null;

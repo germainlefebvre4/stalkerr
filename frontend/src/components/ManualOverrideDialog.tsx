@@ -101,36 +101,50 @@ export function ManualOverrideDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrideItemData]);
 
-  useEffect(() => {
-    if (overrideItemData && overrideMediaType === 'tvshow' && selectedResult) {
-      const itemData = overrideItemData;
-      const openedCleaned = cleanRawTitle(itemData.tvg_name);
-      api.getPlaylist(1, 100, 'tvshows', undefined, undefined, openedCleaned)
-        .then(data => {
-          const list: OverrideCandidate[] = data.data
-            .filter(p => p.id !== itemData.id)
-            .map(p => {
-              const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
-              let preview: OverrideCandidate['preview'] = null;
-              if (p.tvshow?.season != null && p.tvshow?.episode != null) {
-                preview = { season: p.tvshow.season, episode: p.tvshow.episode, source: 'current' };
-              } else {
-                const detected = extractSeasonEpisode(p.tvg_name);
-                if (detected.season !== null && detected.episode !== null) {
-                  preview = { season: detected.season, episode: detected.episode, source: 'detected' };
-                }
-              }
-              return { item: p, preChecked, checked: preChecked, preview };
-            });
-          setCandidates(list);
-        })
-        .catch(() => {
-          setCandidates([]);
-        });
-    } else {
+  const shouldFetchCandidates = !!(overrideItemData && overrideMediaType === 'tvshow' && selectedResult);
+
+  // Clear stale candidates as soon as the fetch condition stops holding,
+  // computed during render rather than in the effect below (which owns only
+  // the actual network fetch).
+  const [prevCandidatesFetchKey, setPrevCandidatesFetchKey] = useState({ overrideItemData, overrideMediaType, selectedResult });
+  if (
+    prevCandidatesFetchKey.overrideItemData !== overrideItemData
+    || prevCandidatesFetchKey.overrideMediaType !== overrideMediaType
+    || prevCandidatesFetchKey.selectedResult !== selectedResult
+  ) {
+    setPrevCandidatesFetchKey({ overrideItemData, overrideMediaType, selectedResult });
+    if (!shouldFetchCandidates) {
       setCandidates([]);
     }
-  }, [overrideItemData, overrideMediaType, selectedResult]);
+  }
+
+  useEffect(() => {
+    if (!shouldFetchCandidates || !overrideItemData) return;
+    const itemData = overrideItemData;
+    const openedCleaned = cleanRawTitle(itemData.tvg_name);
+    api.getPlaylist(1, 100, 'tvshows', undefined, undefined, openedCleaned)
+      .then(data => {
+        const list: OverrideCandidate[] = data.data
+          .filter(p => p.id !== itemData.id)
+          .map(p => {
+            const preChecked = cleanRawTitle(p.tvg_name) === openedCleaned;
+            let preview: OverrideCandidate['preview'] = null;
+            if (p.tvshow?.season != null && p.tvshow?.episode != null) {
+              preview = { season: p.tvshow.season, episode: p.tvshow.episode, source: 'current' };
+            } else {
+              const detected = extractSeasonEpisode(p.tvg_name);
+              if (detected.season !== null && detected.episode !== null) {
+                preview = { season: detected.season, episode: detected.episode, source: 'detected' };
+              }
+            }
+            return { item: p, preChecked, checked: preChecked, preview };
+          });
+        setCandidates(list);
+      })
+      .catch(() => {
+        setCandidates([]);
+      });
+  }, [overrideItemData, overrideMediaType, selectedResult, shouldFetchCandidates]);
 
   const toggleCandidate = (itemId: number) => {
     setCandidates(prev => prev.map(c => (c.item.id === itemId ? { ...c, checked: !c.checked } : c)));

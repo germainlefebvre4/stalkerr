@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Progress from '@radix-ui/react-progress';
@@ -74,11 +74,9 @@ export function DownloadsTab({
     onCancelDownload(selectedItem).finally(() => setIsCancelling(false));
   };
 
-  useEffect(() => {
-    if (selectedId !== null && !selectedItem) {
-      setSelectedId(null);
-    }
-  }, [selectedId, selectedItem]);
+  if (selectedId !== null && !selectedItem) {
+    setSelectedId(null);
+  }
 
   // Derived data for the drawer, computed only when a download is selected.
   let drawerData: {

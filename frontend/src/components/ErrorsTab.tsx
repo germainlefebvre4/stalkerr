@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useTranslation } from 'react-i18next';
 import { DownloadEnriched } from '../types';
@@ -35,11 +35,9 @@ export function ErrorsTab({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selectedItem = errors.find(d => d.id === selectedId) ?? null;
 
-  useEffect(() => {
-    if (selectedId !== null && !selectedItem) {
-      setSelectedId(null);
-    }
-  }, [selectedId, selectedItem]);
+  if (selectedId !== null && !selectedItem) {
+    setSelectedId(null);
+  }
 
   return (
     <Tabs.Content value="errors" className="card tab-panel">
