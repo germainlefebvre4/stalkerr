@@ -147,6 +147,57 @@ type FilterOriginEntry struct {
 	ExcludePatterns []string `json:"exclude_patterns"`
 }
 
+// FilterDryRunRequest is the request body for POST /api/v1/filters/dryrun: a
+// caller-supplied (not necessarily saved) attribute/pattern combination to
+// evaluate against a source's latest downloaded archive. IncludePatterns and
+// ExcludePatterns are comma-separated strings, matching the shape the create
+// dialog already edits. Search is optional; when non-empty it switches the
+// response from the aggregate summary to the line-level content search.
+type FilterDryRunRequest struct {
+	SourceName      string `json:"source_name" binding:"required"`
+	Attribute       string `json:"attribute" binding:"required"`
+	IncludePatterns string `json:"include_patterns"`
+	ExcludePatterns string `json:"exclude_patterns"`
+	Search          string `json:"search"`
+}
+
+// FilterDryRunValueCount is one distinct attribute value and how many
+// archive lines carry it, used in the aggregate summary's top-value lists.
+type FilterDryRunValueCount struct {
+	Value string `json:"value"`
+	Count int    `json:"count"`
+}
+
+// FilterDryRunSummaryResponse is the aggregate-summary result of a dry-run
+// (no content search requested). When NoArchive is true, the source has no
+// downloaded archive yet and every other field is zero-valued.
+type FilterDryRunSummaryResponse struct {
+	NoArchive     bool                     `json:"no_archive"`
+	TotalLines    int                      `json:"total_lines"`
+	MatchedCount  int                      `json:"matched_count"`
+	ExcludedCount int                      `json:"excluded_count"`
+	TopMatched    []FilterDryRunValueCount `json:"top_matched"`
+	TopExcluded   []FilterDryRunValueCount `json:"top_excluded"`
+}
+
+// FilterDryRunResultLine is a single archive line returned by the dry-run
+// content search, tagged with whether it would match or be excluded.
+type FilterDryRunResultLine struct {
+	GroupTitle string `json:"group_title"`
+	TvgName    string `json:"tvg_name"`
+	Matched    bool   `json:"matched"`
+}
+
+// FilterDryRunSearchResponse is the content-search result of a dry-run (a
+// non-empty Search was requested). When NoArchive is true, the source has no
+// downloaded archive yet and Results is empty. Truncated is set when more
+// than 100 lines matched the search substring.
+type FilterDryRunSearchResponse struct {
+	NoArchive bool                     `json:"no_archive"`
+	Results   []FilterDryRunResultLine `json:"results"`
+	Truncated bool                     `json:"truncated"`
+}
+
 // OverrideItemRequest represents the payload to manually override a VOD item match
 type OverrideItemRequest struct {
 	TMDBID  int    `json:"tmdb_id" binding:"required"`

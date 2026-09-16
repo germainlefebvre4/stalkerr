@@ -69,3 +69,48 @@ describe('api.testIntegration', () => {
     expect(result).toEqual({ status: 'ko', reason: 'unauthorized' });
   });
 });
+
+describe('api.dryRunFilter', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('posts the source/attribute/patterns to the dry-run endpoint and returns the summary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ no_archive: false, total_lines: 3, matched_count: 2, excluded_count: 1, top_matched: [], top_excluded: [] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await api.dryRunFilter({
+      source_name: 'main',
+      attribute: 'group_title',
+      include_patterns: 'FRENCH',
+      exclude_patterns: 'XXX',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/filters/dryrun', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_name: 'main',
+        attribute: 'group_title',
+        include_patterns: 'FRENCH',
+        exclude_patterns: 'XXX',
+      }),
+    });
+    expect(result).toEqual({ no_archive: false, total_lines: 3, matched_count: 2, excluded_count: 1, top_matched: [], top_excluded: [] });
+  });
+
+  it('returns the search-results shape when search is set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ no_archive: false, results: [{ group_title: 'Movies', tvg_name: 'A', matched: true }], truncated: false }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await api.dryRunFilter({ source_name: 'main', attribute: 'group_title', search: 'Movies' });
+
+    expect(result).toEqual({ no_archive: false, results: [{ group_title: 'Movies', tvg_name: 'A', matched: true }], truncated: false });
+  });
+});

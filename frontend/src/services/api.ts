@@ -8,6 +8,9 @@ import {
   StatsResponse,
   FilterConfig,
   FilterOriginEntry,
+  FilterDryRunRequest,
+  FilterDryRunSummaryResponse,
+  FilterDryRunSearchResponse,
   TMDBSearchResult,
   RenameDownloadResponse,
   ResyncPathResponse,
@@ -290,6 +293,16 @@ export const api = {
 
   async deleteFilter(id: number): Promise<unknown> {
     const res = await fetch(`/api/v1/filters/${id}`, { method: 'DELETE' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async dryRunFilter(payload: FilterDryRunRequest): Promise<FilterDryRunSummaryResponse | FilterDryRunSearchResponse> {
+    const res = await fetch('/api/v1/filters/dryrun', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

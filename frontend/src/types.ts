@@ -177,6 +177,45 @@ export interface FilterOriginEntry {
   exclude_patterns: string[];
 }
 
+// Dry-run testing of a (not necessarily saved) attribute/pattern combination
+// against a source's latest downloaded archive. See filter-dry-run-test.
+export interface FilterDryRunRequest {
+  source_name: string;
+  attribute: string;
+  include_patterns?: string;
+  exclude_patterns?: string;
+  search?: string;
+}
+
+export interface FilterDryRunValueCount {
+  value: string;
+  count: number;
+}
+
+// The aggregate-summary shape (no content search requested). When
+// no_archive is true, every other field is zero-valued.
+export interface FilterDryRunSummaryResponse {
+  no_archive: boolean;
+  total_lines: number;
+  matched_count: number;
+  excluded_count: number;
+  top_matched: FilterDryRunValueCount[];
+  top_excluded: FilterDryRunValueCount[];
+}
+
+export interface FilterDryRunResultLine {
+  group_title: string;
+  tvg_name: string;
+  matched: boolean;
+}
+
+// The content-search shape (a non-empty `search` was requested).
+export interface FilterDryRunSearchResponse {
+  no_archive: boolean;
+  results: FilterDryRunResultLine[];
+  truncated: boolean;
+}
+
 export interface OccurrenceResponse {
   id: number;
   resolution?: string;

@@ -15,5 +15,24 @@
   "groupTitleLabel": "Group Title",
   "tvgNameLabel": "TVG Name",
   "originLabel": "Origin (config.yml)",
-  "overrideLabel": "Active override"
+  "overrideLabel": "Active override",
+  "dryRun": {
+    "sourceLabel": "M3U source to test against",
+    "sourcePlaceholder": "Select a source…",
+    "testButton": "Test",
+    "testing": "Testing…",
+    "totalLines": "{{count}} lines scanned",
+    "matchedCount": "{{count}} would match",
+    "excludedCount": "{{count}} would be excluded",
+    "topMatched": "Top matched values",
+    "topExcluded": "Top excluded values",
+    "noArchive": "No archive has been downloaded yet for this source. Run a download first.",
+    "invalidPattern": "Invalid pattern: {{message}}",
+    "searchLabel": "Verify a specific line",
+    "searchPlaceholder": "E.g.: a channel or group name",
+    "searchNoResults": "No matching line found.",
+    "wouldMatch": "Would match",
+    "wouldBeExcluded": "Would be excluded",
+    "truncated": "Showing the first 100 matches. Refine your search to narrow the results."
+  }
 }
