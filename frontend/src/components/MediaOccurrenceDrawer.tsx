@@ -27,11 +27,6 @@ export function MediaOccurrenceDrawerBody({ item, onOpenOverride }: MediaOccurre
   const [forceDownloadStatus, setForceDownloadStatus] = React.useState<'idle' | 'loading' | 'queued' | 'error'>('idle');
   const [forceDownloadError, setForceDownloadError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    setForceDownloadStatus('idle');
-    setForceDownloadError(null);
-  }, [item.id]);
-
   const isForceDownloadEligible = !!(item.movie || item.tvshow)
     && item.state !== 'downloaded'
     && item.state !== 'downloading';
@@ -350,7 +345,7 @@ export function MediaOccurrenceDrawer({
             {t('drawer.description')}
           </Dialog.Description>
 
-          {item && <MediaOccurrenceDrawerBody item={item} onOpenOverride={onOpenOverride} />}
+          {item && <MediaOccurrenceDrawerBody key={item.id} item={item} onOpenOverride={onOpenOverride} />}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

@@ -578,7 +578,7 @@ export function RadarrSonarrTab({
             <Dialog.Description style={{ display: 'none' }}>{t('drawer.description')}</Dialog.Description>
 
             {isMobile && drawerView === 'detail' && detailItem ? (
-              <MediaOccurrenceDrawerBody item={detailItem} onOpenOverride={handleDrawerOpenOverride} />
+              <MediaOccurrenceDrawerBody key={detailItem.id} item={detailItem} onOpenOverride={handleDrawerOpenOverride} />
             ) : (
               <>
                 {detailLoading && (

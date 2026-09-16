@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { M3uSource, M3uSourceInput } from '../types';
@@ -42,8 +42,12 @@ export function M3uSourceDialog({ isOpen, onOpenChange, source, existingNames, r
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  // Reset the form whenever the dialog opens (or opens for a different
+  // source), rather than in an effect - the dialog stays mounted across
+  // opens/closes for Radix's animations, so it never remounts on its own.
+  const [formResetKey, setFormResetKey] = useState({ isOpen, source });
+  if (isOpen && (formResetKey.isOpen !== isOpen || formResetKey.source !== source)) {
+    setFormResetKey({ isOpen, source });
     setPasswordTouched(false);
     setError(null);
     if (source) {
@@ -63,7 +67,9 @@ export function M3uSourceDialog({ isOpen, onOpenChange, source, existingNames, r
       setName('');
       setInput(emptyInput());
     }
-  }, [isOpen, source]);
+  } else if (formResetKey.isOpen !== isOpen) {
+    setFormResetKey({ isOpen, source });
+  }
 
   const willReplaceRuntime = !isEdit && runtimeOnlyNames.includes(name);
 

@@ -139,7 +139,7 @@ describe('SettingsGroupCard testConfig', () => {
 
   const testSettings: SettingsField[] = [
     { key: 'radarr.url', value: 'http://old.example.com', sensitive: false, origin: 'config', restart_required: false },
-    { key: 'radarr.api_key', value: null, sensitive: true, is_set: true, origin: 'config', restart_required: false },
+    { key: 'radarr.api_key', sensitive: true, is_set: true, origin: 'config', restart_required: false },
   ];
 
   const testFields = [

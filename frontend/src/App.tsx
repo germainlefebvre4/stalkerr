@@ -87,7 +87,7 @@ import { ConfigurationPage } from './components/ConfigurationPage';
 export default function App() {
   const { t, i18n } = useTranslation();
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTabState] = useState(readInitialActiveTab);
+  const [activeTab, setActiveTab] = useState(readInitialActiveTab);
   const [, patchTabURLState] = useURLState(TAB_URL_SCHEMA);
 
   // The main tab to return to when the Configuration page is closed - see
@@ -100,10 +100,9 @@ export default function App() {
     activeTab === CONFIGURATION_TAB ? readStoredStartupTab() : activeTab
   );
 
-  const setActiveTab = (tab: string) => {
-    if (tab !== CONFIGURATION_TAB) previousMainTabRef.current = tab;
-    setActiveTabState(tab);
-  };
+  useEffect(() => {
+    if (activeTab !== CONFIGURATION_TAB) previousMainTabRef.current = activeTab;
+  }, [activeTab]);
 
   const isSettingsOpen = activeTab === CONFIGURATION_TAB;
 
@@ -205,11 +204,9 @@ export default function App() {
   // The Erreurs tab is desktop-only (never in the mobile bottom tab bar): if
   // the viewport narrows while it's active, fall back to another tab instead
   // of continuing to render it.
-  useEffect(() => {
-    if (isMobile && activeTab === 'errors') {
-      setActiveTab(MOBILE_FALLBACK_TAB);
-    }
-  }, [isMobile, activeTab]);
+  if (isMobile && activeTab === 'errors') {
+    setActiveTab(MOBILE_FALLBACK_TAB);
+  }
 
   const translateApiError = useApiErrorMessage();
 

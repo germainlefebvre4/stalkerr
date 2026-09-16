@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useTranslation } from 'react-i18next';
 import { DownloadEnriched } from '../types';
@@ -35,11 +35,9 @@ export function ErrorsTab({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selectedItem = errors.find(d => d.id === selectedId) ?? null;
 
-  useEffect(() => {
-    if (selectedId !== null && !selectedItem) {
-      setSelectedId(null);
-    }
-  }, [selectedId, selectedItem]);
+  if (selectedId !== null && !selectedItem) {
+    setSelectedId(null);
+  }
 
   return (
     <Tabs.Content value="errors" className="card tab-panel">
@@ -76,7 +74,7 @@ export function ErrorsTab({
         setPage={setErrorsPage}
         limit={errorsLimit}
         setLimit={setErrorsLimit}
-        limitOptions={[10, 50, 100]}
+        limitOptions={[10, 20, 50, 100]}
       />
 
       <ErrorsSidepanel item={selectedItem} onOpenChange={(open) => !open && setSelectedId(null)} />
