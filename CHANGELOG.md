@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.2.0...v1.3.0) (2026-09-16)
+
+
+### Features
+
+* **settings:** Add combined filter test drawer ([#52](https://github.com/germainlefebvre4/stalkerr/issues/52)) ([ad568ed](https://github.com/germainlefebvre4/stalkerr/commit/ad568edb027e52ba7efcb0ec4e49543608af88c2))
+* **settings:** Add filter dry-run ([#49](https://github.com/germainlefebvre4/stalkerr/issues/49)) ([4c7f6d2](https://github.com/germainlefebvre4/stalkerr/commit/4c7f6d20725ee35c6fc16f5a15ff4749e1cb379b))
+
 ## [1.2.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.1.0...v1.2.0) (2026-09-15)
 
 
