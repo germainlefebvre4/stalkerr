@@ -98,6 +98,14 @@ input, select {
   gap: 0.75rem;
 }
 
+.home-card--clickable {
+  cursor: pointer;
+}
+
+.home-card--clickable:hover {
+  background-color: rgba(99, 102, 241, 0.04);
+}
+
 .home-card-title {
   font-size: 1rem;
   font-weight: 800;
