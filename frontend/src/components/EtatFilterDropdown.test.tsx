@@ -32,6 +32,10 @@ describe('EtatFilterDropdown', () => {
     expect(screen.getByText('État: None')).toBeInTheDocument();
   });
 
+  // Radix's DropdownMenu mounts a real portal/focus-scope/dismissable-layer
+  // stack, which is measurably slower under CI/parallel-worker load than a
+  // plain render - bump the timeout so these two don't flake under load
+  // (they otherwise pass in well under a second locally).
   it('toggling a checkbox reports the updated selection without closing the menu', () => {
     const value: EtatFilter = new Set(['monitored']);
     const onChange = vi.fn();
@@ -46,7 +50,7 @@ describe('EtatFilterDropdown', () => {
     // The menu content is still present/queryable right after the click,
     // i.e. selecting an option did not close the menu.
     expect(screen.getByText('Unmonitored')).toBeInTheDocument();
-  });
+  }, 20000);
 
   it('unchecking a selected option removes it from the reported selection', () => {
     const value: EtatFilter = new Set(['monitored', 'missing']);
@@ -58,5 +62,5 @@ describe('EtatFilterDropdown', () => {
     fireEvent.click(screen.getByText('Missing'));
 
     expect(onChange).toHaveBeenCalledWith(new Set(['monitored']));
-  });
+  }, 20000);
 });
