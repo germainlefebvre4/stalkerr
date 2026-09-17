@@ -115,21 +115,35 @@ func (s *Server) listItemGroups(c *gin.Context) {
 		GROUP BY m.id, m.tmdb_title, m.tmdb_year
 	`, filterClause)
 
+	// season_start/season_end are scoped to the group's most-recent processing
+	// run (group_latest_log_id), falling back to the full history when no run
+	// is attributed (group_latest_log_id IS NULL, which happens when every row
+	// in the group predates run attribution). See design.md - Decisions.
 	tvshowsArm := fmt.Sprintf(`
 		SELECT
 			'tvshow' AS type,
 			CAST(NULL AS INTEGER) AS movie_id,
-			t.tmdb_id AS tmdb_id,
-			MAX(t.tmdb_title) AS title,
-			MAX(t.tmdb_year) AS year,
-			MIN(t.season) AS season_start,
-			MAX(t.season) AS season_end,
-			MAX(pl.created_at) AS latest_activity,
-			MAX(pl.processing_log_id) AS latest_processing_log_id
-		FROM processed_lines pl
-		JOIN tvshows t ON t.id = pl.tv_show_id
-		WHERE pl.content_type = 'tvshows' AND pl.tv_show_id IS NOT NULL %s
-		GROUP BY t.tmdb_id
+			tmdb_id AS tmdb_id,
+			MAX(tmdb_title) AS title,
+			MAX(tmdb_year) AS year,
+			MIN(CASE WHEN group_latest_log_id IS NULL OR processing_log_id = group_latest_log_id THEN season END) AS season_start,
+			MAX(CASE WHEN group_latest_log_id IS NULL OR processing_log_id = group_latest_log_id THEN season END) AS season_end,
+			MAX(created_at) AS latest_activity,
+			MAX(processing_log_id) AS latest_processing_log_id
+		FROM (
+			SELECT
+				t.tmdb_id AS tmdb_id,
+				t.tmdb_title AS tmdb_title,
+				t.tmdb_year AS tmdb_year,
+				t.season AS season,
+				pl.created_at AS created_at,
+				pl.processing_log_id AS processing_log_id,
+				MAX(pl.processing_log_id) OVER (PARTITION BY t.tmdb_id) AS group_latest_log_id
+			FROM processed_lines pl
+			JOIN tvshows t ON t.id = pl.tv_show_id
+			WHERE pl.content_type = 'tvshows' AND pl.tv_show_id IS NOT NULL %s
+		) tvshow_rows
+		GROUP BY tmdb_id
 	`, filterClause)
 
 	unmatchedMoviesArm := fmt.Sprintf(`

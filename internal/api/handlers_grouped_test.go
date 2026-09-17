@@ -114,6 +114,101 @@ func TestListItemGroups_TVShowAggregation(t *testing.T) {
 	}
 }
 
+func TestListItemGroups_SeasonRangeScopedToLatestRun(t *testing.T) {
+	db := setupTestDB(t)
+
+	olderRun := models.ProcessingLog{Status: "completed"}
+	db.Create(&olderRun)
+	newerRun := models.ProcessingLog{Status: "completed"}
+	db.Create(&newerRun)
+
+	base := time.Now()
+
+	// Seasons 1-12 ingested by the older run.
+	for season := 1; season <= 12; season++ {
+		ep := models.TVShow{TMDBID: 222, TMDBTitle: "Breaking Bad", TMDBYear: 2008, Season: intPtr(season), Episode: intPtr(1)}
+		if err := db.Create(&ep).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+		line := models.ProcessedLine{
+			LineContent: fmt.Sprintf("old-s%d", season), LineHash: fmt.Sprintf("hold%d", season), TvgName: fmt.Sprintf("BB S%d", season),
+			GroupTitle: "g", ContentType: "tvshows", State: "processed", TVShowID: &ep.ID, ProcessingLogID: &olderRun.ID,
+			CreatedAt: base.Add(time.Duration(season) * time.Minute), UpdatedAt: base,
+		}
+		if err := db.Create(&line).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+	}
+
+	// Seasons 13-14 ingested by the newer run.
+	for _, season := range []int{13, 14} {
+		ep := models.TVShow{TMDBID: 222, TMDBTitle: "Breaking Bad", TMDBYear: 2008, Season: intPtr(season), Episode: intPtr(1)}
+		if err := db.Create(&ep).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+		line := models.ProcessedLine{
+			LineContent: fmt.Sprintf("new-s%d", season), LineHash: fmt.Sprintf("hnew%d", season), TvgName: fmt.Sprintf("BB S%d", season),
+			GroupTitle: "g", ContentType: "tvshows", State: "processed", TVShowID: &ep.ID, ProcessingLogID: &newerRun.ID,
+			CreatedAt: base.Add(time.Duration(20+season) * time.Minute), UpdatedAt: base,
+		}
+		if err := db.Create(&line).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+	}
+
+	server := NewServer()
+	resp := listItemGroupsRequest(t, server, "")
+
+	if resp.Total != 1 || len(resp.Data) != 1 {
+		t.Fatalf("expected a single tvshow group, got total=%d data=%+v", resp.Total, resp.Data)
+	}
+	group := resp.Data[0]
+	if group.SeasonStart == nil || *group.SeasonStart != 13 {
+		t.Errorf("expected season_start=13 (scoped to the latest run), got %+v", group.SeasonStart)
+	}
+	if group.SeasonEnd == nil || *group.SeasonEnd != 14 {
+		t.Errorf("expected season_end=14 (scoped to the latest run), got %+v", group.SeasonEnd)
+	}
+}
+
+func TestListItemGroups_SeasonRangeFallsBackToFullHistoryWithoutRunAttribution(t *testing.T) {
+	db := setupTestDB(t)
+
+	base := time.Now()
+	seasons := []int{1, 3, 5}
+	for i, season := range seasons {
+		ep := models.TVShow{TMDBID: 222, TMDBTitle: "Breaking Bad", TMDBYear: 2008, Season: intPtr(season), Episode: intPtr(1)}
+		if err := db.Create(&ep).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+		line := models.ProcessedLine{
+			LineContent: fmt.Sprintf("l%d", i), LineHash: fmt.Sprintf("h%d", i), TvgName: fmt.Sprintf("BB S%d", season),
+			GroupTitle: "g", ContentType: "tvshows", State: "processed", TVShowID: &ep.ID, ProcessingLogID: nil,
+			CreatedAt: base.Add(time.Duration(i) * time.Minute), UpdatedAt: base,
+		}
+		if err := db.Create(&line).Error; err != nil {
+			t.Fatalf("seed error: %v", err)
+		}
+	}
+
+	server := NewServer()
+	resp := listItemGroupsRequest(t, server, "")
+
+	if resp.Total != 1 || len(resp.Data) != 1 {
+		t.Fatalf("expected a single tvshow group, got total=%d data=%+v", resp.Total, resp.Data)
+	}
+	group := resp.Data[0]
+	if group.SeasonStart == nil || *group.SeasonStart != 1 {
+		t.Errorf("expected season_start=1 (full history fallback), got %+v", group.SeasonStart)
+	}
+	if group.SeasonEnd == nil || *group.SeasonEnd != 5 {
+		t.Errorf("expected season_end=5 (full history fallback), got %+v", group.SeasonEnd)
+	}
+	if group.LatestProcessingLogID != nil {
+		t.Fatalf("expected latest_processing_log_id to be absent, got %v", *group.LatestProcessingLogID)
+	}
+}
+
 func TestListItemGroups_UnmatchedPseudoGroups(t *testing.T) {
 	db := setupTestDB(t)
 
