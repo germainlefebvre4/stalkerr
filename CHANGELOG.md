@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.3.0...v1.4.0) (2026-09-17)
+
+
+### Features
+
+* **download:** Add adaptive download throttling ([#53](https://github.com/germainlefebvre4/stalkerr/issues/53)) ([e35664f](https://github.com/germainlefebvre4/stalkerr/commit/e35664fe6496126e446f7d4ec2c4c628de48f9c1))
+
+
+### Bug Fixes
+
+* **arr-suite:** Add arr missing status filter ([#57](https://github.com/germainlefebvre4/stalkerr/issues/57)) ([33be621](https://github.com/germainlefebvre4/stalkerr/commit/33be6219402c552a7b755eccbcddd864d39520ee))
+* **arr-suite:** Link arr-suite summary cards ([#56](https://github.com/germainlefebvre4/stalkerr/issues/56)) ([2aab8c4](https://github.com/germainlefebvre4/stalkerr/commit/2aab8c45023b0b9ac548ad94bc1c8a56e3afeaa4))
+* **playlist:** Scope season range to latest run ([#55](https://github.com/germainlefebvre4/stalkerr/issues/55)) ([20d7899](https://github.com/germainlefebvre4/stalkerr/commit/20d78996b2b42a0b0f206e77d2611504d03bd96b))
+
 ## [1.3.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.2.0...v1.3.0) (2026-09-16)
 
 
