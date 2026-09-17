@@ -264,7 +264,7 @@ export function RadarrSonarrTab({
         {/* Sous-onglet Résumé */}
         <Tabs.Content value="resume" className="tab-panel">
           <section className="home-grid">
-            <div className="home-card">
+            <div className="home-card home-card--clickable" onClick={() => setActiveSubTab('radarr')}>
               <header className="home-card-header">
                 <div className="home-card-heading">
                   <img src={radarrIcon} alt="" className="home-card-brand-icon" />
@@ -279,7 +279,7 @@ export function RadarrSonarrTab({
               {statsError ? (
                 <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
                   <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
-                  <button onClick={fetchStats} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
+                  <button onClick={(e) => { e.stopPropagation(); fetchStats(); }} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
                 </div>
               ) : stats?.radarr_error ? (
                 <div className="home-error">
@@ -304,7 +304,7 @@ export function RadarrSonarrTab({
               )}
             </div>
 
-            <div className="home-card">
+            <div className="home-card home-card--clickable" onClick={() => setActiveSubTab('sonarr')}>
               <header className="home-card-header">
                 <div className="home-card-heading">
                   <img src={sonarrIcon} alt="" className="home-card-brand-icon" />
@@ -319,7 +319,7 @@ export function RadarrSonarrTab({
               {statsError ? (
                 <div style={{ textAlign: 'center', color: 'var(--status-failed-text)' }}>
                   <div>{tCommon(`errors.${statsError}`, { defaultValue: tCommon('errors.generic') })}</div>
-                  <button onClick={fetchStats} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
+                  <button onClick={(e) => { e.stopPropagation(); fetchStats(); }} className="btn-secondary" style={{ marginTop: '0.75rem' }}>{t('retry')}</button>
                 </div>
               ) : stats?.sonarr_error ? (
                 <div className="home-error">

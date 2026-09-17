@@ -164,6 +164,36 @@ describe('RadarrSonarrTab sub-tabs', () => {
 
     expect(screen.getByText('Example Movie')).toBeInTheDocument();
   });
+
+  it('clicking the Films (Radarr) summary card on the Résumé sub-tab switches to the Radarr sub-tab', () => {
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true, occurrence_count: 0 };
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
+    renderTab({ filmsItems: [movie], stats });
+
+    fireEvent.click(screen.getByText('Films (Radarr)').closest('.home-card')!);
+
+    expect(window.location.search).toContain('subtab=radarr');
+    expect(screen.getByText('Example Movie')).toBeInTheDocument();
+  });
+
+  it('clicking the Séries (Sonarr) summary card on the Résumé sub-tab switches to the Sonarr sub-tab', () => {
+    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
+    renderTab({ seriesItems: [series], stats });
+
+    fireEvent.click(screen.getByText('Séries (Sonarr)').closest('.home-card')!);
+
+    expect(window.location.search).toContain('subtab=sonarr');
+    expect(screen.getByText('Example Series')).toBeInTheDocument();
+  });
+
+  it('the Résumé sub-tab cards present a clickable affordance', () => {
+    const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
+    renderTab({ stats });
+
+    expect(screen.getByText('Films (Radarr)').closest('.home-card')).toHaveClass('home-card--clickable');
+    expect(screen.getByText('Séries (Sonarr)').closest('.home-card')).toHaveClass('home-card--clickable');
+  });
 });
 
 describe('RadarrSonarrTab sub-tab persistence', () => {
