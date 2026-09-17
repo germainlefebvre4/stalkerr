@@ -39,6 +39,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.FilterConfig{},
 		&models.SettingsOverride{},
 		&models.M3USourceConfig{},
+		&models.BandwidthScheduleWindow{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate models: %v", err)

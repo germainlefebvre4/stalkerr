@@ -103,6 +103,15 @@ var registry = []FieldSpec{
 	{Key: "jellyfin.enabled", Kind: KindBool,
 		get: func(c *config.Config) interface{} { return c.Jellyfin.Enabled },
 		set: func(c *config.Config, v interface{}) { c.Jellyfin.Enabled = v.(bool) }},
+	{Key: "jellyfin.playback_check_enabled", Kind: KindBool,
+		get: func(c *config.Config) interface{} { return c.Jellyfin.PlaybackCheckEnabled },
+		set: func(c *config.Config, v interface{}) { c.Jellyfin.PlaybackCheckEnabled = v.(bool) }},
+	{Key: "jellyfin.playback_action", Kind: KindString,
+		get: func(c *config.Config) interface{} { return c.Jellyfin.PlaybackAction },
+		set: func(c *config.Config, v interface{}) { c.Jellyfin.PlaybackAction = v.(string) }},
+	{Key: "jellyfin.playback_poll_interval_seconds", Kind: KindInt,
+		get: func(c *config.Config) interface{} { return c.Jellyfin.PlaybackPollIntervalSeconds },
+		set: func(c *config.Config, v interface{}) { c.Jellyfin.PlaybackPollIntervalSeconds = v.(int) }},
 
 	// Notifications
 	{Key: "notifications.enabled", Kind: KindBool,
@@ -161,6 +170,9 @@ var registry = []FieldSpec{
 	{Key: "downloads.force_tier_probability", Kind: KindFloat64,
 		get: func(c *config.Config) interface{} { return c.Downloads.ForceTierProbability },
 		set: func(c *config.Config, v interface{}) { c.Downloads.ForceTierProbability = v.(float64) }},
+	{Key: "downloads.throttle_rate_kbps", Kind: KindInt,
+		get: func(c *config.Config) interface{} { return c.Downloads.ThrottleRateKbps },
+		set: func(c *config.Config, v interface{}) { c.Downloads.ThrottleRateKbps = v.(int) }},
 
 	// Logging (applied live: an override re-invokes logger.InitializeLoggersWithFormat)
 	{Key: "logging.app.level", Kind: KindString,

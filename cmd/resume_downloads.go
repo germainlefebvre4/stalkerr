@@ -82,6 +82,10 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 		)
 		stateManager := dl.GetStateManager()
 
+		policyEngine := newPolicyEngine(ctx, cfg)
+		defer policyEngine.Stop()
+		dl.SetPolicyEngine(policyEngine)
+
 		// Clean up stale locks if requested
 		if cleanStaleLocks {
 			log.Info("cleaning up stale locks...")

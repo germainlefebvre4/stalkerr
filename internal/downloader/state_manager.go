@@ -197,6 +197,15 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 			cancelled = true
 			updates["status"] = string(models.DownloadStatusCancelled)
 		}
+	case models.DownloadStatusPolicyStopped:
+		// Release lock so the item can be claimed again once the effective
+		// policy is no longer "stop". Deliberately does not set
+		// completed_at (this is a resumable, non-terminal outcome) and does
+		// not touch retry_count/last_retry_at. See "Policy Abort Is Not a
+		// Failure".
+		updates["locked_at"] = nil
+		updates["locked_by"] = nil
+		updates["error_message"] = nil
 	}
 
 	result := sm.db.WithContext(ctx).
@@ -301,6 +310,7 @@ func (sm *StateManager) GetIncompleteDownloads(ctx context.Context, maxRetries i
 			string(models.DownloadStatusPaused),
 			string(models.DownloadStatusFailed),
 			string(models.DownloadStatusRetrying),
+			string(models.DownloadStatusPolicyStopped),
 		})
 
 	// Exclude downloads exceeding max retries

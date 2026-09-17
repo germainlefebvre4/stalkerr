@@ -131,6 +131,7 @@ func runMigrations() error {
 		&models.JobRun{},
 		&models.SettingsOverride{},
 		&models.M3USourceConfig{},
+		&models.BandwidthScheduleWindow{},
 	); err != nil {
 		return err
 	}

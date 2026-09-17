@@ -21,7 +21,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open test SQLite DB: %v", err)
 	}
-	if err := db.AutoMigrate(&models.SettingsOverride{}, &models.M3USourceConfig{}); err != nil {
+	if err := db.AutoMigrate(&models.SettingsOverride{}, &models.M3USourceConfig{}, &models.BandwidthScheduleWindow{}); err != nil {
 		t.Fatalf("failed to migrate models: %v", err)
 	}
 	if sqlDB, err := db.DB(); err == nil {
@@ -59,6 +59,10 @@ func TestSetOverride_RoundTripsEachKind(t *testing.T) {
 		{"downloads.progress_interval_mb", `50`},
 		{"tmdb.requests_per_second", `2.5`},
 		{"radarr.enabled", `false`},
+		{"downloads.throttle_rate_kbps", `2048`},
+		{"jellyfin.playback_check_enabled", `true`},
+		{"jellyfin.playback_action", `"stop"`},
+		{"jellyfin.playback_poll_interval_seconds", `45`},
 	}
 
 	for _, c := range cases {
@@ -82,6 +86,18 @@ func TestSetOverride_RoundTripsEachKind(t *testing.T) {
 	}
 	if eff.Radarr.Enabled != false {
 		t.Errorf("radarr.enabled = %v, want false", eff.Radarr.Enabled)
+	}
+	if eff.Downloads.ThrottleRateKbps != 2048 {
+		t.Errorf("downloads.throttle_rate_kbps = %d, want 2048", eff.Downloads.ThrottleRateKbps)
+	}
+	if eff.Jellyfin.PlaybackCheckEnabled != true {
+		t.Errorf("jellyfin.playback_check_enabled = %v, want true", eff.Jellyfin.PlaybackCheckEnabled)
+	}
+	if eff.Jellyfin.PlaybackAction != "stop" {
+		t.Errorf("jellyfin.playback_action = %q, want stop", eff.Jellyfin.PlaybackAction)
+	}
+	if eff.Jellyfin.PlaybackPollIntervalSeconds != 45 {
+		t.Errorf("jellyfin.playback_poll_interval_seconds = %d, want 45", eff.Jellyfin.PlaybackPollIntervalSeconds)
 	}
 }
 

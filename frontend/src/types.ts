@@ -389,3 +389,29 @@ export interface M3uSourceInput {
   auth_username: string;
   auth_password?: string;
 }
+
+// download-bandwidth-schedule: a weekly bandwidth schedule window.
+export type ScheduleWindowAction = 'none' | 'throttle' | 'stop';
+
+export interface ScheduleWindow {
+  id: number;
+  days_of_week: string[];
+  start_time: string;
+  end_time: string;
+  action: ScheduleWindowAction;
+}
+
+export interface ScheduleWindowInput {
+  days_of_week: string[];
+  start_time: string;
+  end_time: string;
+  action: ScheduleWindowAction;
+}
+
+// adaptive-download-throttling: the currently effective download policy and
+// which signal(s) are contributing to it.
+export interface EffectivePolicy {
+  action: ScheduleWindowAction;
+  schedule_action: ScheduleWindowAction;
+  jellyfin_action: ScheduleWindowAction;
+}

@@ -226,6 +226,106 @@ func TestSystemStatusConnectionFailure(t *testing.T) {
 	}
 }
 
+func TestSessionsDecodesIdlePausedAndPlayingSessions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/Sessions" {
+			t.Errorf("expected path /Sessions, got %s", r.URL.Path)
+		}
+		if r.Header.Get("X-Emby-Token") != "test-key" {
+			t.Errorf("expected X-Emby-Token header 'test-key', got %q", r.Header.Get("X-Emby-Token"))
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[
+			{"PlayState": {"IsPaused": false}},
+			{"NowPlayingItem": {"Name": "Paused Movie"}, "PlayState": {"IsPaused": true}},
+			{"NowPlayingItem": {"Name": "Playing Movie"}, "PlayState": {"IsPaused": false}}
+		]`))
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Timeout: 5 * time.Second,
+	})
+
+	sessions, err := client.Sessions(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sessions) != 3 {
+		t.Fatalf("expected 3 sessions, got %d", len(sessions))
+	}
+
+	if sessions[0].IsActivelyPlaying() {
+		t.Error("idle session (no NowPlayingItem) must not be actively playing")
+	}
+	if sessions[1].IsActivelyPlaying() {
+		t.Error("paused session must not be actively playing")
+	}
+	if !sessions[2].IsActivelyPlaying() {
+		t.Error("playing, non-paused session must be actively playing")
+	}
+}
+
+func TestSessionsNonSuccessStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("invalid api key"))
+	}))
+	defer server.Close()
+
+	client := New(Config{BaseURL: server.URL, APIKey: "bad-key", Timeout: 5 * time.Second})
+
+	_, err := client.Sessions(context.Background())
+	if err == nil {
+		t.Fatal("expected error for non-2xx response")
+	}
+}
+
+func TestActivePlaybackTrueWhenSessionPlaying(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[{"NowPlayingItem": {"Name": "X"}, "PlayState": {"IsPaused": false}}]`))
+	}))
+	defer server.Close()
+
+	client := New(Config{BaseURL: server.URL, APIKey: "test-key", Timeout: 5 * time.Second})
+
+	if !client.ActivePlayback(context.Background()) {
+		t.Error("expected ActivePlayback to report true")
+	}
+}
+
+func TestActivePlaybackFalseWhenNoSessionsPlaying(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[{"PlayState": {"IsPaused": false}}]`))
+	}))
+	defer server.Close()
+
+	client := New(Config{BaseURL: server.URL, APIKey: "test-key", Timeout: 5 * time.Second})
+
+	if client.ActivePlayback(context.Background()) {
+		t.Error("expected ActivePlayback to report false for an idle session")
+	}
+}
+
+// TestActivePlaybackFailsOpenOnError covers the "Fail-Open on Jellyfin
+// Unreachable" requirement: a connection error, timeout, or auth failure
+// must never be reported as active playback.
+func TestActivePlaybackFailsOpenOnError(t *testing.T) {
+	client := New(Config{
+		BaseURL: "http://127.0.0.1:1",
+		APIKey:  "test-key",
+		Timeout: 500 * time.Millisecond,
+	})
+
+	if client.ActivePlayback(context.Background()) {
+		t.Error("expected fail-open (false) when Jellyfin is unreachable")
+	}
+}
+
 func TestNotifyPathsUpdatedTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)

@@ -98,6 +98,67 @@ func TestSetSettingsField_SuccessUpdatesOriginToInterface(t *testing.T) {
 	}
 }
 
+// adaptive-download-throttling's new scalar settings fields are exposed
+// through the existing generic settings-override endpoints with no
+// dedicated handler code, exactly like every other Tier-1 field.
+func TestSetSettingsField_NewAdaptiveThrottlingFieldsRoundTrip(t *testing.T) {
+	setupTestDB(t)
+	setupSettingsTestConfig()
+	server := NewServer()
+
+	cases := []struct {
+		key   string
+		raw   string
+		value interface{}
+	}{
+		{"downloads.throttle_rate_kbps", `2048`, float64(2048)},
+		{"jellyfin.playback_check_enabled", `true`, true},
+		{"jellyfin.playback_action", `"stop"`, "stop"},
+		{"jellyfin.playback_poll_interval_seconds", `45`, float64(45)},
+	}
+
+	for _, c := range cases {
+		body, _ := json.Marshal(SetSettingsFieldRequest{Value: json.RawMessage(c.raw)})
+		req, _ := http.NewRequest("PUT", "/api/v1/settings/"+c.key, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("key %q: expected 200, got %d: %s", c.key, w.Code, w.Body.String())
+		}
+		var field SettingsFieldResponse
+		json.Unmarshal(w.Body.Bytes(), &field)
+		if field.Origin != "interface" {
+			t.Errorf("key %q: origin = %q, want interface", c.key, field.Origin)
+		}
+		if field.Value != c.value {
+			t.Errorf("key %q: value = %v (%T), want %v (%T)", c.key, field.Value, field.Value, c.value, c.value)
+		}
+		if field.RestartRequired {
+			t.Errorf("key %q: must not be restart-required", c.key)
+		}
+	}
+
+	// Also confirm they appear in the generic list endpoint.
+	listReq, _ := http.NewRequest("GET", "/api/v1/settings", nil)
+	listW := httptest.NewRecorder()
+	server.router.ServeHTTP(listW, listReq)
+	var body struct {
+		Settings []SettingsFieldResponse `json:"settings"`
+	}
+	json.Unmarshal(listW.Body.Bytes(), &body)
+	found := make(map[string]bool)
+	for _, f := range body.Settings {
+		found[f.Key] = true
+	}
+	for _, c := range cases {
+		if !found[c.key] {
+			t.Errorf("expected %q in GET /api/v1/settings response", c.key)
+		}
+	}
+}
+
 func TestSetSettingsField_UnknownKeyReturns404(t *testing.T) {
 	setupTestDB(t)
 	setupSettingsTestConfig()

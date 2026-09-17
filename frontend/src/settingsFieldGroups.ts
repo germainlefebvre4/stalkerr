@@ -76,6 +76,24 @@ export const M3U_FIELDS: SettingsGroupFieldSpec[] = [
   { key: 'm3u.update_interval', label: 'updateInterval', type: 'number' },
 ];
 
+const PLAYBACK_ACTION_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'throttle', labelKey: 'bandwidthSchedule.actions.throttle' },
+  { value: 'stop', labelKey: 'bandwidthSchedule.actions.stop' },
+];
+
+// Shared throttle rate and Jellyfin-based throttle settings, rendered
+// together in the bandwidth-schedule section (see
+// frontend-bandwidth-schedule-management). downloads.throttle_rate_kbps
+// lives under the "Downloads" config section, but is grouped here rather
+// than in DOWNLOADS_FIELDS since it is only meaningful alongside the
+// schedule/Jellyfin signals that trigger it.
+export const BANDWIDTH_THROTTLE_FIELDS: SettingsGroupFieldSpec[] = [
+  { key: 'downloads.throttle_rate_kbps', label: 'throttleRateKbps', type: 'number' },
+  { key: 'jellyfin.playback_check_enabled', label: 'playbackCheckEnabled', type: 'boolean' },
+  { key: 'jellyfin.playback_action', label: 'playbackAction', type: 'select', options: PLAYBACK_ACTION_OPTIONS },
+  { key: 'jellyfin.playback_poll_interval_seconds', label: 'playbackPollIntervalSeconds', type: 'number' },
+];
+
 export const INTEGRATIONS_SETTINGS_KEYS: string[] = [
   ...RADARR_FIELDS, ...SONARR_FIELDS, ...TMDB_FIELDS, ...JELLYFIN_FIELDS,
 ].map(f => f.key);
@@ -83,5 +101,5 @@ export const INTEGRATIONS_SETTINGS_KEYS: string[] = [
 export const NOTIFICATIONS_SETTINGS_KEYS: string[] = NOTIFICATIONS_FIELDS.map(f => f.key);
 
 export const ADVANCED_SETTINGS_KEYS: string[] = [
-  ...DOWNLOADS_FIELDS, ...LOGGING_FIELDS, ...M3U_FIELDS,
+  ...DOWNLOADS_FIELDS, ...LOGGING_FIELDS, ...M3U_FIELDS, ...BANDWIDTH_THROTTLE_FIELDS,
 ].map(f => f.key);

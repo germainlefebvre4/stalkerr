@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/glefebvre/stalkeer/internal/policy"
 )
 
 // DownloadJob represents a single download job
@@ -76,6 +78,18 @@ func (pd *ParallelDownloader) DownloadBatch(ctx context.Context, jobs []Download
 					}
 					return
 				default:
+					// While the effective policy is "stop", this
+					// not-yet-started job is not dispatched: the same
+					// non-failure outcome as an in-progress transfer
+					// aborted by policy. See "No New Claims While Stopped".
+					if pd.downloader.IsPolicyStopped() {
+						results <- DownloadJobResult{
+							JobID: job.ID,
+							Error: policy.ErrStoppedByPolicy,
+						}
+						continue
+					}
+
 					result, err := pd.downloader.Download(ctx, job.Options)
 					results <- DownloadJobResult{
 						JobID:  job.ID,

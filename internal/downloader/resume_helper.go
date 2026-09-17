@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/jellyfin"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/policy"
 	"github.com/glefebvre/stalkeer/internal/settings"
 )
 
@@ -20,8 +22,13 @@ type ResumeStats struct {
 	Resumed   int
 	Failed    int
 	Skipped   int
-	StartTime time.Time
-	EndTime   time.Time
+	// PolicyStopped counts items not attempted (or aborted mid-transfer)
+	// because the effective policy was "stop". A distinct, non-failure
+	// outcome: see "Policy Abort Is Not a Failure". These items remain
+	// eligible to be resumed again once the policy clears.
+	PolicyStopped int
+	StartTime     time.Time
+	EndTime       time.Time
 }
 
 // Duration returns the total duration of the operation
@@ -181,6 +188,15 @@ func (rh *ResumeHelper) processResults(results <-chan DownloadJobResult, jobInfo
 		}
 
 		if result.Error != nil {
+			if errors.Is(result.Error, policy.ErrStoppedByPolicy) {
+				stats.PolicyStopped++
+				log.WithFields(map[string]interface{}{
+					"download_id": info.downloadID,
+					"title":       info.displayName,
+				}).Info("resume download deferred: effective policy is stop")
+				continue
+			}
+
 			stats.Failed++
 			log.WithFields(map[string]interface{}{
 				"download_id": info.downloadID,
@@ -512,10 +528,11 @@ func (rh *ResumeHelper) PrintStats(stats *ResumeStats) {
 	log := logger.AppLogger()
 
 	log.WithFields(map[string]interface{}{
-		"total":    stats.Total,
-		"resumed":  stats.Resumed,
-		"failed":   stats.Failed,
-		"skipped":  stats.Skipped,
-		"duration": stats.Duration().String(),
+		"total":          stats.Total,
+		"resumed":        stats.Resumed,
+		"failed":         stats.Failed,
+		"skipped":        stats.Skipped,
+		"policy_stopped": stats.PolicyStopped,
+		"duration":       stats.Duration().String(),
 	}).Info("resume operation completed")
 }
