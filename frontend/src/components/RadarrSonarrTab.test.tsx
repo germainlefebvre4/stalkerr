@@ -4,7 +4,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { RadarrSonarrTab } from './RadarrSonarrTab';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats, SonarrSeriesEpisodesResponse, MatchStatusFilter } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats, SonarrSeriesEpisodesResponse, MatchStatusFilter, EtatFilter } from '../types';
 import { api } from '../services/api';
 import { useIsMobile } from '../hooks/useMediaQuery';
 
@@ -40,11 +40,15 @@ interface Overrides {
   setFilmsSearch?: (value: string) => void;
   filmsFilter?: MatchStatusFilter;
   setFilmsFilter?: (value: MatchStatusFilter) => void;
+  filmsStatus?: EtatFilter;
+  setFilmsStatus?: (value: EtatFilter) => void;
   seriesItems?: SonarrSeriesListItem[];
   seriesSearch?: string;
   setSeriesSearch?: (value: string) => void;
   seriesFilter?: MatchStatusFilter;
   setSeriesFilter?: (value: MatchStatusFilter) => void;
+  seriesStatus?: EtatFilter;
+  setSeriesStatus?: (value: EtatFilter) => void;
   refreshSeries?: () => void;
   stats?: RadarrSonarrStats | null;
   statsLoading?: boolean;
@@ -68,6 +72,8 @@ function renderTab(overrides: Overrides = {}) {
           setFilmsSearch={overrides.setFilmsSearch ?? (() => {})}
           filmsFilter={overrides.filmsFilter ?? ''}
           setFilmsFilter={overrides.setFilmsFilter ?? (() => {})}
+          filmsStatus={overrides.filmsStatus ?? new Set(['monitored'])}
+          setFilmsStatus={overrides.setFilmsStatus ?? (() => {})}
           seriesItems={overrides.seriesItems ?? []}
           seriesLoading={false}
           seriesError={null}
@@ -81,6 +87,8 @@ function renderTab(overrides: Overrides = {}) {
           setSeriesSearch={overrides.setSeriesSearch ?? (() => {})}
           seriesFilter={overrides.seriesFilter ?? ''}
           setSeriesFilter={overrides.setSeriesFilter ?? (() => {})}
+          seriesStatus={overrides.seriesStatus ?? new Set(['monitored'])}
+          setSeriesStatus={overrides.setSeriesStatus ?? (() => {})}
           stats={overrides.stats ?? null}
           statsLoading={overrides.statsLoading ?? false}
           statsError={overrides.statsError ?? null}
@@ -146,8 +154,8 @@ describe('RadarrSonarrTab sub-tabs', () => {
   });
 
   it('switching to the Sonarr sub-tab shows Séries content and hides Films', () => {
-    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true, occurrence_count: 0 };
-    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, monitored: true, missing: false, matched: true, occurrence_count: 0 };
+    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, monitored: true, missing: false, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
     renderTab({ filmsItems: [movie], seriesItems: [series] });
 
     fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
@@ -157,7 +165,7 @@ describe('RadarrSonarrTab sub-tabs', () => {
   });
 
   it('switching to the Radarr sub-tab shows Films content', () => {
-    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true, occurrence_count: 0 };
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, monitored: true, missing: false, matched: true, occurrence_count: 0 };
     renderTab({ filmsItems: [movie] });
 
     fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
@@ -166,7 +174,7 @@ describe('RadarrSonarrTab sub-tabs', () => {
   });
 
   it('clicking the Films (Radarr) summary card on the Résumé sub-tab switches to the Radarr sub-tab', () => {
-    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true, occurrence_count: 0 };
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, monitored: true, missing: false, matched: true, occurrence_count: 0 };
     const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
     renderTab({ filmsItems: [movie], stats });
 
@@ -177,7 +185,7 @@ describe('RadarrSonarrTab sub-tabs', () => {
   });
 
   it('clicking the Séries (Sonarr) summary card on the Résumé sub-tab switches to the Sonarr sub-tab', () => {
-    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
+    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, monitored: true, missing: false, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
     const stats: RadarrSonarrStats = { radarr_monitored: 10, radarr_matched: 7, sonarr_monitored: 5, sonarr_matched: null };
     renderTab({ seriesItems: [series], stats });
 
@@ -207,7 +215,7 @@ describe('RadarrSonarrTab sub-tab persistence', () => {
 
   it('restores the sub-tab from the URL on mount, matching a page reload', () => {
     window.history.replaceState(null, '', '/?subtab=sonarr');
-    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
+    const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, monitored: true, missing: false, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
     renderTab({ seriesItems: [series] });
 
     expect(screen.getByText('Example Series')).toBeInTheDocument();
@@ -221,6 +229,51 @@ describe('RadarrSonarrTab sub-tab icons', () => {
     expect(screen.getByText('Radarr').querySelector('img')).toBeInTheDocument();
     expect(screen.getByText('Sonarr').querySelector('img')).toBeInTheDocument();
     expect(screen.getByText('Summary').querySelector('img')).not.toBeInTheDocument();
+  });
+});
+
+describe('RadarrSonarrTab État filter', () => {
+  it('renders the État filter dropdown in both the Films and Séries filter bars', () => {
+    renderTab();
+
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    expect(screen.getByText('Status: Monitored')).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    expect(screen.getByText('Status: Monitored')).toBeInTheDocument();
+  });
+
+  it('calling setFilmsStatus from the dropdown reports the updated selection', () => {
+    const setFilmsStatus = vi.fn();
+    renderTab({ setFilmsStatus });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+
+    const trigger = screen.getByText('Status: Monitored');
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    fireEvent.click(screen.getByText('Missing'));
+
+    expect(setFilmsStatus).toHaveBeenCalledWith(new Set(['monitored', 'missing']));
+  });
+
+  it('a contradictory État selection with no matching items shows the ordinary empty-results state, not an error', () => {
+    renderTab({ filmsItems: [], filmsStatus: new Set(['unmonitored', 'missing']) });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+
+    expect(screen.getByText('No monitored movies found')).toBeInTheDocument();
+  });
+
+  it('renders the État badge as a distinct column in the Films table, with a distinct color per État', () => {
+    const movies: RadarrMovieListItem[] = [
+      { radarr_id: 1, title: 'Missing Movie', year: 2020, has_file: false, monitored: true, missing: true, matched: false, occurrence_count: 0 },
+      { radarr_id: 2, title: 'Complete Movie', year: 2021, has_file: true, monitored: true, missing: false, matched: false, occurrence_count: 0 },
+      { radarr_id: 3, title: 'Unmonitored Movie', year: 2022, has_file: false, monitored: false, missing: false, matched: false, occurrence_count: 0 },
+    ];
+    renderTab({ filmsItems: movies, filmsStatus: new Set(['monitored', 'unmonitored', 'missing']) });
+    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+
+    expect(screen.getByText('Missing').className).toContain('badge-failed');
+    expect(screen.getByText('Monitored').className).toContain('badge-success');
+    expect(screen.getByText('Unmonitored').className).toContain('badge-neutral');
   });
 });
 
@@ -262,14 +315,14 @@ describe('RadarrSonarrTab search', () => {
 
 const seriesEpisodesFixture: SonarrSeriesEpisodesResponse = {
   episodes: [
-    { season: 1, episode: 1, matched: true, occurrences: [] },
-    { season: 1, episode: 2, matched: false, occurrences: [] },
-    { season: 2, episode: 1, matched: true, occurrences: [{ id: 101, resolution: '1080p', state: 'downloaded' }] },
-    { season: 2, episode: 2, matched: true, occurrences: [] },
+    { season: 1, episode: 1, monitored: true, missing: false, matched: true, occurrences: [] },
+    { season: 1, episode: 2, monitored: true, missing: false, matched: false, occurrences: [] },
+    { season: 2, episode: 1, monitored: true, missing: false, matched: true, occurrences: [{ id: 101, resolution: '1080p', state: 'downloaded' }] },
+    { season: 2, episode: 2, monitored: true, missing: false, matched: true, occurrences: [] },
   ],
 };
 
-const seriesFixture: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, matched_count: 3, monitored_count: 4, occurrence_count: 0 };
+const seriesFixture: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, monitored: true, missing: false, matched_count: 3, monitored_count: 4, occurrence_count: 0 };
 
 function openExampleSeries(overrides: Overrides = {}) {
   renderTab({ seriesItems: [seriesFixture], ...overrides });
@@ -337,7 +390,7 @@ describe('RadarrSonarrTab mobile sidepanel lists', () => {
       matched: true,
       occurrences: [{ id: 201, resolution: '1080p', state: 'downloaded' }],
     });
-    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, matched: true, occurrence_count: 0 };
+    const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, has_file: true, monitored: true, missing: false, matched: true, occurrence_count: 0 };
     renderTab({ filmsItems: [movie] });
     fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
     fireEvent.click(screen.getByText('Example Movie'));

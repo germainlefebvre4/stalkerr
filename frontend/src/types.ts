@@ -264,6 +264,8 @@ export interface RadarrMovieListItem {
   title: string;
   year: number;
   has_file: boolean;
+  monitored: boolean;
+  missing: boolean;
   matched: boolean;
   movie_id?: number;
   occurrence_count: number;
@@ -273,12 +275,19 @@ export interface SonarrSeriesListItem {
   sonarr_id: number;
   title: string;
   year: number;
+  monitored: boolean;
+  missing: boolean;
   matched_count: number;
   monitored_count: number;
   occurrence_count: number;
 }
 
 export type MatchStatusFilter = '' | 'matched' | 'no_match';
+
+// The État (status) filter: Monitored/Unmonitored/Missing, cumulative
+// (multi-select, combined as a logical AND - see radarr-sonarr-monitoring-api).
+export type EtatStatus = 'monitored' | 'unmonitored' | 'missing';
+export type EtatFilter = Set<EtatStatus>;
 
 export interface RadarrMovieMatchesResponse {
   matched: boolean;
@@ -289,6 +298,8 @@ export interface RadarrMovieMatchesResponse {
 export interface SonarrSeriesEpisodeItem {
   season: number;
   episode: number;
+  monitored: boolean;
+  missing: boolean;
   matched: boolean;
   occurrences: OccurrenceResponse[];
 }

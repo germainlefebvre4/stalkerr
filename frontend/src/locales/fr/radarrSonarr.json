@@ -28,6 +28,7 @@
     "table": {
       "title": "Titre",
       "year": "Année",
+      "etat": "État",
       "status": "Correspondance playlist",
       "occurrences": "Occurrences"
     },
@@ -47,6 +48,7 @@
     "table": {
       "title": "Titre",
       "year": "Année",
+      "etat": "État",
       "status": "Épisodes surveillés en correspondance",
       "occurrences": "Occurrences"
     },
@@ -55,7 +57,14 @@
   "filterStatus": {
     "all": "Tous",
     "matched": "Correspondance trouvée",
-    "noMatch": "Aucune correspondance"
+    "noMatch": "Aucune correspondance",
+    "etat": {
+      "label": "État",
+      "monitored": "Surveillé",
+      "unmonitored": "Non surveillé",
+      "missing": "Manquant",
+      "none": "Aucun filtre"
+    }
   },
   "retry": "Réessayer",
   "drawer": {
@@ -71,6 +80,7 @@
     "occurrenceState": "État",
     "unknownResolution": "Inconnue",
     "episodesSection": "Épisodes surveillés",
+    "etat": "État",
     "season": "Saison {{season}}",
     "episode": "S{{season}} E{{episode}}",
     "episodeMatched": "Correspondance trouvée",
