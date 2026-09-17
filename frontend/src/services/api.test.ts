@@ -70,6 +70,59 @@ describe('api.testIntegration', () => {
   });
 });
 
+describe('api.listRadarrMovies', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the selected État values as repeated status query parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [], total: 0, limit: 20, offset: 0, total_pages: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.listRadarrMovies(1, 20, undefined, undefined, new Set(['monitored', 'missing']));
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('&status=monitored');
+    expect(url).toContain('&status=missing');
+  });
+
+  it('omits the status parameter entirely when none is supplied', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [], total: 0, limit: 20, offset: 0, total_pages: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.listRadarrMovies(1, 20);
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).not.toContain('status=');
+  });
+});
+
+describe('api.listSonarrSeries', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends the selected État values as repeated status query parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [], total: 0, limit: 20, offset: 0, total_pages: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.listSonarrSeries(1, 20, undefined, undefined, undefined, new Set(['unmonitored', 'missing']));
+
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url).toContain('&status=unmonitored');
+    expect(url).toContain('&status=missing');
+  });
+});
+
 describe('api.dryRunFilter', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

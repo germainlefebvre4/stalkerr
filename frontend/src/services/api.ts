@@ -22,6 +22,7 @@ import {
   SonarrSeriesEpisodesResponse,
   RadarrSonarrStats,
   MatchStatusFilter,
+  EtatFilter,
   SystemStatusResponse,
   IntegrationTestService,
   IntegrationTestResult,
@@ -317,7 +318,7 @@ export const api = {
     return res.json();
   },
 
-  async listRadarrMovies(page: number, limit: number = 20, search?: string, filter?: MatchStatusFilter): Promise<PaginatedResponse<RadarrMovieListItem>> {
+  async listRadarrMovies(page: number, limit: number = 20, search?: string, filter?: MatchStatusFilter, status?: EtatFilter): Promise<PaginatedResponse<RadarrMovieListItem>> {
     let url = `/api/v1/radarr/movies?limit=${limit}&offset=${(page - 1) * limit}`;
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
@@ -325,12 +326,17 @@ export const api = {
     if (filter) {
       url += `&filter=${filter}`;
     }
+    if (status) {
+      for (const value of status) {
+        url += `&status=${value}`;
+      }
+    }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);
     return res.json();
   },
 
-  async listSonarrSeries(page: number, limit: number = 20, search?: string, filter?: MatchStatusFilter, refresh?: boolean): Promise<PaginatedResponse<SonarrSeriesListItem>> {
+  async listSonarrSeries(page: number, limit: number = 20, search?: string, filter?: MatchStatusFilter, refresh?: boolean, status?: EtatFilter): Promise<PaginatedResponse<SonarrSeriesListItem>> {
     let url = `/api/v1/sonarr/series?limit=${limit}&offset=${(page - 1) * limit}`;
     if (search) {
       url += `&search=${encodeURIComponent(search)}`;
@@ -340,6 +346,11 @@ export const api = {
     }
     if (refresh) {
       url += `&refresh=true`;
+    }
+    if (status) {
+      for (const value of status) {
+        url += `&status=${value}`;
+      }
     }
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);

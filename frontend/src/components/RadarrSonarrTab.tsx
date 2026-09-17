@@ -3,12 +3,14 @@ import * as Tabs from '@radix-ui/react-tabs';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Progress from '@radix-ui/react-progress';
 import { useTranslation } from 'react-i18next';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats, MatchStatusFilter } from '../types';
+import type { TFunction } from 'i18next';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats, MatchStatusFilter, EtatFilter } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useRadarrSonarrView } from '../hooks/useRadarrSonarrView';
 import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
 import { MediaOccurrenceDrawer, MediaOccurrenceDrawerBody } from './MediaOccurrenceDrawer';
+import { EtatFilterDropdown, EtatFilterDropdownOption } from './EtatFilterDropdown';
 import { api, ApiError } from '../services/api';
 import radarrIcon from '../assets/icons/radarr.svg';
 import sonarrIcon from '../assets/icons/sonarr.svg';
@@ -26,6 +28,8 @@ interface RadarrSonarrTabProps {
   setFilmsSearch: (value: string) => void;
   filmsFilter: MatchStatusFilter;
   setFilmsFilter: (value: MatchStatusFilter) => void;
+  filmsStatus: EtatFilter;
+  setFilmsStatus: (value: EtatFilter) => void;
 
   seriesItems: SonarrSeriesListItem[];
   seriesLoading: boolean;
@@ -40,6 +44,8 @@ interface RadarrSonarrTabProps {
   setSeriesSearch: (value: string) => void;
   seriesFilter: MatchStatusFilter;
   setSeriesFilter: (value: MatchStatusFilter) => void;
+  seriesStatus: EtatFilter;
+  setSeriesStatus: (value: EtatFilter) => void;
 
   stats: RadarrSonarrStats | null;
   statsLoading: boolean;
@@ -57,6 +63,20 @@ function seriesBadgeClass(matched: number, monitored: number): string {
   return 'badge-progress';
 }
 
+// État badge: Missing -> badge-failed, Monitored (complete) -> badge-success,
+// Unmonitored -> badge-neutral. See design.md decision 6.
+function etatBadgeClass(monitored: boolean, missing: boolean): string {
+  if (missing) return 'badge-failed';
+  if (monitored) return 'badge-success';
+  return 'badge-neutral';
+}
+
+function etatLabel(t: TFunction, monitored: boolean, missing: boolean): string {
+  if (missing) return t('filterStatus.etat.missing');
+  if (monitored) return t('filterStatus.etat.monitored');
+  return t('filterStatus.etat.unmonitored');
+}
+
 function padNumber(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -70,9 +90,9 @@ function renderStatusIndicator(isMobile: boolean, badgeClass: string, label: str
 
 export function RadarrSonarrTab({
   filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
-  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter,
+  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus,
   seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
-  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter,
+  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus,
   stats, statsLoading, statsError, fetchStats,
   onOpenOverride,
 }: RadarrSonarrTabProps) {
@@ -80,6 +100,12 @@ export function RadarrSonarrTab({
   const { t: tCommon } = useTranslation('common');
   const { t: tPlaylist } = useTranslation('playlist');
   const isMobile = useIsMobile();
+
+  const etatOptions: EtatFilterDropdownOption[] = [
+    { value: 'monitored', label: t('filterStatus.etat.monitored') },
+    { value: 'unmonitored', label: t('filterStatus.etat.unmonitored') },
+    { value: 'missing', label: t('filterStatus.etat.missing') },
+  ];
 
   const { activeSubTab, setActiveSubTab } = useRadarrSonarrView();
 
@@ -375,6 +401,13 @@ export function RadarrSonarrTab({
                 <option value="matched">{t('filterStatus.matched')}</option>
                 <option value="no_match">{t('filterStatus.noMatch')}</option>
               </select>
+              <EtatFilterDropdown
+                label={t('filterStatus.etat.label')}
+                value={filmsStatus}
+                onChange={setFilmsStatus}
+                options={etatOptions}
+                noneLabel={t('filterStatus.etat.none')}
+              />
             </div>
 
             {filmsError ? (
@@ -395,9 +428,12 @@ export function RadarrSonarrTab({
                         <span className="mobile-list-card-title">{item.title}</span>
                         <span className="mobile-list-card-subtitle">{item.year} · {t('films.table.occurrences')}: {item.occurrence_count}</span>
                       </div>
-                      <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
-                        {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
-                      </span>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                        {renderStatusIndicator(true, etatBadgeClass(item.monitored, item.missing), etatLabel(t, item.monitored, item.missing))}
+                        <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
+                          {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
+                        </span>
+                      </div>
                     </div>
                   ))
                 )}
@@ -409,20 +445,26 @@ export function RadarrSonarrTab({
                     <tr>
                       <th>{t('films.table.title')}</th>
                       <th>{t('films.table.year')}</th>
+                      <th>{t('films.table.etat')}</th>
                       <th>{t('films.table.status')}</th>
                       <th>{t('films.table.occurrences')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filmsLoading && filmsItems.length === 0 ? (
-                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
+                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
                     ) : filmsItems.length === 0 ? (
-                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
+                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
                     ) : (
                       filmsItems.map(item => (
                         <tr key={item.radarr_id} className="clickable-row" onClick={() => openMovie(item)}>
                           <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
                           <td>{item.year}</td>
+                          <td>
+                            <span className={`badge ${etatBadgeClass(item.monitored, item.missing)}`}>
+                              {etatLabel(t, item.monitored, item.missing)}
+                            </span>
+                          </td>
                           <td>
                             <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
                               {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
@@ -472,6 +514,13 @@ export function RadarrSonarrTab({
                 <option value="matched">{t('filterStatus.matched')}</option>
                 <option value="no_match">{t('filterStatus.noMatch')}</option>
               </select>
+              <EtatFilterDropdown
+                label={t('filterStatus.etat.label')}
+                value={seriesStatus}
+                onChange={setSeriesStatus}
+                options={etatOptions}
+                noneLabel={t('filterStatus.etat.none')}
+              />
             </div>
 
             {seriesError ? (
@@ -492,9 +541,12 @@ export function RadarrSonarrTab({
                         <span className="mobile-list-card-title">{item.title}</span>
                         <span className="mobile-list-card-subtitle">{item.year} · {t('series.table.occurrences')}: {item.occurrence_count}</span>
                       </div>
-                      <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
-                        {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
-                      </span>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                        {renderStatusIndicator(true, etatBadgeClass(item.monitored, item.missing), etatLabel(t, item.monitored, item.missing))}
+                        <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
+                          {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
+                        </span>
+                      </div>
                     </div>
                   ))
                 )}
@@ -506,20 +558,26 @@ export function RadarrSonarrTab({
                     <tr>
                       <th>{t('series.table.title')}</th>
                       <th>{t('series.table.year')}</th>
+                      <th>{t('series.table.etat')}</th>
                       <th>{t('series.table.status')}</th>
                       <th>{t('series.table.occurrences')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {seriesLoading && seriesItems.length === 0 ? (
-                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
+                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
                     ) : seriesItems.length === 0 ? (
-                      <tr><td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
+                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
                     ) : (
                       seriesItems.map(item => (
                         <tr key={item.sonarr_id} className="clickable-row" onClick={() => openSeries(item)}>
                           <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
                           <td>{item.year}</td>
+                          <td>
+                            <span className={`badge ${etatBadgeClass(item.monitored, item.missing)}`}>
+                              {etatLabel(t, item.monitored, item.missing)}
+                            </span>
+                          </td>
                           <td>
                             <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
                               {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
@@ -591,8 +649,11 @@ export function RadarrSonarrTab({
 
                 {!detailLoading && !detailError && selectedMovie && movieDetail && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
-                      {selectedMovie.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedMovie.year})</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
+                        {selectedMovie.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedMovie.year})</span>
+                      </div>
+                      {renderStatusIndicator(isMobile, etatBadgeClass(selectedMovie.monitored, selectedMovie.missing), etatLabel(t, selectedMovie.monitored, selectedMovie.missing))}
                     </div>
 
                     {!movieDetail.matched ? (
@@ -612,8 +673,11 @@ export function RadarrSonarrTab({
 
                 {!detailLoading && !detailError && selectedSeries && seriesDetail && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
-                      {selectedSeries.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedSeries.year})</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
+                        {selectedSeries.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedSeries.year})</span>
+                      </div>
+                      {renderStatusIndicator(isMobile, etatBadgeClass(selectedSeries.monitored, selectedSeries.missing), etatLabel(t, selectedSeries.monitored, selectedSeries.missing))}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -659,9 +723,12 @@ export function RadarrSonarrTab({
                                                   <span>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</span>
                                                 </span>
                                               </div>
-                                              <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
-                                                {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
-                                              </span>
+                                              <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                                                {renderStatusIndicator(true, etatBadgeClass(ep.monitored, ep.missing), etatLabel(t, ep.monitored, ep.missing))}
+                                                <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
+                                                  {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
+                                                </span>
+                                              </div>
                                             </div>
                                             {isEpExpanded && (
                                               <div style={{ marginBottom: '0.75rem', padding: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
@@ -681,6 +748,7 @@ export function RadarrSonarrTab({
                                       <thead>
                                         <tr>
                                           <th></th>
+                                          <th>{t('drawer.etat')}</th>
                                           <th>{t('drawer.occurrenceState')}</th>
                                         </tr>
                                       </thead>
@@ -698,6 +766,11 @@ export function RadarrSonarrTab({
                                                   <span>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</span>
                                                 </td>
                                                 <td>
+                                                  <span className={`badge ${etatBadgeClass(ep.monitored, ep.missing)}`}>
+                                                    {etatLabel(t, ep.monitored, ep.missing)}
+                                                  </span>
+                                                </td>
+                                                <td>
                                                   <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
                                                     {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
                                                   </span>
@@ -705,7 +778,7 @@ export function RadarrSonarrTab({
                                               </tr>
                                               {isEpExpanded && (
                                                 <tr>
-                                                  <td colSpan={2} style={{ padding: 0 }}>
+                                                  <td colSpan={3} style={{ padding: 0 }}>
                                                     {ep.occurrences.length === 0 ? (
                                                       <div style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem', backgroundColor: 'var(--bg-app)' }}>
                                                         {t('drawer.episodeNoOccurrences')}

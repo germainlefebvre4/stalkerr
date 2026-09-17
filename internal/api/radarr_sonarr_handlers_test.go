@@ -1238,6 +1238,475 @@ func TestListSonarrMonitoredSeries_OccurrenceCount(t *testing.T) {
 	}
 }
 
+// statusQueryURL builds a listing URL with one repeated "status" query
+// parameter per value, plus any extra raw query string fragments (e.g.
+// "search=foo", "filter=matched") joined with "&".
+func statusQueryURL(basePath string, statuses []string, extra ...string) string {
+	parts := make([]string, 0, len(statuses)+len(extra))
+	for _, s := range statuses {
+		parts = append(parts, "status="+s)
+	}
+	parts = append(parts, extra...)
+	if len(parts) == 0 {
+		return basePath
+	}
+	return basePath + "?" + strings.Join(parts, "&")
+}
+
+func TestListRadarrMonitoredMovies_StatusFilterDefaultAndValues(t *testing.T) {
+	setupTestDB(t)
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "Monitored Complete", Year: 2000, Monitored: true, HasFile: true},
+		{ID: 2, Title: "Monitored Missing", Year: 2001, Monitored: true, HasFile: false},
+		{ID: 3, Title: "Unmonitored Complete", Year: 2002, Monitored: false, HasFile: true},
+		{ID: 4, Title: "Unmonitored NoFile", Year: 2003, Monitored: false, HasFile: false},
+	}
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	cases := []struct {
+		name        string
+		statuses    []string
+		expectedIDs []int
+	}{
+		{"omitted preserves today's monitored-only default", nil, []int{1, 2}},
+		{"explicit monitored matches omitted", []string{"monitored"}, []int{1, 2}},
+		{"missing narrows to monitored+no file", []string{"missing"}, []int{2}},
+		{"unmonitored reveals previously hidden items", []string{"unmonitored"}, []int{3, 4}},
+		{"monitored+missing AND equivalent to missing alone", []string{"monitored", "missing"}, []int{2}},
+		{"unmonitored+missing contradictory yields empty", []string{"unmonitored", "missing"}, []int{}},
+		{"monitored+unmonitored contradictory yields empty", []string{"monitored", "unmonitored"}, []int{}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", statusQueryURL("/api/v1/radarr/movies", tc.statuses), nil)
+			w := httptest.NewRecorder()
+			server.router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+
+			var resp struct {
+				Data  []RadarrMovieListItem `json:"data"`
+				Total int64                 `json:"total"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if int(resp.Total) != len(tc.expectedIDs) {
+				t.Fatalf("expected total %d, got %d (data=%+v)", len(tc.expectedIDs), resp.Total, resp.Data)
+			}
+			gotIDs := make(map[int]bool, len(resp.Data))
+			for _, item := range resp.Data {
+				gotIDs[item.RadarrID] = true
+			}
+			for _, id := range tc.expectedIDs {
+				if !gotIDs[id] {
+					t.Errorf("expected radarr id %d in results, got %+v", id, resp.Data)
+				}
+			}
+		})
+	}
+}
+
+func TestListRadarrMonitoredMovies_MonitoredAndMissingFields(t *testing.T) {
+	setupTestDB(t)
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "Monitored Complete", Year: 2000, Monitored: true, HasFile: true},
+		{ID: 2, Title: "Monitored Missing", Year: 2001, Monitored: true, HasFile: false},
+		{ID: 3, Title: "Unmonitored Complete", Year: 2002, Monitored: false, HasFile: true},
+		{ID: 4, Title: "Unmonitored NoFile", Year: 2003, Monitored: false, HasFile: false},
+	}
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	// status=unmonitored,missing,monitored requested separately (AND semantics
+	// forbid combining monitored+unmonitored) covers every catalog entry so we
+	// can assert missing == monitored && !has_file for all four.
+	fetch := func(statuses ...string) []RadarrMovieListItem {
+		req, _ := http.NewRequest("GET", statusQueryURL("/api/v1/radarr/movies", statuses), nil)
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Data []RadarrMovieListItem `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		return resp.Data
+	}
+
+	all := append(fetch("monitored"), fetch("unmonitored")...)
+	if len(all) != len(radarrMovies) {
+		t.Fatalf("expected to cover all %d catalog movies, got %d", len(radarrMovies), len(all))
+	}
+
+	for _, item := range all {
+		wantMissing := item.Monitored && !item.HasFile
+		if item.Missing != wantMissing {
+			t.Errorf("movie %d: expected missing=%v (monitored=%v has_file=%v), got %v", item.RadarrID, wantMissing, item.Monitored, item.HasFile, item.Missing)
+		}
+	}
+}
+
+func TestListRadarrMonitoredMovies_StatusFilterCombinesWithSearchAndMatchFilter(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Seed local movies matching "Alpha Missing" and "Alpha Complete" by TVDB id.
+	for _, i := range []int{1, 2} {
+		tvdbID := 10000 + i
+		movie := models.Movie{TMDBID: 90000 + i, TVDBID: &tvdbID, TMDBTitle: fmt.Sprintf("Alpha Local %d", i), TMDBYear: 2000}
+		if err := db.Create(&movie).Error; err != nil {
+			t.Fatalf("failed to seed local movie: %v", err)
+		}
+	}
+
+	radarrMovies := []radarr.Movie{
+		{ID: 1, Title: "Alpha Missing", Year: 2000, TvdbID: 10001, Monitored: true, HasFile: false},
+		{ID: 2, Title: "Alpha Complete", Year: 2000, TvdbID: 10002, Monitored: true, HasFile: true},
+		{ID: 3, Title: "Beta Missing", Year: 2000, TvdbID: 30003, Monitored: true, HasFile: false},
+		{ID: 4, Title: "Alpha Unmonitored", Year: 2000, TvdbID: 40004, Monitored: false, HasFile: false},
+	}
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(radarrMovies)
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", statusQueryURL("/api/v1/radarr/movies", []string{"missing"}, "search=alpha", "filter=matched"), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data  []RadarrMovieListItem `json:"data"`
+		Total int64                 `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Total != 1 || len(resp.Data) != 1 || resp.Data[0].Title != "Alpha Missing" {
+		t.Fatalf("expected exactly 'Alpha Missing' for status=missing&search=alpha&filter=matched, got %+v (total %d)", resp.Data, resp.Total)
+	}
+}
+
+func TestListSonarrMonitoredSeries_StatusFilterDefaultAndValues(t *testing.T) {
+	setupTestDB(t)
+
+	allSeries := []sonarr.Series{
+		{ID: 1, Title: "Monitored Complete", TvdbID: 5001, Monitored: true, EpisodeFileCount: 10, TotalEpisodeCount: 10},
+		{ID: 2, Title: "Monitored Missing", TvdbID: 5002, Monitored: true, EpisodeFileCount: 5, TotalEpisodeCount: 10},
+		{ID: 3, Title: "Unmonitored Complete", TvdbID: 5003, Monitored: false, EpisodeFileCount: 10, TotalEpisodeCount: 10},
+		{ID: 4, Title: "Unmonitored Incomplete", TvdbID: 5004, Monitored: false, EpisodeFileCount: 0, TotalEpisodeCount: 10},
+	}
+	sonarrServer := sonarrTestServer(t, allSeries, map[int][]sonarr.Episode{})
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	cases := []struct {
+		name        string
+		statuses    []string
+		expectedIDs []int
+	}{
+		{"omitted preserves today's monitored-only default", nil, []int{1, 2}},
+		{"explicit monitored matches omitted", []string{"monitored"}, []int{1, 2}},
+		{"missing narrows to monitored+incomplete", []string{"missing"}, []int{2}},
+		{"unmonitored reveals previously hidden items", []string{"unmonitored"}, []int{3, 4}},
+		{"monitored+missing AND equivalent to missing alone", []string{"monitored", "missing"}, []int{2}},
+		{"unmonitored+missing contradictory yields empty", []string{"unmonitored", "missing"}, []int{}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", statusQueryURL("/api/v1/sonarr/series", tc.statuses), nil)
+			w := httptest.NewRecorder()
+			server.router.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+			}
+
+			var resp struct {
+				Data  []SonarrSeriesListItem `json:"data"`
+				Total int64                  `json:"total"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if int(resp.Total) != len(tc.expectedIDs) {
+				t.Fatalf("expected total %d, got %d (data=%+v)", len(tc.expectedIDs), resp.Total, resp.Data)
+			}
+			gotIDs := make(map[int]bool, len(resp.Data))
+			for _, item := range resp.Data {
+				gotIDs[item.SonarrID] = true
+			}
+			for _, id := range tc.expectedIDs {
+				if !gotIDs[id] {
+					t.Errorf("expected sonarr id %d in results, got %+v", id, resp.Data)
+				}
+			}
+		})
+	}
+}
+
+func TestListSonarrMonitoredSeries_MonitoredAndMissingFields(t *testing.T) {
+	setupTestDB(t)
+
+	allSeries := []sonarr.Series{
+		{ID: 1, Title: "Monitored Complete", TvdbID: 5001, Monitored: true, EpisodeFileCount: 10, TotalEpisodeCount: 10},
+		{ID: 2, Title: "Monitored Missing", TvdbID: 5002, Monitored: true, EpisodeFileCount: 5, TotalEpisodeCount: 10},
+		{ID: 3, Title: "Unmonitored Series", TvdbID: 5003, Monitored: false, EpisodeFileCount: 0, TotalEpisodeCount: 10},
+	}
+	sonarrServer := sonarrTestServer(t, allSeries, map[int][]sonarr.Episode{})
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	fetch := func(statuses ...string) []SonarrSeriesListItem {
+		req, _ := http.NewRequest("GET", statusQueryURL("/api/v1/sonarr/series", statuses), nil)
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+		var resp struct {
+			Data []SonarrSeriesListItem `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		return resp.Data
+	}
+
+	all := append(fetch("monitored"), fetch("unmonitored")...)
+	if len(all) != len(allSeries) {
+		t.Fatalf("expected to cover all %d catalog series, got %d", len(allSeries), len(all))
+	}
+
+	for _, item := range all {
+		switch item.SonarrID {
+		case 1:
+			if item.Monitored != true || item.Missing != false {
+				t.Errorf("Monitored Complete: expected monitored=true missing=false, got monitored=%v missing=%v", item.Monitored, item.Missing)
+			}
+		case 2:
+			if item.Monitored != true || item.Missing != true {
+				t.Errorf("Monitored Missing: expected monitored=true missing=true, got monitored=%v missing=%v", item.Monitored, item.Missing)
+			}
+		case 3:
+			if item.Monitored != false || item.Missing != false {
+				t.Errorf("Unmonitored Series: expected monitored=false missing=false, got monitored=%v missing=%v", item.Monitored, item.Missing)
+			}
+		}
+	}
+}
+
+func TestListSonarrMonitoredSeries_StatusFilterCombinesWithSearchAndMatchFilter(t *testing.T) {
+	db := setupTestDB(t)
+	sonarrMatchCache.clear()
+
+	s1e1, e1 := 1, 1
+	tvdbMatched := 5001
+	if err := db.Create(&models.TVShow{TMDBID: 9999, TVDBID: &tvdbMatched, TMDBTitle: "Alpha Matched Missing", Season: &s1e1, Episode: &e1}).Error; err != nil {
+		t.Fatalf("failed to seed local episode: %v", err)
+	}
+
+	allSeries := []sonarr.Series{
+		{ID: 1, Title: "Alpha Matched Missing", TvdbID: tvdbMatched, Monitored: true, EpisodeFileCount: 0, TotalEpisodeCount: 1},
+		{ID: 2, Title: "Alpha Matched Complete", TvdbID: 5002, Monitored: true, EpisodeFileCount: 1, TotalEpisodeCount: 1},
+		{ID: 3, Title: "Beta Unmatched Missing", TvdbID: 5003, Monitored: true, EpisodeFileCount: 0, TotalEpisodeCount: 1},
+	}
+	episodesBySeriesID := map[int][]sonarr.Episode{
+		1: {{SeasonNumber: 1, EpisodeNumber: 1, Monitored: true}},
+		2: {{SeasonNumber: 1, EpisodeNumber: 1, Monitored: true}},
+		3: {{SeasonNumber: 1, EpisodeNumber: 1, Monitored: true}},
+	}
+	sonarrServer := sonarrTestServer(t, allSeries, episodesBySeriesID)
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", statusQueryURL("/api/v1/sonarr/series", []string{"missing"}, "search=alpha", "filter=matched"), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data  []SonarrSeriesListItem `json:"data"`
+		Total int64                  `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Total != 1 || len(resp.Data) != 1 || resp.Data[0].Title != "Alpha Matched Missing" {
+		t.Fatalf("expected exactly 'Alpha Matched Missing' for status=missing&search=alpha&filter=matched, got %+v (total %d)", resp.Data, resp.Total)
+	}
+}
+
+// TestListSonarrMonitoredSeries_StatusFilterRequiresNoAdditionalEpisodeFetches
+// verifies the État status filter is resolved entirely from the base
+// GetAllSeries catalog fetch (EpisodeFileCount/TotalEpisodeCount already
+// present on sonarr.Series), never fanning out extra per-series episode
+// fetches beyond the bounded per-page detail fetch every request already
+// pays - unlike the match-status `filter`, which does fan out via
+// sonarrMatchCache.
+func TestListSonarrMonitoredSeries_StatusFilterRequiresNoAdditionalEpisodeFetches(t *testing.T) {
+	setupTestDB(t)
+
+	const catalogSize = 20
+	const pageSize = 3
+
+	allSeries := make([]sonarr.Series, catalogSize)
+	for i := 0; i < catalogSize; i++ {
+		allSeries[i] = sonarr.Series{
+			ID:                i + 1,
+			Title:             fmt.Sprintf("Series %d", i+1),
+			TvdbID:            5000 + i + 1,
+			Monitored:         true,
+			EpisodeFileCount:  0,
+			TotalEpisodeCount: 10,
+		}
+	}
+
+	var episodeCalls int64
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v3/series":
+			json.NewEncoder(w).Encode(allSeries)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			atomic.AddInt64(&episodeCalls, 1)
+			json.NewEncoder(w).Encode([]sonarr.Episode{})
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/sonarr/series?status=missing&limit=%d&offset=0", pageSize), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp struct {
+		Data  []SonarrSeriesListItem `json:"data"`
+		Total int64                  `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if int(resp.Total) != catalogSize {
+		t.Errorf("expected all %d series to match status=missing, got total %d", catalogSize, resp.Total)
+	}
+
+	calls := atomic.LoadInt64(&episodeCalls)
+	if calls != pageSize {
+		t.Errorf("expected exactly %d episode fetches (bounded by page size, no extra fan-out for the status filter), got %d", pageSize, calls)
+	}
+}
+
+func TestGetSonarrSeriesEpisodes_MonitoredAndMissingFields(t *testing.T) {
+	setupTestDB(t)
+
+	series := sonarr.Series{ID: 1, Title: "Series One", TvdbID: 5001}
+	episodes := []sonarr.Episode{
+		{SeasonNumber: 1, EpisodeNumber: 1, Monitored: true, HasFile: true},  // monitored, complete
+		{SeasonNumber: 1, EpisodeNumber: 2, Monitored: true, HasFile: false}, // monitored, missing
+		{SeasonNumber: 1, EpisodeNumber: 3, Monitored: false, HasFile: false},
+	}
+
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == fmt.Sprintf("/api/v3/series/%d", series.ID):
+			json.NewEncoder(w).Encode(series)
+		case strings.HasPrefix(r.URL.Path, "/api/v3/episode"):
+			json.NewEncoder(w).Encode(episodes)
+		default:
+			t.Errorf("unexpected sonarr path %s", r.URL.Path)
+		}
+	}))
+	defer sonarrServer.Close()
+
+	newForceDownloadTestConfig(t, "", sonarrServer.URL)
+	server := NewServer()
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/api/v1/sonarr/series/%d/episodes", series.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp SonarrSeriesEpisodesResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(resp.Episodes) != 2 {
+		t.Fatalf("expected 2 monitored episodes in response (unmonitored episode excluded), got %d: %+v", len(resp.Episodes), resp.Episodes)
+	}
+
+	for _, ep := range resp.Episodes {
+		switch ep.Episode {
+		case 1:
+			if !ep.Monitored || ep.Missing {
+				t.Errorf("episode 1: expected monitored=true missing=false, got monitored=%v missing=%v", ep.Monitored, ep.Missing)
+			}
+		case 2:
+			if !ep.Monitored || !ep.Missing {
+				t.Errorf("episode 2: expected monitored=true missing=true, got monitored=%v missing=%v", ep.Monitored, ep.Missing)
+			}
+		default:
+			t.Errorf("unexpected episode %d in response (should exclude unmonitored episode 3)", ep.Episode)
+		}
+	}
+}
+
 func TestListSonarrMonitoredSeries_PageSizeBoundsEpisodeFetches(t *testing.T) {
 	setupTestDB(t)
 

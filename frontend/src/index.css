@@ -469,6 +469,50 @@ input, select {
   border-radius: 50%;
 }
 
+/* État filter dropdown (Radix DropdownMenu): trigger reuses .custom-select's
+   look, content/items get their own small popover styling. */
+.etat-filter-trigger {
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.etat-filter-content {
+  min-width: 200px;
+  padding: 0.35rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+}
+
+.etat-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.etat-filter-item[data-highlighted] {
+  background-color: var(--bg-active);
+}
+
+.etat-filter-item-check {
+  width: 1rem;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--primary-accent);
+  font-weight: 800;
+}
+
 /* Pulsing Active indicator dot */
 .pulse-dot {
   width: 8px;

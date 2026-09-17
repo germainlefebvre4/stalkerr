@@ -28,6 +28,7 @@
     "table": {
       "title": "Title",
       "year": "Year",
+      "etat": "Status",
       "status": "Playlist match",
       "occurrences": "Occurrences"
     },
@@ -47,6 +48,7 @@
     "table": {
       "title": "Title",
       "year": "Year",
+      "etat": "Status",
       "status": "Monitored episodes matched",
       "occurrences": "Occurrences"
     },
@@ -55,7 +57,14 @@
   "filterStatus": {
     "all": "All",
     "matched": "Matched",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "etat": {
+      "label": "Status",
+      "monitored": "Monitored",
+      "unmonitored": "Unmonitored",
+      "missing": "Missing",
+      "none": "No filter"
+    }
   },
   "retry": "Retry",
   "drawer": {
@@ -71,6 +80,7 @@
     "occurrenceState": "State",
     "unknownResolution": "Unknown",
     "episodesSection": "Monitored episodes",
+    "etat": "Status",
     "season": "Season {{season}}",
     "episode": "S{{season}} E{{episode}}",
     "episodeMatched": "Matched",

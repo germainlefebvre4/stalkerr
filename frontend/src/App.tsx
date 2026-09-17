@@ -150,9 +150,9 @@ export default function App() {
 
   const {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
-    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter,
+    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus,
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
-    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter,
+    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus,
     stats: radarrSonarrStats, statsLoading: radarrSonarrStatsLoading, statsError: radarrSonarrStatsError, fetchStats: fetchRadarrSonarrStats,
   } = useRadarrSonarr(activeTab === 'radarr-sonarr', activeTab === 'radarr-sonarr' || activeTab === 'home');
 
@@ -388,11 +388,13 @@ export default function App() {
           filmsLimit={filmsLimit} fetchFilms={fetchFilms}
           filmsSearch={filmsSearch} setFilmsSearch={setFilmsSearch}
           filmsFilter={filmsFilter} setFilmsFilter={setFilmsFilter}
+          filmsStatus={filmsStatus} setFilmsStatus={setFilmsStatus}
           seriesItems={seriesItems} seriesLoading={seriesLoading} seriesError={seriesError}
           seriesTotal={seriesTotal} seriesPage={seriesPage} setSeriesPage={setSeriesPage}
           seriesLimit={seriesLimit} fetchSeries={fetchSeries} refreshSeries={refreshSeries}
           seriesSearch={seriesSearch} setSeriesSearch={setSeriesSearch}
           seriesFilter={seriesFilter} setSeriesFilter={setSeriesFilter}
+          seriesStatus={seriesStatus} setSeriesStatus={setSeriesStatus}
           stats={radarrSonarrStats} statsLoading={radarrSonarrStatsLoading} statsError={radarrSonarrStatsError} fetchStats={fetchRadarrSonarrStats}
           onOpenOverride={handleOpenOverride}
         />
