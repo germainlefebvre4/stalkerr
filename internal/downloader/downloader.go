@@ -16,6 +16,7 @@ import (
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/policy"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/google/uuid"
 )
@@ -56,6 +57,28 @@ type Downloader struct {
 	stateManager  *StateManager
 	resumeSupport *ResumeSupport
 	minFileSize   int64 // minimum acceptable transfer size, in bytes
+
+	// policyEngine, when set, enforces the adaptive-download-throttling
+	// effective policy (shared rate limit / stop) across every transfer
+	// this Downloader performs. nil means unrestricted, matching behavior
+	// before this feature existed. See SetPolicyEngine.
+	policyEngine *policy.Engine
+}
+
+// SetPolicyEngine attaches the shared adaptive-download-throttling policy
+// engine to this Downloader. One Engine should be shared across every
+// Downloader/ParallelDownloader worker of a single download/resume-downloads
+// run. Passing nil (the default) restores unrestricted behavior.
+func (d *Downloader) SetPolicyEngine(engine *policy.Engine) {
+	d.policyEngine = engine
+}
+
+// IsPolicyStopped reports whether this Downloader's attached policy engine
+// currently has an effective policy of "stop". It is false when no policy
+// engine is attached. Callers use this to avoid starting a new transfer
+// that would immediately be aborted (see "No New Claims While Stopped").
+func (d *Downloader) IsPolicyStopped() bool {
+	return d.policyEngine != nil && d.policyEngine.IsStopped()
 }
 
 // New creates a new Downloader instance. minFileSizeMB is the minimum size
@@ -245,6 +268,21 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	}, isRetryableError)
 
 	if err != nil {
+		// A transfer aborted by the adaptive-download-throttling effective
+		// policy is a distinct, non-failure, resumable outcome: it must not
+		// consume the retry budget and must not trigger a failure
+		// notification. See "Policy Abort Is Not a Failure".
+		if errors.Is(err, policy.ErrStoppedByPolicy) {
+			if downloadInfoID > 0 {
+				if updateErr := d.stateManager.UpdateState(ctx, downloadInfoID, models.DownloadStatusPolicyStopped, nil); updateErr != nil {
+					log.WithFields(map[string]interface{}{
+						"error": updateErr,
+					}).Error("failed to update download state to policy-stopped", updateErr)
+				}
+			}
+			return nil, err
+		}
+
 		// Update download info on failure
 		if downloadInfoID > 0 {
 			errMsg := err.Error()
@@ -420,20 +458,25 @@ func (d *Downloader) downloadFileWithResume(ctx context.Context, url, destPath s
 		contentLength += startByte
 	}
 
+	var reader io.Reader = resp.Body
 	if onProgress != nil && contentLength > 0 {
 		// Use TeeReader to track progress
-		reader := &progressReader{
+		reader = &progressReader{
 			reader:     resp.Body,
 			total:      contentLength,
 			downloaded: startByte, // Start from existing progress
 			onProgress: onProgress,
 		}
-		bytesRead, err = io.Copy(out, reader)
-	} else {
-		bytesRead, err = io.Copy(out, resp.Body)
 	}
+	if d.policyEngine != nil {
+		reader = d.policyEngine.WrapReader(ctx, reader)
+	}
+	bytesRead, err = io.Copy(out, reader)
 
 	if err != nil {
+		if errors.Is(err, policy.ErrStoppedByPolicy) {
+			return nil, "", err
+		}
 		return nil, "", fmt.Errorf("failed to write file: %w", err)
 	}
 

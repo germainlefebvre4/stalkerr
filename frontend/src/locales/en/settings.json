@@ -136,6 +136,12 @@
     },
     "m3u": {
       "updateInterval": "Refresh interval (seconds)"
+    },
+    "bandwidthThrottle": {
+      "throttleRateKbps": "Shared throttle rate (Kbps)",
+      "playbackCheckEnabled": "Enable Jellyfin playback detection",
+      "playbackAction": "Action while Jellyfin is playing",
+      "playbackPollIntervalSeconds": "Jellyfin poll interval (seconds)"
     }
   },
   "m3uSources": {
@@ -174,5 +180,42 @@
   "about": {
     "appName": "Stalkeer Dashboard",
     "repositoryLink": "View source on GitHub"
+  },
+  "bandwidthSchedule": {
+    "throttleSettingsTitle": "Bandwidth throttling",
+    "heading": "Weekly bandwidth schedule",
+    "subtitle": "Time windows that automatically throttle or stop downloads.",
+    "createButton": "+ Add window",
+    "emptyTitle": "No schedule windows configured yet.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete this schedule window?",
+    "createTitle": "Add schedule window",
+    "editTitle": "Edit schedule window",
+    "dialogDescription": "Choose the days and time range this window applies to, and the action to apply while it is active.",
+    "daysOfWeekLabel": "Days of week",
+    "daysRequired": "Select at least one day.",
+    "startTimeLabel": "Start time",
+    "endTimeLabel": "End time",
+    "actionLabel": "Action",
+    "overnightHint": "This window spans past midnight, ending the following day.",
+    "overnightBadge": "overnight",
+    "effectivePolicyLabel": "Effective policy",
+    "contributingSchedule": "schedule",
+    "contributingJellyfin": "Jellyfin",
+    "actions": {
+      "none": "None",
+      "throttle": "Throttle",
+      "stop": "Stop"
+    },
+    "days": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    }
   }
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/policy"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
 	"github.com/stretchr/testify/require"
@@ -230,9 +231,9 @@ func TestDownloadItem_QualityFallbackLoop(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
+	outcome, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
 
-	require.True(t, success, "expected the second candidate to succeed")
+	require.Equal(t, itemDownloaded, outcome, "expected the second candidate to succeed")
 	require.EqualValues(t, 2, hits, "both candidates should have been attempted, no more")
 	require.Equal(t, tempDir, changedPath, "expected the item's destination folder to be reported")
 
@@ -264,9 +265,9 @@ func TestDownloadItem_AllCandidatesFail(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
+	outcome, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
 
-	require.False(t, success, "expected the item to be counted as failed, not crash")
+	require.Equal(t, itemFailed, outcome, "expected the item to be counted as failed, not crash")
 	require.Empty(t, changedPath, "a failed item must not report a changed path")
 }
 
@@ -294,9 +295,9 @@ func TestDownloadItem_SuccessStopsLoop(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success, _ := downloadItem(context.Background(), dl, cfg, item, false)
+	outcome, _ := downloadItem(context.Background(), dl, cfg, item, false)
 
-	require.True(t, success)
+	require.Equal(t, itemDownloaded, outcome)
 	require.EqualValues(t, 1, hits, "no further candidates should be attempted once one succeeds")
 }
 
@@ -326,9 +327,9 @@ func TestDownloadItem_TaggedFilenameFromSucceedingCandidate(t *testing.T) {
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success, _ := downloadItem(context.Background(), dl, cfg, item, false)
+	outcome, _ := downloadItem(context.Background(), dl, cfg, item, false)
 
-	require.True(t, success)
+	require.Equal(t, itemDownloaded, outcome)
 	require.FileExists(t, filepath.Join(tempDir, "Test Movie[1080p][MULTI][VFQ].mp4"))
 }
 
@@ -365,11 +366,106 @@ func TestDownloadItem_TaggedFilenameFromSucceedingCandidateAfterFailure(t *testi
 	dl := downloader.New(5*time.Second, 1, 0)
 	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
 
-	success, _ := downloadItem(context.Background(), dl, cfg, item, false)
+	outcome, _ := downloadItem(context.Background(), dl, cfg, item, false)
 
-	require.True(t, success)
+	require.Equal(t, itemDownloaded, outcome)
 	require.FileExists(t, filepath.Join(tempDir, "Test Movie[1080p][MULTI].mp4"))
 	require.NoFileExists(t, filepath.Join(tempDir, "Test Movie[720p][VF].mp4"))
+}
+
+// alwaysStopPolicyEngine returns a policy.Engine whose effective policy is
+// always "stop", via a schedule window active every day, all day - used to
+// exercise the "No New Claims While Stopped" gating without depending on
+// wall-clock minute granularity.
+func alwaysStopPolicyEngine() *policy.Engine {
+	windows := []models.BandwidthScheduleWindow{
+		{
+			DaysOfWeek: models.StringList{
+				"sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+			},
+			StartTime: "00:00",
+			EndTime:   "23:59",
+			Action:    "stop",
+		},
+	}
+	return policy.New(&config.Config{}, windows, nil)
+}
+
+// "No New Claims While Stopped": a worker gated by a stopped policy engine
+// never claims a stream, records nothing, and leaves the stream available
+// for a later run.
+func TestRunDownloadWorkerPool_NoClaimWhileStopped(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Write([]byte("fake-content"))
+	}))
+	defer server.Close()
+
+	line := createTestProcessedLine(t, db, server.URL+"/movie.mp4")
+	streams := []*scheduler.Stream{{
+		Tier:      scheduler.Tier1,
+		SourceKey: "movie:1",
+		Items:     []scheduler.Item{{DisplayName: "Test Movie", BaseDestDir: filepath.Join(tempDir, "Test Movie"), Candidates: []models.ProcessedLine{line}}},
+	}}
+
+	sched := scheduler.NewScheduler(streams, 0)
+	dl := downloader.New(5*time.Second, 1, 0)
+	dl.SetPolicyEngine(alwaysStopPolicyEngine())
+	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
+
+	stats := runDownloadWorkerPool(context.Background(), sched, dl, cfg, 2, false, nil, nil)
+
+	require.Equal(t, 0, stats.Total, "no item should be recorded while the effective policy is stop")
+	require.Equal(t, 0, stats.Failed, "a policy stop must never be recorded as a failure")
+	require.EqualValues(t, 0, hits, "no HTTP request should have been made while stopped")
+	require.NoFileExists(t, filepath.Join(tempDir, "Test Movie.mp4"))
+
+	// The scheduler's own state is untouched, since the worker never
+	// claimed the stream: it remains available for a later invocation.
+	stream, ok := scheduler.NewScheduler(streams, 0).ClaimNext()
+	require.True(t, ok, "the stream must remain claimable for a later run")
+	require.NotNil(t, stream)
+}
+
+// "No New Claims While Stopped": a not-yet-started candidate is never
+// attempted, and its ProcessedLine is left unchanged (not marked failed).
+func TestDownloadItem_PolicyStopDoesNotAttemptCandidate(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	tempDir := t.TempDir()
+
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Write([]byte("fake-content"))
+	}))
+	defer server.Close()
+
+	line := createTestProcessedLine(t, db, server.URL+"/movie.mp4")
+	item := &scheduler.Item{
+		DisplayName: "Test Movie",
+		BaseDestDir: filepath.Join(tempDir, "Test Movie"),
+		Candidates:  []models.ProcessedLine{line},
+	}
+
+	dl := downloader.New(5*time.Second, 1, 0)
+	dl.SetPolicyEngine(alwaysStopPolicyEngine())
+	cfg := &config.Config{Downloads: config.DownloadsConfig{TempDir: tempDir}}
+
+	outcome, changedPath := downloadItem(context.Background(), dl, cfg, item, false)
+
+	require.Equal(t, itemPolicyStopped, outcome)
+	require.Empty(t, changedPath)
+	require.EqualValues(t, 0, hits, "no request should be made while the effective policy is stop")
+
+	var unchanged models.ProcessedLine
+	require.NoError(t, db.First(&unchanged, line.ID).Error)
+	require.Equal(t, models.StateProcessed, unchanged.State, "a policy-stopped candidate must not be marked failed")
 }
 
 func strPtrDL(s string) *string { return &s }

@@ -225,6 +225,17 @@ func (s *Server) setupRoutes() {
 			m3uSources.DELETE("/:name", s.deleteM3USource)
 		}
 
+		// Bandwidth schedule endpoints (download-bandwidth-schedule,
+		// adaptive-download-throttling)
+		bandwidthSchedule := v1.Group("/bandwidth-schedule")
+		{
+			bandwidthSchedule.GET("/windows", s.listScheduleWindows)
+			bandwidthSchedule.POST("/windows", s.createScheduleWindow)
+			bandwidthSchedule.PUT("/windows/:id", s.updateScheduleWindow)
+			bandwidthSchedule.DELETE("/windows/:id", s.deleteScheduleWindow)
+			bandwidthSchedule.GET("/effective-policy", s.getEffectivePolicy)
+		}
+
 		// Dry-run endpoint
 		v1.POST("/dryrun", s.executeDryRun)
 

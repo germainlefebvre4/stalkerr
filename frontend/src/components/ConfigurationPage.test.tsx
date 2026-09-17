@@ -18,6 +18,11 @@ vi.mock('../services/api', () => ({
     clearSetting: vi.fn(),
     getM3uSources: vi.fn().mockResolvedValue({ sources: [] }),
     getM3uSourcesOrigin: vi.fn().mockResolvedValue({ sources: [] }),
+    getScheduleWindows: vi.fn().mockResolvedValue({ windows: [] }),
+    getEffectivePolicy: vi.fn().mockResolvedValue({ action: 'none', schedule_action: 'none', jellyfin_action: 'none' }),
+    createScheduleWindow: vi.fn(),
+    updateScheduleWindow: vi.fn(),
+    deleteScheduleWindow: vi.fn(),
     getSystemStatus: vi.fn().mockResolvedValue({
       database: { status: 'ok' }, radarr: { status: 'not_configured' }, sonarr: { status: 'not_configured' },
       tmdb: { status: 'not_configured' }, disk: [], version: '0.0.0', commit: 'test', date: 'test',
@@ -62,6 +67,8 @@ describe('ConfigurationPage', () => {
     vi.mocked(api.getSettings).mockReset().mockResolvedValue({ settings: [] });
     vi.mocked(api.getM3uSources).mockReset().mockResolvedValue({ sources: [] });
     vi.mocked(api.getM3uSourcesOrigin).mockReset().mockResolvedValue({ sources: [] });
+    vi.mocked(api.getScheduleWindows).mockReset().mockResolvedValue({ windows: [] });
+    vi.mocked(api.getEffectivePolicy).mockReset().mockResolvedValue({ action: 'none', schedule_action: 'none', jellyfin_action: 'none' });
     vi.mocked(useIsMobile).mockReturnValue(false);
   });
 

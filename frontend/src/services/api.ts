@@ -27,7 +27,10 @@ import {
   IntegrationTestResult,
   SettingsField,
   M3uSource,
-  M3uSourceInput
+  M3uSourceInput,
+  ScheduleWindow,
+  ScheduleWindowInput,
+  EffectivePolicy
 } from '../types';
 
 export class ApiError extends Error {
@@ -439,6 +442,44 @@ export const api = {
 
   async deleteM3uSource(name: string): Promise<unknown> {
     const res = await fetch(`/api/v1/m3u/sources/${encodeURIComponent(name)}`, { method: 'DELETE' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getScheduleWindows(): Promise<{ windows: ScheduleWindow[] }> {
+    const res = await fetch('/api/v1/bandwidth-schedule/windows');
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async createScheduleWindow(payload: ScheduleWindowInput): Promise<ScheduleWindow> {
+    const res = await fetch('/api/v1/bandwidth-schedule/windows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async updateScheduleWindow(id: number, payload: ScheduleWindowInput): Promise<ScheduleWindow> {
+    const res = await fetch(`/api/v1/bandwidth-schedule/windows/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async deleteScheduleWindow(id: number): Promise<unknown> {
+    const res = await fetch(`/api/v1/bandwidth-schedule/windows/${id}`, { method: 'DELETE' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getEffectivePolicy(): Promise<EffectivePolicy> {
+    const res = await fetch('/api/v1/bandwidth-schedule/effective-policy');
     if (!res.ok) return throwApiError(res);
     return res.json();
   }

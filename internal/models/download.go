@@ -20,6 +20,13 @@ const (
 	DownloadStatusRetrying DownloadStatus = "retrying"
 	// DownloadStatusCancelled indicates download was manually cancelled or exhausted its retry budget
 	DownloadStatusCancelled DownloadStatus = "cancelled"
+	// DownloadStatusPolicyStopped indicates the transfer was aborted because
+	// the adaptive-download-throttling effective policy was "stop". It is a
+	// distinct, non-failure, resumable outcome: it does not count against
+	// the item's retry budget and does not trigger a failure notification.
+	// See the adaptive-download-throttling spec's "Policy Abort Is Not a
+	// Failure".
+	DownloadStatusPolicyStopped DownloadStatus = "policy_stopped"
 )
 
 // DownloadInfo represents download tracking information
@@ -75,12 +82,14 @@ func (d *DownloadInfo) IsEligibleForResume(maxRetries int, lockTimeout time.Dura
 		}
 	}
 
-	// Eligible states: pending, downloading (stale), paused, failed, retrying (stale)
+	// Eligible states: pending, downloading (stale), paused, failed, retrying
+	// (stale), policy-stopped (see DownloadStatusPolicyStopped)
 	return d.Status == string(DownloadStatusPending) ||
 		d.Status == string(DownloadStatusDownloading) ||
 		d.Status == string(DownloadStatusPaused) ||
 		d.Status == string(DownloadStatusFailed) ||
-		d.Status == string(DownloadStatusRetrying)
+		d.Status == string(DownloadStatusRetrying) ||
+		d.Status == string(DownloadStatusPolicyStopped)
 }
 
 // HasPartialDownload returns true if there's a partial download that can be resumed

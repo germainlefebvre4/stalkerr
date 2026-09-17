@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/models"
+	"github.com/glefebvre/stalkeer/internal/policy"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -112,6 +116,53 @@ func TestParallelDownloader_DownloadBatch(t *testing.T) {
 		}
 	}
 	assert.Equal(t, numJobs, successCount)
+}
+
+// "No New Claims While Stopped" applied to resume-downloads: a
+// ParallelDownloader whose shared Downloader has a stopped policy engine
+// must not dispatch any not-yet-started job.
+func TestParallelDownloader_DownloadBatch_NoNewTransferWhileStopped(t *testing.T) {
+	_ = setupTestDB(t)
+
+	var requestCount int
+	var mu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requestCount++
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("content"))
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	jobs := []DownloadJob{
+		{ID: 1, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "a")}},
+		{ID: 2, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "b")}},
+	}
+
+	d := New(10*time.Second, 3, 0)
+	windows := []models.BandwidthScheduleWindow{
+		{
+			DaysOfWeek: models.StringList{
+				"sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+			},
+			StartTime: "00:00",
+			EndTime:   "23:59",
+			Action:    "stop",
+		},
+	}
+	d.SetPolicyEngine(policy.New(&config.Config{}, windows, nil))
+
+	pd := NewParallelWithDownloader(d, 2)
+	results := pd.DownloadBatchSync(context.Background(), jobs)
+
+	assert.Len(t, results, 2)
+	for _, result := range results {
+		assert.True(t, errors.Is(result.Error, policy.ErrStoppedByPolicy), "expected ErrStoppedByPolicy, got %v", result.Error)
+		assert.Nil(t, result.Result)
+	}
+	assert.Equal(t, 0, requestCount, "no HTTP request should have been made while stopped")
 }
 
 func TestParallelDownloader_DownloadBatchSync(t *testing.T) {

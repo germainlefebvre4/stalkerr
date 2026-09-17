@@ -155,6 +155,77 @@ func (c *Client) SystemStatus(ctx context.Context) error {
 	return nil
 }
 
+// PlayState reports a Jellyfin session's current playback state.
+type PlayState struct {
+	IsPaused bool `json:"IsPaused"`
+}
+
+// Session represents one connected Jellyfin client session, as returned by
+// GET /Sessions.
+type Session struct {
+	NowPlayingItem *json.RawMessage `json:"NowPlayingItem,omitempty"`
+	PlayState      PlayState        `json:"PlayState"`
+}
+
+// IsActivelyPlaying reports whether this session has a currently playing
+// media item that is not paused. See the adaptive-download-throttling
+// spec's "Active-Playback Definition".
+func (s Session) IsActivelyPlaying() bool {
+	return s.NowPlayingItem != nil && !s.PlayState.IsPaused
+}
+
+// Sessions calls Jellyfin's /Sessions endpoint, returning every currently
+// connected session. Like SystemStatus, it does not go through retry.Do: an
+// active-playback poll must fail fast under the caller's ctx deadline
+// rather than retry like a real data fetch.
+func (c *Client) Sessions(ctx context.Context) ([]Session, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/Sessions", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, &StatusError{Code: resp.StatusCode, Body: string(body)}
+	}
+
+	var sessions []Session
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
+		return nil, fmt.Errorf("failed to decode sessions response: %w", err)
+	}
+
+	return sessions, nil
+}
+
+// ActivePlayback reports whether Jellyfin currently has at least one
+// actively-playing (non-paused) session. Any error reaching Jellyfin
+// (timeout, connection error, non-2xx status, or authentication failure)
+// is treated as no active playback - fail-open, so a Jellyfin outage never
+// causes downloads to throttle or stop on its account. See the
+// adaptive-download-throttling spec's "Fail-Open on Jellyfin Unreachable".
+func (c *Client) ActivePlayback(ctx context.Context) bool {
+	sessions, err := c.Sessions(ctx)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.WithFields(map[string]interface{}{"error": err.Error()}).Warn("failed to check Jellyfin active playback, treating as no active playback")
+		}
+		return false
+	}
+
+	for _, s := range sessions {
+		if s.IsActivelyPlaying() {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Client) newRequest(ctx context.Context, method, endpoint string, body interface{}) (*http.Request, error) {
 	url := c.baseURL + endpoint
 

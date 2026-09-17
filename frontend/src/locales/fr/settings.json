@@ -136,6 +136,12 @@
     },
     "m3u": {
       "updateInterval": "Intervalle de rafraîchissement (secondes)"
+    },
+    "bandwidthThrottle": {
+      "throttleRateKbps": "Débit de limitation partagé (Kbps)",
+      "playbackCheckEnabled": "Activer la détection de lecture Jellyfin",
+      "playbackAction": "Action pendant la lecture Jellyfin",
+      "playbackPollIntervalSeconds": "Intervalle de vérification Jellyfin (secondes)"
     }
   },
   "m3uSources": {
@@ -174,5 +180,42 @@
   "about": {
     "appName": "Stalkeer Dashboard",
     "repositoryLink": "Voir le code source sur GitHub"
+  },
+  "bandwidthSchedule": {
+    "throttleSettingsTitle": "Limitation de bande passante",
+    "heading": "Planning hebdomadaire de bande passante",
+    "subtitle": "Plages horaires qui limitent ou arrêtent automatiquement les téléchargements.",
+    "createButton": "+ Ajouter une plage",
+    "emptyTitle": "Aucune plage horaire configurée pour le moment.",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer cette plage horaire ?",
+    "createTitle": "Ajouter une plage horaire",
+    "editTitle": "Modifier la plage horaire",
+    "dialogDescription": "Choisissez les jours et la plage horaire concernés, ainsi que l’action à appliquer pendant cette période.",
+    "daysOfWeekLabel": "Jours de la semaine",
+    "daysRequired": "Sélectionnez au moins un jour.",
+    "startTimeLabel": "Heure de début",
+    "endTimeLabel": "Heure de fin",
+    "actionLabel": "Action",
+    "overnightHint": "Cette plage se prolonge après minuit, jusqu’au lendemain.",
+    "overnightBadge": "nuit",
+    "effectivePolicyLabel": "Politique effective",
+    "contributingSchedule": "planning",
+    "contributingJellyfin": "Jellyfin",
+    "actions": {
+      "none": "Aucune",
+      "throttle": "Limiter",
+      "stop": "Arrêter"
+    },
+    "days": {
+      "monday": "Lundi",
+      "tuesday": "Mardi",
+      "wednesday": "Mercredi",
+      "thursday": "Jeudi",
+      "friday": "Vendredi",
+      "saturday": "Samedi",
+      "sunday": "Dimanche"
+    }
   }
 }

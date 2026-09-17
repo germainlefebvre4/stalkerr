@@ -6,6 +6,7 @@ import { Theme } from '../hooks/useTheme';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useM3uSources } from '../hooks/useM3uSources';
+import { useBandwidthSchedule } from '../hooks/useBandwidthSchedule';
 import { useURLState, URLStateSchema } from '../hooks/useURLState';
 import { ToggleSwitch } from './ToggleSwitch';
 import { SystemStatusSection } from './SystemStatusSection';
@@ -138,6 +139,11 @@ export function ConfigurationPage({
   const {
     sources, originNames, loading: sourcesLoading, fetchSources, createSource, updateSource, deleteSource,
   } = useM3uSources();
+  const {
+    windows: scheduleWindows, loading: scheduleWindowsLoading, fetchWindows: fetchScheduleWindows,
+    createWindow: createScheduleWindow, updateWindow: updateScheduleWindow, deleteWindow: deleteScheduleWindow,
+    effectivePolicy, fetchEffectivePolicy,
+  } = useBandwidthSchedule();
 
   // Prefetch settings, M3U sources (+ origin), and filters (+ origin) once
   // on mount - independently of which tab is initially active and of
@@ -149,6 +155,7 @@ export function ConfigurationPage({
     fetchSettings();
     fetchSources();
     onFetchFilters();
+    fetchScheduleWindows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -161,7 +168,7 @@ export function ConfigurationPage({
   const notificationsOverrideCount = NOTIFICATIONS_SETTINGS_KEYS.filter(isOverridden).length;
   const notificationsRestartRequired = NOTIFICATIONS_SETTINGS_KEYS.some(isRestartRequiredOverride);
 
-  const advancedOverrideCount = ADVANCED_SETTINGS_KEYS.filter(isOverridden).length;
+  const advancedOverrideCount = ADVANCED_SETTINGS_KEYS.filter(isOverridden).length + scheduleWindows.length;
   const advancedRestartRequired = ADVANCED_SETTINGS_KEYS.some(isRestartRequiredOverride);
 
   const m3uOverrideCount = sources.filter(s => s.is_runtime).length;
@@ -169,7 +176,7 @@ export function ConfigurationPage({
   const contentOverrideCount = m3uOverrideCount + filtersOverrideCount;
 
   const settingsOverrideCount = settings.filter(f => f.origin === 'interface').length;
-  const totalOverrideCount = settingsOverrideCount + contentOverrideCount;
+  const totalOverrideCount = settingsOverrideCount + contentOverrideCount + scheduleWindows.length;
   const restartRequiredCount = settings.filter(f => f.origin === 'interface' && f.restart_required).length;
 
   const query = searchQuery.trim().toLowerCase();
@@ -444,6 +451,13 @@ export function ConfigurationPage({
               onSetSetting={setSetting}
               onClearSetting={clearSetting}
               searchQuery={searchQuery}
+              scheduleWindows={scheduleWindows}
+              scheduleWindowsLoading={scheduleWindowsLoading}
+              onCreateScheduleWindow={createScheduleWindow}
+              onUpdateScheduleWindow={updateScheduleWindow}
+              onDeleteScheduleWindow={deleteScheduleWindow}
+              effectivePolicy={effectivePolicy}
+              onFetchEffectivePolicy={fetchEffectivePolicy}
             />
           </Tabs.Content>
 

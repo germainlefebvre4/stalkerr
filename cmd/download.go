@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/notifier"
+	"github.com/glefebvre/stalkeer/internal/policy"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/scheduler"
 	"github.com/glefebvre/stalkeer/internal/settings"
@@ -95,6 +97,10 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		ctx := context.Background()
 		db := database.Get()
 		dl := downloader.New(time.Duration(cfg.Downloads.Timeout)*time.Second, cfg.Downloads.RetryAttempts, cfg.Downloads.MinFileSizeMB)
+
+		policyEngine := newPolicyEngine(ctx, cfg)
+		defer policyEngine.Stop()
+		dl.SetPolicyEngine(policyEngine)
 
 		var radarrClient scheduler.RadarrClient
 		var radarrFullClient *radarr.Client
@@ -267,6 +273,34 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 	return movieMonitored, seriesMonitored
 }
 
+// newPolicyEngine builds the adaptive-download-throttling PolicyEngine for
+// this run: the currently stored weekly bandwidth schedule, plus a Jellyfin
+// active-playback checker whenever a Jellyfin base URL is configured (the
+// engine itself only actually polls when jellyfin.playback_check_enabled is
+// set - see policy.New). A failure to load the schedule is logged and
+// treated as "no schedule defined" (effective action none), matching
+// "Default Schedule Is Unrestricted" rather than aborting the run.
+func newPolicyEngine(ctx context.Context, cfg *config.Config) *policy.Engine {
+	windows, err := settings.ListScheduleWindows()
+	if err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{"error": err}).Warn("failed to load bandwidth schedule windows, proceeding without a schedule")
+	}
+
+	var checker policy.JellyfinChecker
+	if cfg.Jellyfin.URL != "" {
+		checker = jellyfin.New(jellyfin.Config{
+			BaseURL: cfg.Jellyfin.URL,
+			APIKey:  cfg.Jellyfin.APIKey,
+			Logger:  logger.AppLogger(),
+		})
+	}
+
+	engine := policy.New(cfg, windows, checker)
+	pollInterval := time.Duration(cfg.Jellyfin.PlaybackPollIntervalSeconds) * time.Second
+	engine.StartPolling(ctx, pollInterval)
+	return engine
+}
+
 func printDryRunPlan(streams []*scheduler.Stream) {
 	for _, s := range streams {
 		tierLabel := "tier1"
@@ -381,6 +415,13 @@ func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *
 		go func() {
 			defer wg.Done()
 			for {
+				// While the effective policy is "stop", no new stream is
+				// claimed: the same as an empty queue. See "No New Claims
+				// While Stopped".
+				if dl.IsPolicyStopped() {
+					return
+				}
+
 				stream, ok := sched.ClaimNext()
 				if !ok {
 					return
@@ -401,10 +442,26 @@ func runDownloadWorkerPool(ctx context.Context, sched *scheduler.Scheduler, dl *
 
 func drainStream(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, stream *scheduler.Stream, stats *downloadStats, verbose bool, radarr movieRescanner, sonarr seriesRescanner) {
 	for i := range stream.Items {
-		success, changedPath := downloadItem(ctx, dl, cfg, &stream.Items[i], verbose)
-		stats.recordItem(success, changedPath)
-		if success {
+		// While the effective policy is "stop", no not-yet-started item is
+		// begun; the remaining items in this stream are left for a later
+		// run. See "No New Claims While Stopped".
+		if dl.IsPolicyStopped() {
+			return
+		}
+
+		outcome, changedPath := downloadItem(ctx, dl, cfg, &stream.Items[i], verbose)
+		switch outcome {
+		case itemDownloaded:
+			stats.recordItem(true, changedPath)
 			notifyRescanForCompletedItem(ctx, stats, stream, radarr, sonarr)
+		case itemFailed:
+			stats.recordItem(false, "")
+		case itemPolicyStopped:
+			// Not a failure: intentionally not recorded in stats (see
+			// "Policy Abort Is Not a Failure"). The item was either not
+			// started at all, or aborted mid-transfer; either way it
+			// remains eligible for a later run once the policy clears.
+			return
 		}
 	}
 }
@@ -442,16 +499,35 @@ func notifyRescanForCompletedItem(ctx context.Context, stats *downloadStats, str
 	}
 }
 
+// itemOutcome distinguishes a downloaded/failed item from one whose
+// transfer was aborted by the adaptive-download-throttling effective
+// policy - a distinct, non-failure outcome (see "Policy Abort Is Not a
+// Failure").
+type itemOutcome int
+
+const (
+	itemDownloaded itemOutcome = iota
+	itemFailed
+	itemPolicyStopped
+)
+
 // downloadItem attempts each candidate in quality-preference order and
-// returns whether the item was downloaded, and, on success, the item's
-// destination folder (movie folder, or season folder for a TV episode).
-func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, item *scheduler.Item, verbose bool) (bool, string) {
+// returns its outcome, and, when downloaded, the item's destination folder
+// (movie folder, or season folder for a TV episode).
+func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, item *scheduler.Item, verbose bool) (itemOutcome, string) {
 	db := database.Get()
 
 	for j, candidate := range item.Candidates {
 		if candidate.LineURL == nil || *candidate.LineURL == "" {
 			continue
 		}
+
+		// While the effective policy is "stop", this not-yet-started
+		// candidate is not attempted. See "No New Claims While Stopped".
+		if dl.IsPolicyStopped() {
+			return itemPolicyStopped, ""
+		}
+
 		fmt.Printf("Downloading: %s\n", item.DisplayName)
 
 		if verbose {
@@ -468,6 +544,13 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 		})
 
 		if err != nil {
+			if errors.Is(err, policy.ErrStoppedByPolicy) {
+				if verbose {
+					fmt.Printf("[%s] attempt %d/%d aborted by download policy\n", item.DisplayName, j+1, len(item.Candidates))
+				}
+				return itemPolicyStopped, ""
+			}
+
 			db.Model(&models.ProcessedLine{}).Where("id = ?", candidate.ID).Update("state", models.StateFailed)
 			if verbose {
 				fmt.Printf("[%s] attempt %d/%d failed: %v\n", item.DisplayName, j+1, len(item.Candidates), err)
@@ -476,10 +559,10 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 		}
 
 		fmt.Printf("Downloaded: %s -> %s (%s)\n", item.DisplayName, result.FilePath, formatBytes(result.FileSize))
-		return true, filepath.Clean(filepath.Dir(result.FilePath))
+		return itemDownloaded, filepath.Clean(filepath.Dir(result.FilePath))
 	}
 
-	return false, ""
+	return itemFailed, ""
 }
 
 // notifyBuildStreamsFailure sends a Critical notification identifying that

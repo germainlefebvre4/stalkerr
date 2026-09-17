@@ -13,6 +13,16 @@ const settings: SettingsField[] = [
   { key: 'm3u.update_interval', value: 3600, sensitive: false, origin: 'config', restart_required: false },
 ];
 
+const bandwidthScheduleProps = () => ({
+  scheduleWindows: [],
+  scheduleWindowsLoading: false,
+  onCreateScheduleWindow: vi.fn(),
+  onUpdateScheduleWindow: vi.fn(),
+  onDeleteScheduleWindow: vi.fn(),
+  effectivePolicy: null,
+  onFetchEffectivePolicy: vi.fn(),
+});
+
 describe('AdvancedSection', () => {
   afterEach(() => cleanup());
 
@@ -25,6 +35,7 @@ describe('AdvancedSection', () => {
           loading={false}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
+          {...bandwidthScheduleProps()}
         />
       </I18nextProvider>
     );
@@ -44,6 +55,7 @@ describe('AdvancedSection', () => {
           loading={false}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
+          {...bandwidthScheduleProps()}
         />
       </I18nextProvider>
     );
@@ -66,6 +78,7 @@ describe('AdvancedSection', () => {
           loading={false}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
+          {...bandwidthScheduleProps()}
         />
       </I18nextProvider>
     );
@@ -82,6 +95,7 @@ describe('AdvancedSection', () => {
           loading={false}
           onSetSetting={vi.fn()}
           onClearSetting={vi.fn()}
+          {...bandwidthScheduleProps()}
         />
       </I18nextProvider>
     );

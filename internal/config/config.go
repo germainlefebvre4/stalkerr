@@ -127,6 +127,16 @@ type JellyfinConfig struct {
 	URL     string `mapstructure:"url"`
 	APIKey  string `mapstructure:"api_key"`
 	Enabled bool   `mapstructure:"enabled"`
+	// PlaybackCheckEnabled enables polling Jellyfin's active-playback state
+	// as a second, independent signal for the adaptive-download-throttling
+	// effective policy.
+	PlaybackCheckEnabled bool `mapstructure:"playback_check_enabled"`
+	// PlaybackAction is the effective-policy action ("throttle" or "stop")
+	// contributed while Jellyfin active playback is detected.
+	PlaybackAction string `mapstructure:"playback_action"`
+	// PlaybackPollIntervalSeconds is how often Jellyfin's active-playback
+	// state is re-checked.
+	PlaybackPollIntervalSeconds int `mapstructure:"playback_poll_interval_seconds"`
 }
 
 // NotificationsConfig holds push notification settings for alerting
@@ -172,6 +182,10 @@ type DownloadsConfig struct {
 	// command's scheduler draws from tier 2 (already-downloaded content eligible
 	// for re-download/upgrade) instead of tier 1 (missing content) on a given draw.
 	ForceTierProbability float64 `mapstructure:"force_tier_probability"`
+	// ThrottleRateKbps is the single shared aggregate rate cap (in kilobits
+	// per second) applied across all concurrent transfers whenever the
+	// adaptive-download-throttling effective policy is "throttle".
+	ThrottleRateKbps int `mapstructure:"throttle_rate_kbps"`
 }
 
 var cfg *Config
@@ -334,6 +348,9 @@ func setDefaults() {
 
 	// Jellyfin defaults
 	viper.SetDefault("jellyfin.enabled", false)
+	viper.SetDefault("jellyfin.playback_check_enabled", false)
+	viper.SetDefault("jellyfin.playback_action", "throttle")
+	viper.SetDefault("jellyfin.playback_poll_interval_seconds", 20)
 
 	// Downloads defaults
 	viper.SetDefault("downloads.movies_path", "./data/downloads/movies")
@@ -348,6 +365,7 @@ func setDefaults() {
 	viper.SetDefault("downloads.max_retry_attempts", 5)
 	viper.SetDefault("downloads.force_tier_probability", 0.1)
 	viper.SetDefault("downloads.min_file_size_mb", 1)
+	viper.SetDefault("downloads.throttle_rate_kbps", 0)
 
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")
