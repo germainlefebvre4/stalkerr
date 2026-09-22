@@ -1,2 +1,9 @@
 schema: spec-driven
-created: 2026-09-17
+created: "2026-09-17"
+tags:
+    type: ""
+    complexity: 2
+    components:
+        - api
+    _auto: true
+    _tagged_at: "2026-09-21"

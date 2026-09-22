@@ -1,3 +1,11 @@
 schema: spec-driven
-created: 2026-08-31
-retire_capabilities: true
+created: "2026-08-31"
+tags:
+    type: frontend
+    complexity: 3
+    components:
+        - backend
+        - frontend
+        - api
+    _auto: true
+    _tagged_at: "2026-09-21"

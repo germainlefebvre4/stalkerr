@@ -1,2 +1,10 @@
 schema: spec-driven
-created: 2026-09-13
+created: "2026-09-13"
+tags:
+    type: batch
+    complexity: 3
+    components:
+        - radarr-sonarr
+        - backend
+    _auto: true
+    _tagged_at: "2026-09-21"

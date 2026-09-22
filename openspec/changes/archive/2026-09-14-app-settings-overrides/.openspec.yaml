@@ -1,3 +1,13 @@
 schema: spec-driven
-created: 2026-09-13
-retire_capabilities: true
+created: "2026-09-13"
+tags:
+    type: batch
+    complexity: 5
+    components:
+        - backend
+        - api
+        - frontend
+        - openspec
+        - radarr-sonarr
+    _auto: true
+    _tagged_at: "2026-09-21"

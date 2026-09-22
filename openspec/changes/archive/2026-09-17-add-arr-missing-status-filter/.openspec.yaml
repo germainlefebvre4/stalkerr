@@ -1,2 +1,11 @@
 schema: spec-driven
-created: 2026-09-17
+created: "2026-09-17"
+tags:
+    type: frontend
+    complexity: 3
+    components:
+        - radarr-sonarr
+        - api
+        - frontend
+    _auto: true
+    _tagged_at: "2026-09-21"

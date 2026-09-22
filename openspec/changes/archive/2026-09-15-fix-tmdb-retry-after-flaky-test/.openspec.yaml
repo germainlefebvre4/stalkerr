@@ -1,3 +1,9 @@
 schema: spec-driven
-created: 2026-09-15
-skip_specs: true
+created: "2026-09-15"
+tags:
+    type: ""
+    complexity: 1
+    components:
+        - backend
+    _auto: true
+    _tagged_at: "2026-09-21"

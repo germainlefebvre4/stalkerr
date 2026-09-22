@@ -1,2 +1,12 @@
 schema: spec-driven
-created: 2026-09-07
+created: "2026-09-07"
+tags:
+    type: frontend
+    complexity: 4
+    components:
+        - frontend
+        - backend
+        - api
+        - openspec
+    _auto: true
+    _tagged_at: "2026-09-21"
