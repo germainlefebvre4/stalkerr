@@ -513,7 +513,7 @@ func TestReconcileDownloadPaths_ReturnsMonitoredMaps(t *testing.T) {
 	}))
 	defer sonarrServer.Close()
 
-	movieMonitored, seriesMonitored := reconcileDownloadPaths(
+	movieMonitored, seriesMonitored, _, _ := reconcileDownloadPaths(
 		context.Background(), db,
 		newTestRadarrClient(radarrServer.URL), newTestSonarrClient(sonarrServer.URL),
 		false,
@@ -523,6 +523,38 @@ func TestReconcileDownloadPaths_ReturnsMonitoredMaps(t *testing.T) {
 	require.Equal(t, false, movieMonitored[43])
 	require.Equal(t, true, seriesMonitored[200])
 	require.Equal(t, false, seriesMonitored[201], "an unmonitored series must be explicitly recorded false, not merely absent")
+}
+
+// 1.1 reconcileDownloadPaths also returns a combined path+title lookup, keyed
+// the same way as the monitored maps, built from the same single library
+// fetch - for mergeIncompleteDownloads' resume-synthesis destination.
+func TestReconcileDownloadPaths_ReturnsLiveInfoMaps(t *testing.T) {
+	db := setupDownloadTestDB(t)
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 1, "tmdbId": 42, "title": "Star Wars", "path": "/downloads/radarr/Star Wars", "monitored": true},
+		})
+	}))
+	defer radarrServer.Close()
+
+	sonarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 1, "tvdbId": 200, "title": "Star Wars: The Clone Wars", "path": "/downloads/sonarr/Clone Wars", "monitored": true},
+		})
+	}))
+	defer sonarrServer.Close()
+
+	_, _, movieLiveInfo, seriesLiveInfo := reconcileDownloadPaths(
+		context.Background(), db,
+		newTestRadarrClient(radarrServer.URL), newTestSonarrClient(sonarrServer.URL),
+		false,
+	)
+
+	require.Equal(t, scheduler.MovieLiveInfo{Path: "/downloads/radarr/Star Wars", Title: "Star Wars"}, movieLiveInfo[42])
+	require.Equal(t, scheduler.SeriesLiveInfo{Path: "/downloads/sonarr/Clone Wars", Title: "Star Wars: The Clone Wars"}, seriesLiveInfo[200])
 }
 
 // 2.2 End-to-end: a movie confirmed unmonitored via the live Radarr fetch
@@ -565,7 +597,7 @@ func TestReconcileDownloadPaths_UnmonitoredMovieExcludedFromBuiltStreams(t *test
 	}))
 	defer radarrServer.Close()
 
-	movieMonitored, seriesMonitored := reconcileDownloadPaths(
+	movieMonitored, seriesMonitored, _, _ := reconcileDownloadPaths(
 		context.Background(), db, newTestRadarrClient(radarrServer.URL), nil, false,
 	)
 

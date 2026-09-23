@@ -32,6 +32,30 @@ type BuildDeps struct {
 	// Only mergeIncompleteDownloads consults them (see its doc comment).
 	MonitoredMovieTMDBIDs  map[int]bool
 	MonitoredSeriesTVDBIDs map[int]bool
+
+	// MovieLiveInfoByTMDBID and SeriesLiveInfoByTVDBID are an optional
+	// snapshot of each movie's/series' current live Radarr/Sonarr path and
+	// title, from the same run-wide library fetch MonitoredMovieTMDBIDs/
+	// MonitoredSeriesTVDBIDs are built from. Both are nil-safe: a nil (or
+	// missing-key) lookup means "no live data available", so omitting them
+	// preserves BuildStreams' previous behavior entirely. Only
+	// mergeIncompleteDownloads' stream-synthesis path consults them, to
+	// source a resumed download's destination directory and filename title
+	// the same way a tier-1 stream for that movie/series would.
+	MovieLiveInfoByTMDBID  map[int]MovieLiveInfo
+	SeriesLiveInfoByTVDBID map[int]SeriesLiveInfo
+}
+
+// MovieLiveInfo is a movie's live Radarr path and title, keyed by TMDBID.
+type MovieLiveInfo struct {
+	Path  string
+	Title string
+}
+
+// SeriesLiveInfo is a series' live Sonarr path and title, keyed by TVDBID.
+type SeriesLiveInfo struct {
+	Path  string
+	Title string
 }
 
 // RadarrClient is the subset of *radarr.Client BuildStreams depends on.
@@ -322,6 +346,7 @@ func buildTier2MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, err
 		}
 
 		moviePath := ""
+		movieTitle := movie.TMDBTitle
 		radarrMovieID := 0
 		if deps.Radarr != nil {
 			radarrMovie, err := deps.Radarr.GetMovieByTMDBID(ctx, movie.TMDBID)
@@ -335,17 +360,18 @@ func buildTier2MovieStreams(ctx context.Context, deps BuildDeps) ([]*Stream, err
 			}
 			if radarrMovie != nil {
 				moviePath = radarrMovie.Path
+				movieTitle = radarrMovie.Title
 				radarrMovieID = radarrMovie.ID
 			}
 		}
 
-		baseDestPath, _ := downloader.BuildRadarrDestPath(moviePath, deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
+		baseDestPath, _ := downloader.BuildRadarrDestPath(moviePath, deps.Config.Downloads.MoviesPath, movieTitle, movie.TMDBYear)
 		streams = append(streams, &Stream{
 			Tier:          Tier2,
 			SourceKey:     fmt.Sprintf("movie:%d", movie.ID),
 			RadarrMovieID: radarrMovieID,
 			Items: []Item{{
-				DisplayName: fmt.Sprintf("%s (%d)", movie.TMDBTitle, movie.TMDBYear),
+				DisplayName: fmt.Sprintf("%s (%d)", movieTitle, movie.TMDBYear),
 				BaseDestDir: baseDestPath,
 				Candidates:  candidates,
 			}},
@@ -410,13 +436,18 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 					continue
 				}
 				if series != nil {
-					info = seriesLookup{path: series.Path, id: series.ID}
+					info = seriesLookup{path: series.Path, title: series.Title, id: series.ID, found: true}
 				}
 			}
 			seriesInfoCache[*ep.TVDBID] = info
 		}
 
-		baseDestPath, _ := downloader.BuildSonarrDestPath(info.path, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
+		seriesTitle := ep.TMDBTitle
+		if info.found {
+			seriesTitle = info.title
+		}
+
+		baseDestPath, _ := downloader.BuildSonarrDestPath(info.path, deps.Config.Downloads.TVShowsPath, seriesTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
 
 		key := tvdbSeasonKey{tvdbID: *ep.TVDBID, season: *ep.Season}
 		sb, ok := seasonMap[key]
@@ -426,7 +457,7 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 			seasonOrder = append(seasonOrder, key)
 		}
 		sb.items = append(sb.items, Item{
-			DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode),
+			DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", seriesTitle, ep.TMDBYear, *ep.Season, *ep.Episode),
 			BaseDestDir: baseDestPath,
 			Candidates:  candidates,
 			Episode:     *ep.Episode,
@@ -449,12 +480,16 @@ func buildTier2SeriesStreams(ctx context.Context, deps BuildDeps) ([]*Stream, er
 	return streams, nil
 }
 
-// seriesLookup caches a live Sonarr series lookup's path and internal series
-// ID, keyed by TVDB ID, so a season's episodes sharing the same series don't
-// each re-fetch it.
+// seriesLookup caches a live Sonarr series lookup's path, title, and internal
+// series ID, keyed by TVDB ID, so a season's episodes sharing the same series
+// don't each re-fetch it. found is false for a cached "series not found in
+// Sonarr" result, distinguishing it from a found series with a zero-value
+// path/title.
 type seriesLookup struct {
-	path string
-	id   int
+	path  string
+	title string
+	id    int
+	found bool
 }
 
 // findDownloadedLine returns the best-ranked already-downloaded ProcessedLine
@@ -502,6 +537,16 @@ func findDownloadedLine(db *gorm.DB, column string, id uint) (*models.ProcessedL
 // either map (nil map, movie/series not currently in the fetched library, or
 // the library fetch failed this run) is always treated as "unconfirmed",
 // never as "unmonitored", so it is still resumed as before.
+//
+// An incomplete download whose movie/episode already has a *different*
+// downloaded ProcessedLine (found via findDownloadedLine, the same check
+// buildTier1MovieStreams/buildTier1SeriesStreams already apply) is likewise
+// left out - resuming or synthesizing a second stream for it would produce a
+// duplicate download of content that's already there. Rather than leaving it
+// in its current incomplete status forever (re-fetched and re-skipped by
+// GetIncompleteDownloads every future run), it is transitioned to
+// DownloadStatusCancelled, the same terminal status the existing
+// cancel-download-occurrence capability uses.
 func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map[uint]*Stream, seriesByTVDBSeason map[tvdbSeasonKey]*Stream) ([]*Stream, error) {
 	incomplete, err := deps.StateManager.GetIncompleteDownloads(ctx, deps.Config.Downloads.MaxRetryAttempts, 0)
 	if err != nil {
@@ -528,18 +573,34 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				// whether or not a tier-1 stream already exists for it.
 				continue
 			}
+			downloadedLine, err := findDownloadedLine(deps.DB, "movie_id", line.Movie.ID)
+			if err != nil {
+				return nil, err
+			}
+			if downloadedLine != nil {
+				// Already downloaded via a different occurrence: don't
+				// resume/synthesize a second stream for it.
+				if err := cancelSkippedIncompleteDownload(deps.DB, download.ID); err != nil {
+					return nil, err
+				}
+				continue
+			}
 			stream, ok := movieByID[line.Movie.ID]
 			if !ok {
 				candidates, err := matcher.FindMovieDownloadCandidates(deps.DB, line.Movie.ID)
 				if err != nil {
 					return nil, err
 				}
-				baseDestPath, _ := downloader.BuildRadarrDestPath("", deps.Config.Downloads.MoviesPath, line.Movie.TMDBTitle, line.Movie.TMDBYear)
+				moviePath, movieTitle := "", line.Movie.TMDBTitle
+				if info, known := deps.MovieLiveInfoByTMDBID[line.Movie.TMDBID]; known {
+					moviePath, movieTitle = info.Path, info.Title
+				}
+				baseDestPath, _ := downloader.BuildRadarrDestPath(moviePath, deps.Config.Downloads.MoviesPath, movieTitle, line.Movie.TMDBYear)
 				stream = &Stream{
 					Tier:      Tier1,
 					SourceKey: fmt.Sprintf("movie:%d", line.Movie.ID),
 					Items: []Item{{
-						DisplayName: fmt.Sprintf("%s (%d)", line.Movie.TMDBTitle, line.Movie.TMDBYear),
+						DisplayName: fmt.Sprintf("%s (%d)", movieTitle, line.Movie.TMDBYear),
 						BaseDestDir: baseDestPath,
 						Candidates:  candidates,
 					}},
@@ -559,6 +620,24 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				// of this series' incomplete episodes.
 				continue
 			}
+			downloadedLine, err := findDownloadedLine(deps.DB, "tv_show_id", show.ID)
+			if err != nil {
+				return nil, err
+			}
+			if downloadedLine != nil {
+				// Already downloaded via a different occurrence: don't
+				// resume/synthesize a second stream for it.
+				if err := cancelSkippedIncompleteDownload(deps.DB, download.ID); err != nil {
+					return nil, err
+				}
+				continue
+			}
+
+			seriesPath, seriesTitle := "", show.TMDBTitle
+			if info, known := deps.SeriesLiveInfoByTVDBID[*show.TVDBID]; known {
+				seriesPath, seriesTitle = info.Path, info.Title
+			}
+
 			key := tvdbSeasonKey{tvdbID: *show.TVDBID, season: *show.Season}
 			stream, ok := seriesByTVDBSeason[key]
 			if !ok {
@@ -566,13 +645,13 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				if err != nil {
 					return nil, err
 				}
-				baseDestPath, _ := downloader.BuildSonarrDestPath("", deps.Config.Downloads.TVShowsPath, show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode)
+				baseDestPath, _ := downloader.BuildSonarrDestPath(seriesPath, deps.Config.Downloads.TVShowsPath, seriesTitle, show.TMDBYear, *show.Season, *show.Episode)
 				stream = &Stream{
 					Tier:      Tier1,
 					SourceKey: fmt.Sprintf("series:tvdb:%d", *show.TVDBID),
 					Season:    *show.Season,
 					Items: []Item{{
-						DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode),
+						DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", seriesTitle, show.TMDBYear, *show.Season, *show.Episode),
 						BaseDestDir: baseDestPath,
 						Candidates:  candidates,
 						Episode:     *show.Episode,
@@ -597,9 +676,9 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				if err != nil {
 					return nil, err
 				}
-				baseDestPath, _ := downloader.BuildSonarrDestPath("", deps.Config.Downloads.TVShowsPath, show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode)
+				baseDestPath, _ := downloader.BuildSonarrDestPath(seriesPath, deps.Config.Downloads.TVShowsPath, seriesTitle, show.TMDBYear, *show.Season, *show.Episode)
 				item := Item{
-					DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", show.TMDBTitle, show.TMDBYear, *show.Season, *show.Episode),
+					DisplayName: fmt.Sprintf("%s (%d) - S%02dE%02d", seriesTitle, show.TMDBYear, *show.Season, *show.Episode),
 					BaseDestDir: baseDestPath,
 					Candidates:  candidates,
 					Episode:     *show.Episode,
@@ -616,6 +695,26 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 	}
 
 	return extra, nil
+}
+
+// cancelSkippedIncompleteDownload transitions downloadID to
+// DownloadStatusCancelled and marks its ProcessedLines cancelled, mirroring
+// the existing cancel-download-occurrence capability's transaction (see
+// internal/api/cancel_download.go), so a DownloadInfo mergeIncompleteDownloads
+// skips because its movie/episode is already downloaded elsewhere drops out
+// of GetIncompleteDownloads on every subsequent run instead of being
+// re-fetched and re-skipped indefinitely.
+func cancelSkippedIncompleteDownload(db *gorm.DB, downloadID uint) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.DownloadInfo{}).
+			Where("id = ?", downloadID).
+			Update("status", string(models.DownloadStatusCancelled)).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.ProcessedLine{}).
+			Where("download_info_id = ?", downloadID).
+			Update("state", string(models.StateCancelled)).Error
+	})
 }
 
 // attachResume marks item as resumable and ensures the specific ProcessedLine

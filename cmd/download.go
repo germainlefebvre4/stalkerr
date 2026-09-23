@@ -156,7 +156,7 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		}
 
 		fmt.Println("Reconciling completed download paths...")
-		movieMonitored, seriesMonitored := reconcileDownloadPaths(ctx, db, radarrFullClient, sonarrFullClient, verbose)
+		movieMonitored, seriesMonitored, movieLiveInfo, seriesLiveInfo := reconcileDownloadPaths(ctx, db, radarrFullClient, sonarrFullClient, verbose)
 
 		fmt.Println("Building stream set...")
 		streams, err := scheduler.BuildStreams(ctx, scheduler.BuildDeps{
@@ -167,6 +167,8 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 			StateManager:           dl.GetStateManager(),
 			MonitoredMovieTMDBIDs:  movieMonitored,
 			MonitoredSeriesTVDBIDs: seriesMonitored,
+			MovieLiveInfoByTMDBID:  movieLiveInfo,
+			SeriesLiveInfoByTVDBID: seriesLiveInfo,
 		})
 		if err != nil {
 			notifyBuildStreamsFailure(notif, err)
@@ -224,11 +226,14 @@ func init() {
 // It also returns a monitored-status snapshot (true/false keyed by
 // Movie.TMDBID / TVDBID, entry present only for a fetched item) built from
 // the exact same library fetch, for skip-monitored-check-on-resume's
-// mergeIncompleteDownloads check — this adds no further Radarr/Sonarr API
-// calls beyond what path reconciliation already makes.
-func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *radarr.Client, sonarrClient *sonarr.Client, verbose bool) (movieMonitored map[int]bool, seriesMonitored map[int]bool) {
+// mergeIncompleteDownloads check, and a combined path+title snapshot (keyed
+// the same way) for mergeIncompleteDownloads' resume-synthesis destination —
+// this adds no further Radarr/Sonarr API calls beyond what path reconciliation
+// already makes.
+func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *radarr.Client, sonarrClient *sonarr.Client, verbose bool) (movieMonitored map[int]bool, seriesMonitored map[int]bool, movieLiveInfo map[int]scheduler.MovieLiveInfo, seriesLiveInfo map[int]scheduler.SeriesLiveInfo) {
 	movieTMDBPaths := map[int]string{}
 	movieMonitored = map[int]bool{}
+	movieLiveInfo = map[int]scheduler.MovieLiveInfo{}
 	if radarrClient != nil {
 		movies, err := radarrClient.GetAllMovies(ctx)
 		if err != nil {
@@ -241,6 +246,7 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 					movieTMDBPaths[m.TMDBID] = m.Path
 				}
 				movieMonitored[m.TMDBID] = m.Monitored
+				movieLiveInfo[m.TMDBID] = scheduler.MovieLiveInfo{Path: m.Path, Title: m.Title}
 			}
 		}
 	}
@@ -250,6 +256,7 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 	// recorded as monitored=false here instead of merely being absent.
 	seriesTVDBPaths := map[int]string{}
 	seriesMonitored = map[int]bool{}
+	seriesLiveInfo = map[int]scheduler.SeriesLiveInfo{}
 	if sonarrClient != nil {
 		series, err := sonarrClient.GetAllSeries(ctx)
 		if err != nil {
@@ -262,6 +269,7 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 					seriesTVDBPaths[s.TvdbID] = s.Path
 				}
 				seriesMonitored[s.TvdbID] = s.Monitored
+				seriesLiveInfo[s.TvdbID] = scheduler.SeriesLiveInfo{Path: s.Path, Title: s.Title}
 			}
 		}
 	}
@@ -270,7 +278,7 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 		api.ReconcileScheduledDownloadPaths(db, movieTMDBPaths, seriesTVDBPaths)
 	}
 
-	return movieMonitored, seriesMonitored
+	return movieMonitored, seriesMonitored, movieLiveInfo, seriesLiveInfo
 }
 
 // newPolicyEngine builds the adaptive-download-throttling PolicyEngine for

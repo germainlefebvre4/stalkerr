@@ -486,6 +486,14 @@ func TestBuildTier1SeriesStreams_SkipsAlreadyDownloadedEpisode(t *testing.T) {
 // after tier-2 streams have already been built (a stuck download for a
 // candidate outside the normal tier-1/tier-2 fetch). The synthesized tier-1
 // stream must still win over the pre-existing tier-2 stream for that movie.
+// Regression test for the bug this change fixes: previously,
+// mergeIncompleteDownloads synthesized a tier-1 stream from the stuck
+// download here, producing a duplicate download alongside the movie's
+// existing downloaded occurrence. It must now be skipped (and the stuck
+// DownloadInfo cancelled) instead, same as
+// TestMergeIncompleteDownloads_SkipsMovieAlreadyDownloadedElsewhere. The
+// "alt" candidate ranks equal (not strictly better) than the downloaded one,
+// so it doesn't qualify tier-2 either - no stream is produced at all.
 func TestBuildStreams_DedupTier2AgainstTier1_SynthesizedWins(t *testing.T) {
 	db := setupTestDB(t)
 
@@ -522,10 +530,11 @@ func TestBuildStreams_DedupTier2AgainstTier1_SynthesizedWins(t *testing.T) {
 
 	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
 	require.NoError(t, err)
-	require.Len(t, streams, 1, "synthesized tier-1 stream from the stuck download should win over the pre-existing tier-2 stream")
-	require.Equal(t, Tier1, streams[0].Tier)
-	require.Equal(t, fmt.Sprintf("movie:%d", movie.ID), streams[0].SourceKey)
-	require.NotNil(t, streams[0].Items[0].ResumeInfo)
+	require.Empty(t, streams, "the stuck download must not be synthesized into a duplicate stream")
+
+	var updatedDl models.DownloadInfo
+	require.NoError(t, db.First(&updatedDl, dlInfo.ID).Error)
+	require.Equal(t, string(models.DownloadStatusCancelled), updatedDl.Status, "the stuck download should be cancelled instead of resumed")
 }
 
 // 3.3 Tier-2 gating: a worse-language untried candidate does not trigger an upgrade.
@@ -651,15 +660,50 @@ func TestBuildTier2MovieStreams_UsesLiveRadarrPath(t *testing.T) {
 	}).Error)
 
 	livePath := "/media/movies/Live Path Movie (2020)"
-	fr := &fakeRadarr{byTMDBID: map[int]*radarr.Movie{7: {ID: 70, TMDBID: 7, Path: livePath}}}
+	fr := &fakeRadarr{byTMDBID: map[int]*radarr.Movie{7: {ID: 70, TMDBID: 7, Title: "Live Path Movie", Path: livePath}}}
 
 	deps := testDeps(db, fr, &fakeSonarr{})
 	streams, err := buildTier2MovieStreams(context.Background(), deps)
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 
-	expectedPath, _ := downloader.BuildRadarrDestPath(livePath, deps.Config.Downloads.MoviesPath, movie.TMDBTitle, movie.TMDBYear)
+	expectedPath, _ := downloader.BuildRadarrDestPath(livePath, deps.Config.Downloads.MoviesPath, "Live Path Movie", movie.TMDBYear)
 	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir)
+}
+
+// 3.1 A movie whose local TMDBTitle differs from the live Radarr title (e.g.
+// a French TMDB title vs. the English title Radarr manages) produces a
+// tier-2 destination filename matching the live Radarr title, not the local
+// database title.
+func TestBuildTier2MovieStreams_FilenameUsesLiveRadarrTitleNotLocalTitle(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 7, TMDBTitle: "La Guerre des étoiles", TMDBYear: 1977}
+	require.NoError(t, db.Create(&movie).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "sw1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "sw2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateProcessed, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	livePath := "/media/movies/Star Wars (1977)"
+	fr := &fakeRadarr{byTMDBID: map[int]*radarr.Movie{7: {ID: 70, TMDBID: 7, Title: "Star Wars", Path: livePath}}}
+
+	deps := testDeps(db, fr, &fakeSonarr{})
+	streams, err := buildTier2MovieStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	expectedPath, _ := downloader.BuildRadarrDestPath(livePath, deps.Config.Downloads.MoviesPath, "Star Wars", movie.TMDBYear)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir, "the filename must use the live Radarr title, not the local TMDBTitle")
+	require.NotContains(t, streams[0].Items[0].BaseDestDir, "étoiles")
 }
 
 // 4.4 A Radarr lookup error for one tier-2 movie candidate skips it without
@@ -743,15 +787,49 @@ func TestBuildTier2SeriesStreams_UsesLiveSonarrPath(t *testing.T) {
 	}).Error)
 
 	livePath := "/media/tv/Live Path Show"
-	fs := &fakeSonarr{byTVDBID: map[int]*sonarr.Series{tvdbID: {ID: 99, TvdbID: tvdbID, Path: livePath}}}
+	fs := &fakeSonarr{byTVDBID: map[int]*sonarr.Series{tvdbID: {ID: 99, TvdbID: tvdbID, Title: "Live Path Show", Path: livePath}}}
 
 	deps := testDeps(db, &fakeRadarr{}, fs)
 	streams, err := buildTier2SeriesStreams(context.Background(), deps)
 	require.NoError(t, err)
 	require.Len(t, streams, 1)
 
-	expectedPath, _ := downloader.BuildSonarrDestPath(livePath, deps.Config.Downloads.TVShowsPath, ep.TMDBTitle, ep.TMDBYear, *ep.Season, *ep.Episode)
+	expectedPath, _ := downloader.BuildSonarrDestPath(livePath, deps.Config.Downloads.TVShowsPath, "Live Path Show", ep.TMDBYear, *ep.Season, *ep.Episode)
 	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir)
+}
+
+// 3.2 An episode whose local TMDBTitle differs from the live Sonarr title
+// produces a tier-2 destination filename matching the live Sonarr title, not
+// the local database title.
+func TestBuildTier2SeriesStreams_FilenameUsesLiveSonarrTitleNotLocalTitle(t *testing.T) {
+	db := setupTestDB(t)
+
+	tvdbID := 777
+	ep := models.TVShow{TMDBID: 401, TVDBID: intPtr(tvdbID), TMDBTitle: "Star Wars : Le Clone Wars", TMDBYear: 2008, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "cw1", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/1080p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("1080p"),
+	}).Error)
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "alt", LineHash: "cw2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateProcessed, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/720p.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Resolution: strPtr("720p"),
+	}).Error)
+
+	livePath := "/media/tv/Star Wars The Clone Wars"
+	fs := &fakeSonarr{byTVDBID: map[int]*sonarr.Series{tvdbID: {ID: 99, TvdbID: tvdbID, Title: "Star Wars: The Clone Wars", Path: livePath}}}
+
+	deps := testDeps(db, &fakeRadarr{}, fs)
+	streams, err := buildTier2SeriesStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	expectedPath, _ := downloader.BuildSonarrDestPath(livePath, deps.Config.Downloads.TVShowsPath, "Star Wars: The Clone Wars", ep.TMDBYear, *ep.Season, *ep.Episode)
+	require.Equal(t, expectedPath, streams[0].Items[0].BaseDestDir, "the filename must use the live Sonarr title, not the local TMDBTitle")
 }
 
 // 4.4 A Sonarr lookup error for one tier-2 series candidate skips it without
@@ -1146,4 +1224,206 @@ func TestMergeIncompleteDownloads_SeriesAbsentFromMonitoredMap_StillResumed(t *t
 	require.Len(t, streams, 1, "unconfirmed monitored status should still resume the incomplete episode")
 	require.Equal(t, Tier1, streams[0].Tier)
 	require.NotNil(t, streams[0].Items[0].ResumeInfo)
+}
+
+// 2.1 An incomplete DownloadInfo for a movie that already has a different
+// downloaded ProcessedLine must not be resumed/synthesized into a stream -
+// this is the bug fix at the heart of this change.
+func TestMergeIncompleteDownloads_SkipsMovieAlreadyDownloadedElsewhere(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Already Downloaded Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	// Sibling occurrence: already downloaded.
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "already-dl", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/already-downloaded.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	// A different occurrence still incomplete.
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "stuck-dup", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-dup.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{} // movie not reported missing by Radarr
+	fs := &fakeSonarr{series: map[int]*sonarr.Series{}}
+
+	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Empty(t, streams, "a movie already downloaded via a different occurrence should not be re-resumed/synthesized")
+}
+
+// 2.2 Same invariant, keyed by the specific episode's tv_show_id.
+func TestMergeIncompleteDownloads_SkipsEpisodeAlreadyDownloadedElsewhere(t *testing.T) {
+	db := setupTestDB(t)
+
+	seriesTvdbID := 999
+	ep := models.TVShow{TMDBID: 500, TVDBID: intPtr(seriesTvdbID), TMDBTitle: "Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+
+	// Sibling occurrence for the same episode: already downloaded.
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "ep-already-dl", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloaded, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/ep-downloaded.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "ep-stuck-dup", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloading, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/ep-stuck-dup.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	fr := &fakeRadarr{}
+	fs := &fakeSonarr{} // series not reported missing at all
+
+	streams, err := BuildStreams(context.Background(), testDeps(db, fr, fs))
+	require.NoError(t, err)
+	require.Empty(t, streams, "an episode already downloaded via a different occurrence should not be re-resumed/synthesized")
+}
+
+// 2.3 A DownloadInfo skipped because its movie is already downloaded
+// elsewhere transitions to DownloadStatusCancelled (and its ProcessedLine to
+// StateCancelled, mirroring the existing cancel-download-occurrence
+// capability) so it no longer appears in a subsequent GetIncompleteDownloads
+// call.
+func TestMergeIncompleteDownloads_SkippedDownloadIsCancelled(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 5, TVDBID: intPtr(5005), TMDBTitle: "Already Downloaded Movie", TMDBYear: 2019}
+	require.NoError(t, db.Create(&movie).Error)
+
+	require.NoError(t, db.Create(&models.ProcessedLine{
+		LineContent: "downloaded", LineHash: "already-dl-2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloaded, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/already-downloaded-2.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "stuck-dup-2", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/stuck-dup-2.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{series: map[int]*sonarr.Series{}})
+	_, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+
+	var updated models.DownloadInfo
+	require.NoError(t, db.First(&updated, dlInfo.ID).Error)
+	require.Equal(t, string(models.DownloadStatusCancelled), updated.Status)
+
+	var updatedLine models.ProcessedLine
+	require.NoError(t, db.First(&updatedLine, stuckLine.ID).Error)
+	require.Equal(t, models.StateCancelled, updatedLine.State)
+
+	remaining, err := deps.StateManager.GetIncompleteDownloads(context.Background(), deps.Config.Downloads.MaxRetryAttempts, 0)
+	require.NoError(t, err)
+	for _, d := range remaining {
+		require.NotEqual(t, dlInfo.ID, d.ID, "cancelled download should no longer appear as incomplete")
+	}
+}
+
+// 2.4 Resume-synthesis with a live-info lookup hit produces the same
+// destination a tier-1 stream for that movie would produce.
+func TestMergeIncompleteDownloads_SynthesisUsesLiveInfoLookup(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 7, TVDBID: intPtr(7007), TMDBTitle: "Titre Local", TMDBYear: 2022}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "synth-hit", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/synth-hit.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{series: map[int]*sonarr.Series{}})
+	deps.MovieLiveInfoByTMDBID = map[int]MovieLiveInfo{7: {Path: "/media/movies/Star Wars", Title: "Star Wars"}}
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	wantDest, _ := downloader.BuildRadarrDestPath("/media/movies/Star Wars", deps.Config.Downloads.MoviesPath, "Star Wars", 2022)
+	require.Equal(t, wantDest, streams[0].Items[0].BaseDestDir, "synthesis should use the live lookup's path/title, matching what a tier-1 stream would produce")
+	require.Contains(t, streams[0].Items[0].DisplayName, "Star Wars")
+}
+
+// 2.4 Resume-synthesis with no live-info lookup entry falls back to the
+// existing local-title/empty-path behavior, unchanged.
+func TestMergeIncompleteDownloads_SynthesisFallsBackWithoutLiveInfoLookup(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 8, TVDBID: intPtr(8008), TMDBTitle: "Titre Local", TMDBYear: 2022}
+	require.NoError(t, db.Create(&movie).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck", LineHash: "synth-miss", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeMovies, State: models.StateDownloading, MovieID: &movie.ID,
+		LineURL: strPtr("http://example.com/synth-miss.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{series: map[int]*sonarr.Series{}})
+	// deps.MovieLiveInfoByTMDBID left nil: no lookup entry for this movie.
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	wantDest, _ := downloader.BuildRadarrDestPath("", deps.Config.Downloads.MoviesPath, "Titre Local", 2022)
+	require.Equal(t, wantDest, streams[0].Items[0].BaseDestDir, "with no lookup entry, synthesis must fall back unchanged from today's behavior")
+}
+
+// 2.4 Same live-info-lookup behavior for series-season synthesis.
+func TestMergeIncompleteDownloads_SeriesSynthesisUsesLiveInfoLookup(t *testing.T) {
+	db := setupTestDB(t)
+
+	seriesTvdbID := 3003
+	ep := models.TVShow{TMDBID: 900, TVDBID: intPtr(seriesTvdbID), TMDBTitle: "Titre Local Serie", TMDBYear: 2021, Season: intPtr(1), Episode: intPtr(1)}
+	require.NoError(t, db.Create(&ep).Error)
+
+	stuckLine := models.ProcessedLine{
+		LineContent: "stuck-ep", LineHash: "series-synth-hit", TvgName: "x", GroupTitle: "g", ProcessedAt: time.Now(),
+		ContentType: models.ContentTypeTVShows, State: models.StateDownloading, TVShowID: &ep.ID,
+		LineURL: strPtr("http://example.com/series-synth-hit.mkv"), CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&stuckLine).Error)
+	dlInfo := models.DownloadInfo{Status: string(models.DownloadStatusDownloading)}
+	require.NoError(t, db.Create(&dlInfo).Error)
+	require.NoError(t, db.Model(&stuckLine).Update("download_info_id", dlInfo.ID).Error)
+
+	deps := testDeps(db, &fakeRadarr{}, &fakeSonarr{}) // series not reported missing at all
+	deps.SeriesLiveInfoByTVDBID = map[int]SeriesLiveInfo{seriesTvdbID: {Path: "/media/tv/Star Wars Clone Wars", Title: "Star Wars: The Clone Wars"}}
+
+	streams, err := BuildStreams(context.Background(), deps)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	wantDest, _ := downloader.BuildSonarrDestPath("/media/tv/Star Wars Clone Wars", deps.Config.Downloads.TVShowsPath, "Star Wars: The Clone Wars", 2021, 1, 1)
+	require.Equal(t, wantDest, streams[0].Items[0].BaseDestDir, "series synthesis should use the live lookup's path/title, matching what a tier-1 stream would produce")
 }

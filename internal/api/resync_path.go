@@ -29,6 +29,11 @@ const (
 	OutcomeRenameTargetExists ReconcileOutcome = "rename_target_exists"
 	OutcomeRenameFailed       ReconcileOutcome = "rename_failed"
 	OutcomeDBUpdateFailed     ReconcileOutcome = "database_update_failed"
+	// OutcomeFileMissing indicates the stored root already matched Radarr's/
+	// Sonarr's current path (no correction needed), but the file itself no
+	// longer exists on disk - distinct from OutcomeAlreadyUpToDate so this
+	// case is surfaced instead of silently treated as fully reconciled.
+	OutcomeFileMissing ReconcileOutcome = "file_missing"
 )
 
 // downloadRoot splits a completed download's stored path into the root
@@ -151,6 +156,12 @@ func reconcileDownloadPath(db *gorm.DB, dl models.DownloadInfo, contentType mode
 
 	corrected, changed := computeReconciledPath(root, targetRoot)
 	if !changed {
+		if _, err := os.Stat(oldPath); err != nil {
+			if os.IsNotExist(err) {
+				return OutcomeFileMissing, oldPath, oldPath
+			}
+			return OutcomeRenameFailed, oldPath, ""
+		}
 		return OutcomeAlreadyUpToDate, oldPath, oldPath
 	}
 
@@ -215,6 +226,11 @@ func ReconcileScheduledDownloadPaths(db *gorm.DB, movieTMDBPaths map[int]string,
 			}).Info("path reconciliation: corrected stale download_path")
 		case OutcomeAlreadyUpToDate:
 			// Nothing to do.
+		case OutcomeFileMissing:
+			logger.AppLogger().WithFields(map[string]interface{}{
+				"download_id": dl.ID,
+				"outcome":     outcome,
+			}).Warn("path reconciliation: completed download's file is missing on disk")
 		default:
 			logger.AppLogger().WithFields(map[string]interface{}{
 				"download_id": dl.ID,
@@ -326,6 +342,8 @@ func (s *Server) resyncDownloadPath(c *gin.Context) {
 			"new_path": newPath,
 		})
 	case OutcomeAlreadyUpToDate:
+		c.JSON(http.StatusOK, gin.H{"status": outcome})
+	case OutcomeFileMissing:
 		c.JSON(http.StatusOK, gin.H{"status": outcome})
 	case OutcomeRenameTargetExists:
 		respondError(c, http.StatusBadRequest, string(outcome), "A file already exists at the destination path")

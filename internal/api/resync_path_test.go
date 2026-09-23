@@ -1,17 +1,37 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
 )
+
+// captureAppLoggerWarnings redirects the shared app logger to a buffer for
+// the duration of the test, so a test can assert on the WARN log lines
+// path-reconciliation code emits.
+func captureAppLoggerWarnings(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	original := logger.AppLogger()
+	t.Cleanup(func() { logger.SetAppLogger(original) })
+
+	var buf bytes.Buffer
+	logger.SetAppLogger(logger.New(logger.Config{
+		Output:   &buf,
+		MinLevel: logger.LevelWarn,
+		Format:   logger.FormatText,
+	}))
+	return &buf
+}
 
 // --- 1.1 extractDownloadRoot ---
 
@@ -277,6 +297,61 @@ func TestApplyPathCorrection_CollisionBlocksMoveAndDB(t *testing.T) {
 	}
 }
 
+// --- 4.2 reconcileDownloadPath file-existence check on the "root already
+// matches" path ---
+
+func TestReconcileDownloadPath_RootMatchesFilePresent_AlreadyUpToDate(t *testing.T) {
+	db := setupTestDB(t)
+	tempDir := t.TempDir()
+
+	root := filepath.Join(tempDir, "movies", "Dune (2021)")
+	oldPath := filepath.Join(root, "Dune (2021).mkv")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
+	if err := os.WriteFile(oldPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	dl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &oldPath}
+	if err := db.Create(&dl).Error; err != nil {
+		t.Fatalf("failed to seed download: %v", err)
+	}
+
+	outcome, _, _ := reconcileDownloadPath(db, dl, models.ContentTypeMovies, root)
+	if outcome != OutcomeAlreadyUpToDate {
+		t.Fatalf("expected outcome %q, got %q", OutcomeAlreadyUpToDate, outcome)
+	}
+}
+
+func TestReconcileDownloadPath_RootMatchesFileMissing_FileMissingOutcome(t *testing.T) {
+	db := setupTestDB(t)
+	tempDir := t.TempDir()
+
+	root := filepath.Join(tempDir, "movies", "Dune (2021)")
+	oldPath := filepath.Join(root, "Dune (2021).mkv")
+	// Note: the root directory/file is deliberately never created on disk.
+
+	dl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &oldPath}
+	if err := db.Create(&dl).Error; err != nil {
+		t.Fatalf("failed to seed download: %v", err)
+	}
+
+	outcome, oldReturned, newReturned := reconcileDownloadPath(db, dl, models.ContentTypeMovies, root)
+	if outcome != OutcomeFileMissing {
+		t.Fatalf("expected outcome %q, got %q", OutcomeFileMissing, outcome)
+	}
+	if oldReturned != oldPath || newReturned != oldPath {
+		t.Errorf("expected paths to remain %q, got old=%q new=%q", oldPath, oldReturned, newReturned)
+	}
+
+	var unchanged models.DownloadInfo
+	db.First(&unchanged, dl.ID)
+	if unchanged.DownloadPath == nil || *unchanged.DownloadPath != oldPath {
+		t.Errorf("expected download_path to remain unchanged %q, got %v", oldPath, unchanged.DownloadPath)
+	}
+}
+
 // --- 2.2 ReconcileScheduledDownloadPaths ---
 
 func TestReconcileScheduledDownloadPaths_CorrectsMatchedRow(t *testing.T) {
@@ -376,6 +451,81 @@ func TestReconcileScheduledDownloadPaths_TrailingSeparatorNoOp(t *testing.T) {
 	if _, err := os.Stat(oldPath); err != nil {
 		t.Errorf("expected file to remain at original path untouched: %v", err)
 	}
+}
+
+// 4.3 A file_missing outcome is logged with a distinct WARN message from an
+// (unrelated) rename_failed outcome, though both share the same structured
+// fields.
+func TestReconcileScheduledDownloadPaths_FileMissingLoggedDistinctlyFromRenameFailed(t *testing.T) {
+	db := setupTestDB(t)
+	tempDir := t.TempDir()
+
+	// Movie 42: root already matches, but the file itself is gone -> file_missing.
+	missingMovie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	db.Create(&missingMovie)
+	missingRoot := filepath.Join(tempDir, "movies", "Dune (2021)")
+	missingPath := filepath.Join(missingRoot, "Dune (2021).mkv")
+	// Deliberately not created on disk.
+	missingDl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &missingPath}
+	db.Create(&missingDl)
+	db.Create(&models.ProcessedLine{
+		LineContent: "dune", LineHash: "hash-dune-missing", TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &missingMovie.ID, DownloadInfoID: &missingDl.ID,
+		State: models.StateDownloaded,
+	})
+
+	// Movie 43: an unrecognized TV-shaped path triggers extractDownloadRoot's
+	// failure branch, which reconcileDownloadPath reports as rename_failed.
+	renameFailedMovie := models.TVShow{TMDBID: 43, TVDBID: intPtr(43), TMDBTitle: "Show", TMDBYear: 2020, Season: intPtr(1), Episode: intPtr(1)}
+	db.Create(&renameFailedMovie)
+	unrecognizedPath := filepath.Join(tempDir, "tvshows", "Show (2020)", "Show (2020) - S01E01.mkv")
+	if err := os.MkdirAll(filepath.Dir(unrecognizedPath), 0755); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
+	if err := os.WriteFile(unrecognizedPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	renameFailedDl := models.DownloadInfo{URL: "http://example.com/show", Status: "completed", DownloadPath: &unrecognizedPath}
+	db.Create(&renameFailedDl)
+	db.Create(&models.ProcessedLine{
+		LineContent: "show", LineHash: "hash-show-rename-failed", TvgName: "Show",
+		ContentType: models.ContentTypeTVShows, TVShowID: &renameFailedMovie.ID, DownloadInfoID: &renameFailedDl.ID,
+		State: models.StateDownloaded,
+	})
+
+	buf := captureAppLoggerWarnings(t)
+	ReconcileScheduledDownloadPaths(db,
+		map[int]string{42: missingRoot},
+		map[int]string{43: filepath.Join(tempDir, "tvshows", "Show (2020) - Corrected")},
+	)
+
+	output := buf.String()
+	if !strings.Contains(output, "file is missing on disk") {
+		t.Errorf("expected a distinct file_missing log line, got: %s", output)
+	}
+	if !strings.Contains(output, "could not correct download_path") {
+		t.Errorf("expected the existing rename_failed log line to still be present, got: %s", output)
+	}
+
+	fileMissingLine := extractLogLine(output, "file is missing on disk")
+	renameFailedLine := extractLogLine(output, "could not correct download_path")
+	if fileMissingLine == renameFailedLine {
+		t.Fatalf("file_missing and rename_failed must produce distinct log messages")
+	}
+	if !strings.Contains(fileMissingLine, "download_id") || !strings.Contains(fileMissingLine, "outcome") {
+		t.Errorf("expected file_missing log line to carry download_id/outcome fields, got: %s", fileMissingLine)
+	}
+}
+
+// extractLogLine returns the single line of output containing substr, for
+// asserting on one structured log entry among several.
+func extractLogLine(output, substr string) string {
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(line, substr) {
+			return line
+		}
+	}
+	return ""
 }
 
 // --- 3.x resyncDownloadPath handler ---
@@ -484,6 +634,63 @@ func TestResyncDownloadPath_AlreadyUpToDate(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	if resp["status"] != string(OutcomeAlreadyUpToDate) {
 		t.Errorf("expected status %q, got %v", OutcomeAlreadyUpToDate, resp["status"])
+	}
+
+	var unchanged models.DownloadInfo
+	db.First(&unchanged, dl.ID)
+	if unchanged.DownloadPath == nil || *unchanged.DownloadPath != oldPath {
+		t.Errorf("expected download_path to remain %q, got %v", oldPath, unchanged.DownloadPath)
+	}
+}
+
+// 4.4 The root already matches Radarr's current path, but the file itself is
+// missing on disk: the endpoint returns 200 OK with {"status": "file_missing"}
+// and makes no database change, distinguishing it from "already_up_to_date".
+func TestResyncDownloadPath_FileMissing(t *testing.T) {
+	db := setupTestDB(t)
+	tempDir := t.TempDir()
+
+	root := filepath.Join(tempDir, "movies", "Dune (2021)")
+	oldPath := filepath.Join(root, "Dune (2021).mkv")
+	// Deliberately not created on disk.
+
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+	dl := models.DownloadInfo{URL: "http://example.com/dune", Status: "completed", DownloadPath: &oldPath}
+	if err := db.Create(&dl).Error; err != nil {
+		t.Fatalf("failed to create download: %v", err)
+	}
+	line := models.ProcessedLine{
+		LineContent: "dune", LineHash: fmt.Sprintf("hash-%d", dl.ID), TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &movie.ID, DownloadInfoID: &dl.ID,
+		State: models.StateDownloaded,
+	}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{{"id": 1, "tmdbId": 42, "path": root}})
+	}))
+	defer radarrServer.Close()
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+
+	server := NewServer()
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/downloads/%d/resync-path", dl.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["status"] != string(OutcomeFileMissing) {
+		t.Errorf("expected status %q, got %v", OutcomeFileMissing, resp["status"])
 	}
 
 	var unchanged models.DownloadInfo

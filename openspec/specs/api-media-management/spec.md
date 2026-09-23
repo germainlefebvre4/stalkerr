@@ -53,15 +53,19 @@ The system SHALL expose a REST endpoint `GET /api/v1/config/paths` to retrieve t
 - **THEN** the system SHALL return a `200 OK` JSON response containing the values of `downloads.movies_path` and `downloads.tvshows_path`.
 
 ### Requirement: Resync Single Download Path with Radarr/Sonarr
-The system SHALL expose a REST endpoint `POST /api/v1/downloads/:id/resync-path` that performs an on-demand correction (capability `sonarr-series-path-routing`, Requirement: On-Demand Correction of a Single Completed Download's Path) of exactly one completed download's stored `download_path`, identified by its `download_info` id. The endpoint SHALL respond with a machine-readable outcome distinguishing three cases: the path was corrected (including the old and new path), the path already matched Radarr/Sonarr's current data (no change made), and the download's movie/series is not currently found in the user's Radarr/Sonarr library (`"not_managed_by_radarr_sonarr"`, no change made). The endpoint SHALL only ever modify the targeted download's own `download_path`; no other `download_info` record shall be affected.
+The system SHALL expose a REST endpoint `POST /api/v1/downloads/:id/resync-path` that performs an on-demand correction (capability `sonarr-series-path-routing`, Requirement: On-Demand Correction of a Single Completed Download's Path) of exactly one completed download's stored `download_path`, identified by its `download_info` id. The endpoint SHALL respond with a machine-readable outcome distinguishing four cases: the path was corrected (including the old and new path), the path already matched Radarr/Sonarr's current data and the file is present (no change made), the path already matched Radarr/Sonarr's current data but the file is missing on disk (`"file_missing"`, no change made), and the download's movie/series is not currently found in the user's Radarr/Sonarr library (`"not_managed_by_radarr_sonarr"`, no change made). The endpoint SHALL only ever modify the targeted download's own `download_path`; no other `download_info` record shall be affected.
 
 #### Scenario: Path corrected
 - **WHEN** a client makes a `POST` request to `/api/v1/downloads/42/resync-path`, where download 42's stored root no longer matches its movie's/series' current Radarr/Sonarr `Path`
 - **THEN** the system SHALL move the file to the corrected path, update `download_info.id=42`'s `download_path`, and return a `200 OK` response indicating the path was corrected along with the old and new values
 
 #### Scenario: Path already up to date
-- **WHEN** a client makes a `POST` request to `/api/v1/downloads/:id/resync-path` for a download whose stored root already matches its movie's/series' current Radarr/Sonarr `Path`
+- **WHEN** a client makes a `POST` request to `/api/v1/downloads/:id/resync-path` for a download whose stored root already matches its movie's/series' current Radarr/Sonarr `Path`, and the file still exists at that path
 - **THEN** the system SHALL make no file or database changes and return a `200 OK` response indicating no correction was needed
+
+#### Scenario: Path already up to date but file missing
+- **WHEN** a client makes a `POST` request to `/api/v1/downloads/:id/resync-path` for a download whose stored root already matches its movie's/series' current Radarr/Sonarr `Path`, but no file exists at that path
+- **THEN** the system SHALL make no database changes and return a `200 OK` response with a machine-readable code of `"file_missing"`, distinguishing this case from "no correction was needed"
 
 #### Scenario: Download not managed by Radarr/Sonarr
 - **WHEN** a client makes a `POST` request to `/api/v1/downloads/:id/resync-path` for a download whose movie/series is not found in the user's current Radarr/Sonarr library
