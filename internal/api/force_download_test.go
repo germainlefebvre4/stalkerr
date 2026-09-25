@@ -506,6 +506,63 @@ func TestForceDownloadItem_RepeatedRequest_ReusesDownloadInfo(t *testing.T) {
 	if downloadInfoCount != 1 {
 		t.Errorf("expected exactly one DownloadInfo row (second request reused the first), got %d", downloadInfoCount)
 	}
+
+	var dl models.DownloadInfo
+	if err := db.First(&dl).Error; err != nil {
+		t.Fatalf("expected a DownloadInfo row to exist: %v", err)
+	}
+	if !dl.IsForced {
+		t.Error("expected the reused DownloadInfo record to carry the forced-origin indicator")
+	}
+}
+
+// TestForceDownloadItem_MarksNewRecordAsForced covers the create branch of
+// persistForceDownloadPath: a forced download that creates a brand-new
+// DownloadInfo record must carry the forced-origin indicator (spec
+// force-download-media-occurrence, "A newly created forced download is marked").
+func TestForceDownloadItem_MarksNewRecordAsForced(t *testing.T) {
+	db := setupTestDB(t)
+
+	moviePath := t.TempDir()
+	radarrServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{
+			{"id": 5, "title": "Dune", "year": 2021, "tmdbId": 42, "path": moviePath, "monitored": true},
+		})
+	}))
+	defer radarrServer.Close()
+
+	newForceDownloadTestConfig(t, radarrServer.URL, "")
+	server := NewServer()
+
+	line := models.ProcessedLine{
+		LineContent: "dune content",
+		LineHash:    "hash-movie-forced-marker",
+		LineURL:     strPtr2("http://example.com/stream"),
+		TvgName:     "Dune",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+		ProcessedAt: time.Now(),
+	}
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	db.Create(&movie)
+	line.MovieID = &movie.ID
+	db.Create(&line)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("/api/v1/items/%d/force-download", line.ID), nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected request to be accepted (202), got %d: %s", w.Code, w.Body.String())
+	}
+
+	var dl models.DownloadInfo
+	if err := db.First(&dl).Error; err != nil {
+		t.Fatalf("expected a DownloadInfo row to exist: %v", err)
+	}
+	if !dl.IsForced {
+		t.Error("expected the newly created DownloadInfo record to carry the forced-origin indicator")
+	}
 }
 
 func TestForceDownloadItem_SiblingOccurrenceUnaffected(t *testing.T) {

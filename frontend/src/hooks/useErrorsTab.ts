@@ -6,8 +6,8 @@ import { useURLState, URLStateSchema } from './useURLState';
 const VALID_LIMITS = [20, 50, 100];
 const DEFAULT_LIMIT = 20;
 
-export const COMBINED_PROBLEM_FILTER = 'missing_year,year_mismatch,unknown_format';
-const VALID_REASONS = ['', 'unknown_format', 'missing_year', 'year_mismatch'];
+export const COMBINED_PROBLEM_FILTER = 'missing_year,year_mismatch,unknown_format,duplicate_download';
+const VALID_REASONS = ['', 'unknown_format', 'missing_year', 'year_mismatch', 'duplicate_download'];
 
 const ERRORS_URL_SCHEMA = {
   errReason: {

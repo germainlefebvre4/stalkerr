@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useHomeDashboard } from './useHomeDashboard';
+import { COMBINED_PROBLEM_FILTER } from './useErrorsTab';
 import { api } from '../services/api';
 
 vi.mock('../services/api', () => ({
@@ -39,7 +40,7 @@ describe('useHomeDashboard', () => {
 
     expect(api.getLogs).toHaveBeenCalledWith(1);
     expect(api.getDownloads).toHaveBeenCalledWith(1);
-    expect(api.getDownloads).toHaveBeenCalledWith(1, undefined, undefined, 'missing_year,year_mismatch,unknown_format');
+    expect(api.getDownloads).toHaveBeenCalledWith(1, undefined, undefined, COMBINED_PROBLEM_FILTER);
   });
 
   it('exposes the latest log and the downloads/errors totals from the responses', async () => {

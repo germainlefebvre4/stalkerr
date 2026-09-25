@@ -6,7 +6,8 @@
     "all": "All",
     "unknownFormat": "Invalid extension",
     "missingYear": "Missing year",
-    "yearMismatch": "Inconsistent year"
+    "yearMismatch": "Inconsistent year",
+    "duplicateDownload": "Duplicate download"
   },
   "loading": "Loading errors...",
   "empty": "No errors detected",
@@ -23,7 +24,8 @@
   "badges": {
     "missingYear": "⚠️ Missing year",
     "yearMismatch": "⚠️ Inconsistent year",
-    "unknownFormat": "⚠️ Invalid extension"
+    "unknownFormat": "⚠️ Invalid extension",
+    "duplicateDownload": "⚠️ Duplicate download"
   },
   "year": {
     "detected": "Detected: {{year}}",
@@ -53,5 +55,13 @@
     "failed": "❌ Failed",
     "pending": "⏳ Pending",
     "retrying": "🔄 Retrying"
+  },
+  "duplicate": {
+    "siblingsTitle": "Other occurrence(s):",
+    "resolveAction": "Resolve duplicate",
+    "resolveInProgress": "Resolving...",
+    "resolveError": "Failed to resolve the duplicate. Please try again.",
+    "outcomeCancelled": "Cancelled (file missing)",
+    "outcomeUnchanged": "Unchanged (file present)"
   }
 }

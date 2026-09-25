@@ -48,6 +48,7 @@ type DownloadInfo struct {
 	StartedAt       *time.Time `json:"started_at,omitempty"`
 	CompletedAt     *time.Time `json:"completed_at,omitempty"`
 	ErrorMessage    *string    `gorm:"type:text" json:"error_message,omitempty"`
+	IsForced        bool       `gorm:"default:false;not null" json:"is_forced"` // Set when this record originated from a manually-triggered forced download, never the automatic pipeline
 	CreatedAt       time.Time  `gorm:"not null" json:"created_at"`
 	UpdatedAt       time.Time  `gorm:"not null;index:idx_download_info_updated_at" json:"updated_at"`
 

@@ -194,13 +194,17 @@ func (s *Server) persistForceDownloadPath(db *gorm.DB, item *models.ProcessedLin
 	if item.DownloadInfoID != nil {
 		return db.Model(&models.DownloadInfo{}).
 			Where("id = ?", *item.DownloadInfoID).
-			Update("download_path", baseDestPath).Error
+			Updates(map[string]interface{}{
+				"download_path": baseDestPath,
+				"is_forced":     true,
+			}).Error
 	}
 
 	downloadInfo := models.DownloadInfo{
 		URL:          *item.LineURL,
 		Status:       string(models.DownloadStatusPending),
 		DownloadPath: &baseDestPath,
+		IsForced:     true,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}

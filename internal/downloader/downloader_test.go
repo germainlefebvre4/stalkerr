@@ -106,7 +106,7 @@ func TestDownload_Success(t *testing.T) {
 
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
-		URL:             server.URL,
+		URL:          server.URL,
 		BaseDestPath: destPath,
 		OnProgress: func(downloaded, total int64) {
 			progressCalls++
@@ -174,7 +174,7 @@ func TestDownload_WithDatabaseTracking(t *testing.T) {
 	// Perform download with database tracking
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		BaseDestPath: destPath,
+		BaseDestPath:    destPath,
 		ProcessedLineID: processedLine.ID,
 	})
 
@@ -201,14 +201,14 @@ func TestDownload_ValidationErrors(t *testing.T) {
 		{
 			name: "empty URL",
 			opts: DownloadOptions{
-				URL:             "",
+				URL:          "",
 				BaseDestPath: "/tmp/file.txt",
 			},
 		},
 		{
 			name: "empty destination",
 			opts: DownloadOptions{
-				URL:             "http://example.com/file",
+				URL:          "http://example.com/file",
 				BaseDestPath: "",
 			},
 		},
@@ -250,7 +250,7 @@ func TestDownload_HTTPErrors(t *testing.T) {
 
 			// Perform download
 			result, err := d.Download(context.Background(), DownloadOptions{
-				URL:             server.URL,
+				URL:          server.URL,
 				BaseDestPath: destPath,
 			})
 
@@ -383,7 +383,7 @@ func TestDownload_Retry(t *testing.T) {
 
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
-		URL:             server.URL,
+		URL:          server.URL,
 		BaseDestPath: destPath,
 	})
 
@@ -423,7 +423,7 @@ func TestDownload_ContextCancellation(t *testing.T) {
 
 	// Perform download - should be cancelled
 	result, err := d.Download(ctx, DownloadOptions{
-		URL:             server.URL,
+		URL:          server.URL,
 		BaseDestPath: destPath,
 	})
 
@@ -465,7 +465,7 @@ func TestDownload_DatabaseStateOnFailure(t *testing.T) {
 	// Perform download with database tracking
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		BaseDestPath: destPath,
+		BaseDestPath:    destPath,
 		ProcessedLineID: processedLine.ID,
 	})
 
@@ -533,7 +533,7 @@ func TestDownload_CreatesDestinationDirectory(t *testing.T) {
 
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
-		URL:             server.URL,
+		URL:          server.URL,
 		BaseDestPath: destPath,
 	})
 
@@ -1204,4 +1204,28 @@ func TestDownload_UndersizedThenValidCompletesNormally(t *testing.T) {
 	assert.Equal(t, string(models.DownloadStatusCompleted), dlInfo.Status)
 	require.NotNil(t, dlInfo.FileSize)
 	assert.Equal(t, int64(len(fullBody)), *dlInfo.FileSize)
+}
+
+// TestGetOrCreateDownloadInfo_AutomaticPipelineNotMarkedForced covers the
+// automatic-pipeline creation path (spec force-download-media-occurrence, "An
+// automatic-pipeline download is not marked"): a DownloadInfo record created
+// by getOrCreateDownloadInfo (used by the tier-1/tier-2/resume automatic
+// download flow, not the forced-download endpoint) must have IsForced == false.
+func TestGetOrCreateDownloadInfo_AutomaticPipelineNotMarkedForced(t *testing.T) {
+	db := setupTestDB(t)
+
+	processedLine := &models.ProcessedLine{
+		LineContent: "#EXTINF:-1,Automatic",
+		LineHash:    "automatic001",
+		TvgName:     "Automatic",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	require.NoError(t, db.Create(processedLine).Error)
+
+	d := New(10*time.Second, 3, 0)
+	dlInfo, err := d.getOrCreateDownloadInfo(context.Background(), processedLine.ID, "http://example.com/stream")
+	require.NoError(t, err)
+	assert.False(t, dlInfo.IsForced, "an automatically-created DownloadInfo must not carry the forced-origin indicator")
 }

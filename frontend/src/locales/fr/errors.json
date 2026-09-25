@@ -6,7 +6,8 @@
     "all": "Tous",
     "unknownFormat": "Extension invalide",
     "missingYear": "Année manquante",
-    "yearMismatch": "Année incohérente"
+    "yearMismatch": "Année incohérente",
+    "duplicateDownload": "Téléchargement en double"
   },
   "loading": "Chargement des erreurs...",
   "empty": "Aucune erreur détectée",
@@ -23,7 +24,8 @@
   "badges": {
     "missingYear": "⚠️ Année manquante",
     "yearMismatch": "⚠️ Année incohérente",
-    "unknownFormat": "⚠️ Extension invalide"
+    "unknownFormat": "⚠️ Extension invalide",
+    "duplicateDownload": "⚠️ Téléchargement en double"
   },
   "year": {
     "detected": "Détectée : {{year}}",
@@ -53,5 +55,13 @@
     "failed": "❌ Échec",
     "pending": "⏳ En attente",
     "retrying": "🔄 Réessai"
+  },
+  "duplicate": {
+    "siblingsTitle": "Autre(s) occurrence(s) :",
+    "resolveAction": "Résoudre le doublon",
+    "resolveInProgress": "Résolution...",
+    "resolveError": "Échec de la résolution du doublon. Veuillez réessayer.",
+    "outcomeCancelled": "Annulé (fichier manquant)",
+    "outcomeUnchanged": "Inchangé (fichier présent)"
   }
 }

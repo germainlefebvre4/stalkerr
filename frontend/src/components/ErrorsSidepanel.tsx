@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { DownloadEnriched } from '../types';
+import { DownloadEnriched, ResolveDuplicateOccurrence } from '../types';
 import { formatDate } from '../utils/date';
 import { getErrorReasons } from '../utils/errorReasons';
+import { api } from '../services/api';
 
 interface ErrorsSidepanelProps {
   item: DownloadEnriched | null;
@@ -27,11 +29,38 @@ function getStatusLabel(item: DownloadEnriched, t: (key: string, options?: Recor
 export function ErrorsSidepanel({ item, onOpenChange }: ErrorsSidepanelProps) {
   const { t, i18n } = useTranslation('errors');
 
+  const [resolving, setResolving] = useState(false);
+  const [resolveOutcome, setResolveOutcome] = useState<ResolveDuplicateOccurrence[] | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
+  // Reset the resolve-action state when a different item is opened, following
+  // React's "adjusting state when a prop changes" pattern (setState during
+  // render, not in an effect) rather than an effect that would run after the
+  // stale outcome has already painted once.
+  const [lastItemId, setLastItemId] = useState(item?.id);
+  if (item?.id !== lastItemId) {
+    setLastItemId(item?.id);
+    setResolveOutcome(null);
+    setResolveError(null);
+    setResolving(false);
+  }
+
   const reasons = item ? getErrorReasons(item, t) : [];
   const hasYearReason = reasons.some(r => r.key === 'missing_year' || r.key === 'year_mismatch');
+  const isDuplicate = reasons.some(r => r.key === 'duplicate_download');
   const title = item ? (item.content?.title || item.file_info?.file_name || item.file_info?.folder_name || item.url) : '';
   const year = item?.content?.year ? `(${item.content.year})` : '';
   const typeIcon = item?.content?.type === 'movies' ? '🎬' : item?.content?.type === 'tvshows' ? '📺' : '🔗';
+
+  const handleResolveDuplicate = () => {
+    if (!item) return;
+    setResolving(true);
+    setResolveError(null);
+    api.resolveDuplicateDownload(item.id)
+      .then(res => setResolveOutcome(res.occurrences))
+      .catch(() => setResolveError(t('duplicate.resolveError')))
+      .finally(() => setResolving(false));
+  };
 
   return (
     <Dialog.Root open={!!item} onOpenChange={onOpenChange}>
@@ -78,6 +107,54 @@ export function ErrorsSidepanel({ item, onOpenChange }: ErrorsSidepanelProps) {
                 {reasons.some(r => r.key === 'unknown_format') && (
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                     {item.file_info?.extension || t('unknownExtension')}
+                  </div>
+                )}
+                {isDuplicate && item.duplicate_siblings && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                      {t('duplicate.siblingsTitle')}
+                    </div>
+                    {item.duplicate_siblings.map(sibling => (
+                      <div
+                        key={sibling.download_info_id}
+                        className="file-info"
+                        style={{ backgroundColor: 'var(--bg-app)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)', fontFamily: "'Courier New', monospace", fontSize: '0.8rem', lineHeight: '1.4', border: '1px solid var(--border-color)' }}
+                      >
+                        <div style={{ wordBreak: 'break-all' }}>{sibling.download_path}</div>
+                        {sibling.completed_at && (
+                          <div style={{ color: 'var(--text-muted)' }}>{t('completedAt', { date: formatDate(sibling.completed_at, i18n.language) })}</div>
+                        )}
+                      </div>
+                    ))}
+
+                    <div>
+                      <button
+                        onClick={handleResolveDuplicate}
+                        disabled={resolving}
+                        className="btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                      >
+                        {resolving ? t('duplicate.resolveInProgress') : t('duplicate.resolveAction')}
+                      </button>
+                    </div>
+
+                    {resolveError && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--error-color, #dc2626)', fontWeight: 500 }}>{resolveError}</div>
+                    )}
+
+                    {resolveOutcome && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {resolveOutcome.map(occ => (
+                          <div key={occ.download_info_id} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            <span style={{ wordBreak: 'break-all' }}>{occ.download_path}</span>
+                            {': '}
+                            <span style={{ fontWeight: 700 }}>
+                              {occ.outcome === 'cancelled' ? t('duplicate.outcomeCancelled') : t('duplicate.outcomeUnchanged')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

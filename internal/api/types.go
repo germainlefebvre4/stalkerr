@@ -7,22 +7,32 @@ import (
 )
 
 type DownloadEnrichedResponse struct {
-	ID               uint                 `json:"id"`
-	URL              string               `json:"url"`
-	Status           string               `json:"status"`
-	DownloadPath     *string              `json:"download_path,omitempty"`
-	TargetPath       *string              `json:"target_path,omitempty"`
-	StagingPath      *string              `json:"staging_path,omitempty"`
-	FileSize         *int64               `json:"file_size,omitempty"`
-	BytesDownloaded  *int64               `json:"bytes_downloaded,omitempty"`
-	TotalBytes       *int64               `json:"total_bytes,omitempty"`
-	RetryCount       int                  `json:"retry_count"`
-	ErrorMessage     *string              `json:"error_message,omitempty"`
-	UpdatedAt        time.Time            `json:"updated_at"`
-	CompletedAt      *time.Time           `json:"completed_at,omitempty"`
-	Content          *ContentInfo         `json:"content,omitempty"`
-	FileInfo         *fileparser.FileInfo `json:"file_info,omitempty"`
-	RenameFolderName *string              `json:"rename_folder_name,omitempty"`
+	ID                uint                   `json:"id"`
+	URL               string                 `json:"url"`
+	Status            string                 `json:"status"`
+	DownloadPath      *string                `json:"download_path,omitempty"`
+	TargetPath        *string                `json:"target_path,omitempty"`
+	StagingPath       *string                `json:"staging_path,omitempty"`
+	FileSize          *int64                 `json:"file_size,omitempty"`
+	BytesDownloaded   *int64                 `json:"bytes_downloaded,omitempty"`
+	TotalBytes        *int64                 `json:"total_bytes,omitempty"`
+	RetryCount        int                    `json:"retry_count"`
+	ErrorMessage      *string                `json:"error_message,omitempty"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+	CompletedAt       *time.Time             `json:"completed_at,omitempty"`
+	Content           *ContentInfo           `json:"content,omitempty"`
+	FileInfo          *fileparser.FileInfo   `json:"file_info,omitempty"`
+	RenameFolderName  *string                `json:"rename_folder_name,omitempty"`
+	DuplicateSiblings []DuplicateSiblingInfo `json:"duplicate_siblings,omitempty"`
+}
+
+// DuplicateSiblingInfo identifies one other occurrence in the same duplicate
+// group as the download it's attached to (capability
+// duplicate-download-detection).
+type DuplicateSiblingInfo struct {
+	DownloadInfoID uint       `json:"download_info_id"`
+	DownloadPath   string     `json:"download_path"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
 }
 
 type ContentInfo struct {

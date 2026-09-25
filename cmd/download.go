@@ -278,7 +278,48 @@ func reconcileDownloadPaths(ctx context.Context, db *gorm.DB, radarrClient *rada
 		api.ReconcileScheduledDownloadPaths(db, movieTMDBPaths, seriesTVDBPaths)
 	}
 
+	logDuplicateDownloadGroups(db)
+
 	return movieMonitored, seriesMonitored, movieLiveInfo, seriesLiveInfo
+}
+
+// logDuplicateDownloadGroups evaluates the Duplicate Group Definition
+// (capability duplicate-download-detection) once per scheduled reconciliation
+// run and logs each detected group as a distinguishable WARN, mirroring the
+// existing file_missing outcome's log shape. This is report-only: it never
+// modifies any download_info or processed_lines record, and never invokes the
+// manual resolve action (that only ever runs from its own HTTP endpoint).
+func logDuplicateDownloadGroups(db *gorm.DB) {
+	groups, err := database.FindDuplicateDownloadGroups(db)
+	if err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{
+			"error": err,
+		}).Warn("duplicate detection: failed to evaluate duplicate download groups, skipping this run")
+		return
+	}
+
+	for _, group := range groups {
+		siblings := make([]map[string]interface{}, 0, len(group.Occurrences))
+		for _, occ := range group.Occurrences {
+			siblings = append(siblings, map[string]interface{}{
+				"download_info_id": occ.DownloadInfoID,
+				"download_path":    occ.DownloadPath,
+			})
+		}
+
+		fields := map[string]interface{}{
+			"content_type": group.ContentType,
+			"siblings":     siblings,
+		}
+		if group.MovieID != nil {
+			fields["movie_id"] = *group.MovieID
+		}
+		if group.TVShowID != nil {
+			fields["tv_show_id"] = *group.TVShowID
+		}
+
+		logger.AppLogger().WithFields(fields).Warn("duplicate detection: unexpected automated duplicate download group")
+	}
 }
 
 // newPolicyEngine builds the adaptive-download-throttling PolicyEngine for

@@ -878,7 +878,7 @@ func TestEnrichDownloadInfo_FileInfo_PrefersTargetPathOverExtensionlessDownloadP
 		TargetPath:   &targetPath,
 	}
 
-	resp := enrichDownloadInfo(dl)
+	resp := enrichDownloadInfo(dl, nil)
 
 	if resp.FileInfo == nil {
 		t.Fatal("expected FileInfo to be set")
@@ -904,7 +904,7 @@ func TestEnrichDownloadInfo_FileInfo_UsesDownloadPathWhenCompleted(t *testing.T)
 		TargetPath:   &staleTargetPath,
 	}
 
-	resp := enrichDownloadInfo(dl)
+	resp := enrichDownloadInfo(dl, nil)
 
 	if resp.FileInfo == nil {
 		t.Fatal("expected FileInfo to be set")
@@ -922,7 +922,7 @@ func TestEnrichDownloadInfo_RenameFolderName_Movie(t *testing.T) {
 		DownloadPath: &path,
 	}
 
-	resp := enrichDownloadInfo(dl)
+	resp := enrichDownloadInfo(dl, nil)
 
 	if resp.FileInfo == nil {
 		t.Fatal("expected FileInfo to be non-nil")
@@ -946,7 +946,7 @@ func TestEnrichDownloadInfo_RenameFolderName_TVEpisode(t *testing.T) {
 		DownloadPath: &path,
 	}
 
-	resp := enrichDownloadInfo(dl)
+	resp := enrichDownloadInfo(dl, nil)
 
 	if resp.FileInfo == nil {
 		t.Fatal("expected FileInfo to be non-nil")
@@ -968,7 +968,7 @@ func TestEnrichDownloadInfo_RenameFolderName_NullDownloadPath(t *testing.T) {
 		Status: "pending",
 	}
 
-	resp := enrichDownloadInfo(dl)
+	resp := enrichDownloadInfo(dl, nil)
 
 	if resp.FileInfo != nil {
 		t.Error("expected FileInfo to be nil")

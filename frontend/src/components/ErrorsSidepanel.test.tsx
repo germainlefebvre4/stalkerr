@@ -1,11 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '../i18n';
 import { ErrorsSidepanel } from './ErrorsSidepanel';
 import { DownloadEnriched } from '../types';
+import { api } from '../services/api';
 
-afterEach(cleanup);
+vi.mock('../services/api', () => ({
+  api: {
+    resolveDuplicateDownload: vi.fn(),
+  },
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function renderSidepanel(item: DownloadEnriched | null) {
   return render(
@@ -73,5 +83,56 @@ describe('ErrorsSidepanel', () => {
 
     expect(screen.getByText(/Detected: 2019/)).toBeInTheDocument();
     expect(screen.getByText(/Expected: 2020/)).toBeInTheDocument();
+  });
+});
+
+const duplicateDownload: DownloadEnriched = {
+  ...baseDownload,
+  file_info: {
+    extension: '.mkv',
+    folder_name: 'Duplicate Movie Folder',
+    file_name: 'duplicate.mkv',
+    has_year_in_path: true,
+    year_mismatch: false,
+    is_valid_format: true,
+  },
+  duplicate_siblings: [
+    { download_info_id: 2, download_path: '/media/movies/Duplicate Movie (1)/file.mkv', completed_at: '2026-08-20T10:00:00Z' },
+  ],
+};
+
+describe('ErrorsSidepanel duplicate resolve action', () => {
+  it('shows the sibling occurrence(s) in the diagnostic section for a duplicate_download item', () => {
+    renderSidepanel(duplicateDownload);
+
+    expect(screen.getByText(/\/media\/movies\/Duplicate Movie \(1\)\/file\.mkv/)).toBeInTheDocument();
+  });
+
+  it('renders the resolve action only for a duplicate_download item, not for the other three reasons', () => {
+    renderSidepanel(duplicateDownload);
+    expect(screen.getByText('Resolve duplicate')).toBeInTheDocument();
+    cleanup();
+
+    renderSidepanel(baseDownload); // missing_year + unknown_format only
+    expect(screen.queryByText('Resolve duplicate')).not.toBeInTheDocument();
+  });
+
+  it('shows the per-occurrence outcome after the resolve action completes', async () => {
+    vi.mocked(api.resolveDuplicateDownload).mockResolvedValue({
+      occurrences: [
+        { download_info_id: 1, download_path: '/media/movies/Duplicate Movie/file.mkv', outcome: 'cancelled' },
+        { download_info_id: 2, download_path: '/media/movies/Duplicate Movie (1)/file.mkv', outcome: 'unchanged' },
+      ],
+    });
+
+    renderSidepanel(duplicateDownload);
+
+    fireEvent.click(screen.getByText('Resolve duplicate'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Cancelled (file missing)')).toBeInTheDocument();
+      expect(screen.getByText('Unchanged (file present)')).toBeInTheDocument();
+    });
+    expect(api.resolveDuplicateDownload).toHaveBeenCalledWith(duplicateDownload.id);
   });
 });

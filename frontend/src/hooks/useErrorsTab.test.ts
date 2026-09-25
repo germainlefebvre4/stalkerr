@@ -26,7 +26,7 @@ describe('useErrorsTab', () => {
 
     await act(async () => {});
 
-    expect(api.getDownloads).toHaveBeenCalledWith(20, '', '', 'missing_year,year_mismatch,unknown_format', 0);
+    expect(api.getDownloads).toHaveBeenCalledWith(20, '', '', 'missing_year,year_mismatch,unknown_format,duplicate_download', 0);
   });
 
   it('re-fetches with the single problem value and resets to page 1 when a reason is selected on a later page', async () => {
@@ -74,6 +74,24 @@ describe('useErrorsTab', () => {
     rerender();
     await act(async () => {});
 
-    expect(api.getDownloads).toHaveBeenCalledWith(20, '', '', 'missing_year,year_mismatch,unknown_format', 0);
+    expect(api.getDownloads).toHaveBeenCalledWith(20, '', '', 'missing_year,year_mismatch,unknown_format,duplicate_download', 0);
+  });
+
+  it('re-fetches with the duplicate_download problem value when that reason is selected', async () => {
+    vi.mocked(api.getDownloads).mockResolvedValue(emptyPage());
+
+    const { result, rerender } = renderHook(() => useErrorsTab(true));
+    await act(async () => {});
+
+    vi.mocked(api.getDownloads).mockClear();
+
+    act(() => {
+      result.current.setReasonFilter('duplicate_download');
+    });
+    rerender();
+    await act(async () => {});
+
+    expect(result.current.errorsPage).toBe(1);
+    expect(api.getDownloads).toHaveBeenCalledWith(20, '', '', 'duplicate_download', 0);
   });
 });

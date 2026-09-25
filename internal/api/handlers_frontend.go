@@ -111,6 +111,12 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 			Distinct()
 	}
 
+	duplicateSiblings, err := buildDuplicateSiblingsByDownloadID(db)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "database_error", "failed to evaluate duplicate download groups")
+		return
+	}
+
 	var total int64
 	var enriched []DownloadEnrichedResponse
 
@@ -130,7 +136,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 
 		filtered := make([]DownloadEnrichedResponse, 0, len(downloads))
 		for _, dl := range downloads {
-			resp := enrichDownloadInfo(dl)
+			resp := enrichDownloadInfo(dl, duplicateSiblings)
 			if matchesProblem(resp, problem) {
 				filtered = append(filtered, resp)
 			}
@@ -164,7 +170,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 
 		enriched = make([]DownloadEnrichedResponse, 0, len(downloads))
 		for _, dl := range downloads {
-			enriched = append(enriched, enrichDownloadInfo(dl))
+			enriched = append(enriched, enrichDownloadInfo(dl, duplicateSiblings))
 		}
 	}
 
@@ -179,21 +185,51 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 	})
 }
 
-func enrichDownloadInfo(dl models.DownloadInfo) DownloadEnrichedResponse {
+// buildDuplicateSiblingsByDownloadID evaluates the Duplicate Group Definition
+// once (capability duplicate-download-detection) and returns, for every
+// download_info id that is part of a duplicate group, the detail of its
+// sibling occurrence(s) in that same group (every other occurrence, not
+// itself).
+func buildDuplicateSiblingsByDownloadID(db *gorm.DB) (map[uint][]DuplicateSiblingInfo, error) {
+	groups, err := database.FindDuplicateDownloadGroups(db)
+	if err != nil {
+		return nil, err
+	}
+
+	siblings := make(map[uint][]DuplicateSiblingInfo)
+	for _, group := range groups {
+		for _, occ := range group.Occurrences {
+			for _, other := range group.Occurrences {
+				if other.DownloadInfoID == occ.DownloadInfoID {
+					continue
+				}
+				siblings[occ.DownloadInfoID] = append(siblings[occ.DownloadInfoID], DuplicateSiblingInfo{
+					DownloadInfoID: other.DownloadInfoID,
+					DownloadPath:   other.DownloadPath,
+					CompletedAt:    other.CompletedAt,
+				})
+			}
+		}
+	}
+	return siblings, nil
+}
+
+func enrichDownloadInfo(dl models.DownloadInfo, duplicateSiblings map[uint][]DuplicateSiblingInfo) DownloadEnrichedResponse {
 	resp := DownloadEnrichedResponse{
-		ID:              dl.ID,
-		URL:             dl.URL,
-		Status:          dl.Status,
-		DownloadPath:    dl.DownloadPath,
-		TargetPath:      dl.TargetPath,
-		StagingPath:     dl.StagingPath,
-		FileSize:        dl.FileSize,
-		BytesDownloaded: dl.BytesDownloaded,
-		TotalBytes:      dl.TotalBytes,
-		RetryCount:      dl.RetryCount,
-		ErrorMessage:    dl.ErrorMessage,
-		UpdatedAt:       dl.UpdatedAt,
-		CompletedAt:     dl.CompletedAt,
+		ID:                dl.ID,
+		URL:               dl.URL,
+		Status:            dl.Status,
+		DownloadPath:      dl.DownloadPath,
+		TargetPath:        dl.TargetPath,
+		StagingPath:       dl.StagingPath,
+		FileSize:          dl.FileSize,
+		BytesDownloaded:   dl.BytesDownloaded,
+		TotalBytes:        dl.TotalBytes,
+		RetryCount:        dl.RetryCount,
+		ErrorMessage:      dl.ErrorMessage,
+		UpdatedAt:         dl.UpdatedAt,
+		CompletedAt:       dl.CompletedAt,
+		DuplicateSiblings: duplicateSiblings[dl.ID],
 	}
 
 	var contentYear *int
@@ -277,6 +313,9 @@ func matchesProblem(resp DownloadEnrichedResponse, filter string) bool {
 }
 
 func matchesSingleProblem(resp DownloadEnrichedResponse, filter string) bool {
+	if filter == "duplicate_download" {
+		return len(resp.DuplicateSiblings) > 0
+	}
 	if resp.FileInfo == nil {
 		return false
 	}

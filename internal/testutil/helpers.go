@@ -28,6 +28,7 @@ func TestDB(t *testing.T) *gorm.DB {
 		&models.TVShow{},
 		&models.ProcessedLine{},
 		&models.ProcessingLog{},
+		&models.DownloadInfo{},
 	); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
@@ -42,6 +43,52 @@ func CleanupDB(t *testing.T, db *gorm.DB) {
 	db.Exec("DELETE FROM processed_lines")
 	db.Exec("DELETE FROM movies")
 	db.Exec("DELETE FROM tvshows")
+	db.Exec("DELETE FROM download_info")
+}
+
+// CreateDownloadInfo creates a test download_info record
+func CreateDownloadInfo(db *gorm.DB, overrides ...func(*models.DownloadInfo)) *models.DownloadInfo {
+	dl := &models.DownloadInfo{
+		URL:       "http://example.com/stream",
+		Status:    string(models.DownloadStatusCompleted),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	for _, override := range overrides {
+		override(dl)
+	}
+
+	db.Create(dl)
+	return dl
+}
+
+// WithDownloadPath sets the download path for a download_info record
+func WithDownloadPath(path string) func(*models.DownloadInfo) {
+	return func(dl *models.DownloadInfo) {
+		dl.DownloadPath = &path
+	}
+}
+
+// WithDownloadStatus sets the status for a download_info record
+func WithDownloadStatus(status models.DownloadStatus) func(*models.DownloadInfo) {
+	return func(dl *models.DownloadInfo) {
+		dl.Status = string(status)
+	}
+}
+
+// WithForced sets the is_forced flag for a download_info record
+func WithForced(forced bool) func(*models.DownloadInfo) {
+	return func(dl *models.DownloadInfo) {
+		dl.IsForced = forced
+	}
+}
+
+// WithDownloadInfoID links a processed line to a download_info record
+func WithDownloadInfoID(id uint) func(*models.ProcessedLine) {
+	return func(line *models.ProcessedLine) {
+		line.DownloadInfoID = &id
+	}
 }
 
 // CreateProcessedLine creates a test processed line

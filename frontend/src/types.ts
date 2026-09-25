@@ -131,6 +131,26 @@ export interface DownloadEnriched {
   };
 
   rename_folder_name?: string;
+
+  duplicate_siblings?: DuplicateSiblingInfo[];
+}
+
+export interface DuplicateSiblingInfo {
+  download_info_id: number;
+  download_path: string;
+  completed_at?: string;
+}
+
+export type DuplicateOccurrenceOutcome = 'cancelled' | 'unchanged';
+
+export interface ResolveDuplicateOccurrence {
+  download_info_id: number;
+  download_path: string;
+  outcome: DuplicateOccurrenceOutcome;
+}
+
+export interface ResolveDuplicateResponse {
+  occurrences: ResolveDuplicateOccurrence[];
 }
 
 export interface RenameDownloadResponse {

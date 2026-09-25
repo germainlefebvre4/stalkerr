@@ -25,7 +25,7 @@ Enhanced backend API endpoint that returns download information enriched with TM
 - **THEN** the response SHALL include only downloads whose content type is `movies`
 
 ### Requirement: Detected-Problem Filter Values
-The `problem` query parameter on `GET /api/v1/downloads` SHALL support the values `missing_year` (`file_info.has_year_in_path` is false), `year_mismatch` (`file_info.year_mismatch` is true), `unknown_format` (`file_info.is_valid_format` is false), and `low_quality` (detected resolution is `480p` or `360p`), each restricting the result set to downloads matching that condition.
+The `problem` query parameter on `GET /api/v1/downloads` SHALL support the values `missing_year` (`file_info.has_year_in_path` is false), `year_mismatch` (`file_info.year_mismatch` is true), `unknown_format` (`file_info.is_valid_format` is false), `low_quality` (detected resolution is `480p` or `360p`), and `duplicate_download` (the download's movie/episode meets the Duplicate Group Definition, capability `duplicate-download-detection`), each restricting the result set to downloads matching that condition.
 
 #### Scenario: Filtering by missing_year
 - **WHEN** a client requests `GET /api/v1/downloads?problem=missing_year`
@@ -34,6 +34,10 @@ The `problem` query parameter on `GET /api/v1/downloads` SHALL support the value
 #### Scenario: Filtering by low_quality
 - **WHEN** a client requests `GET /api/v1/downloads?problem=low_quality`
 - **THEN** the response SHALL include only downloads whose detected resolution is `480p` or `360p`
+
+#### Scenario: Filtering by duplicate_download
+- **WHEN** a client requests `GET /api/v1/downloads?problem=duplicate_download`
+- **THEN** the response SHALL include only downloads that are part of a duplicate group per the Duplicate Group Definition
 
 ### Requirement: Content Metadata Field Mapping
 When building `content` from a Movie association, the system SHALL set `type` to `movies` and populate title, year, genres, duration, and resolution from the movie and processed line. When building `content` from a TVShow association, the system SHALL set `type` to `tvshows`, format the title as `{title} S{season:02d}E{episode:02d}` when season/episode are present, and populate year, genres, season, and episode.
@@ -130,6 +134,17 @@ The `GET /api/v1/downloads` enrichment endpoint SHALL include, for every downloa
 #### Scenario: Pending download omits target and staging paths
 - **WHEN** a download's `status` is `pending` (not yet attempted, `DownloadInfo.TargetPath` and `DownloadInfo.StagingPath` still null)
 - **THEN** the enriched response SHALL omit `target_path` and `staging_path`
+
+### Requirement: Duplicate Group Detail Field
+`GET /api/v1/downloads` SHALL include, for every download that is part of a duplicate group, a field identifying its sibling occurrence(s) in that group (at minimum each sibling's `download_info` id, `download_path`, and `completed_at`). This field SHALL be omitted for a download that is not part of a duplicate group.
+
+#### Scenario: Duplicate response includes sibling detail
+- **WHEN** a listed download is part of a duplicate group with one sibling occurrence
+- **THEN** its response entry SHALL include that sibling's `download_info` id, `download_path`, and `completed_at`
+
+#### Scenario: Non-duplicate response omits the field
+- **WHEN** a listed download is not part of any duplicate group
+- **THEN** its response entry SHALL omit the duplicate-group detail field
 
 ## API Contract
 

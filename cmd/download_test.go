@@ -712,3 +712,52 @@ func TestReconcileDownloadPaths_ToleratesRadarrFetchFailure(t *testing.T) {
 	require.NotNil(t, unchanged.DownloadPath)
 	require.Equal(t, oldPath, *unchanged.DownloadPath)
 }
+
+// TestReconcileDownloadPaths_LogsDuplicateDownloadGroup covers the
+// duplicate-download-detection spec's "A duplicate is logged during the
+// scheduled run" scenario: reconcileDownloadPaths must log a distinguishable
+// WARN for a detected duplicate group and must not mutate any download_info
+// or processed_lines record as a result.
+func TestReconcileDownloadPaths_LogsDuplicateDownloadGroup(t *testing.T) {
+	db := setupDownloadTestDB(t)
+	buf := captureAppLoggerWarnings(t)
+
+	movie := models.Movie{TMDBID: 42, TMDBTitle: "Dune", TMDBYear: 2021}
+	require.NoError(t, db.Create(&movie).Error)
+
+	pathA := "/media/movies/Dune (2021)/Dune (2021).mkv"
+	pathB := "/media/movies/Dune (2021) (1)/Dune (2021).mkv"
+	dl1 := models.DownloadInfo{URL: "http://example.com/dune-a", Status: "completed", DownloadPath: &pathA}
+	require.NoError(t, db.Create(&dl1).Error)
+	dl2 := models.DownloadInfo{URL: "http://example.com/dune-b", Status: "completed", DownloadPath: &pathB}
+	require.NoError(t, db.Create(&dl2).Error)
+
+	line1 := models.ProcessedLine{
+		LineContent: "dune a", LineHash: "hash-dune-a", TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &movie.ID, DownloadInfoID: &dl1.ID,
+		State: models.StateDownloaded, ProcessedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&line1).Error)
+	line2 := models.ProcessedLine{
+		LineContent: "dune b", LineHash: "hash-dune-b", TvgName: "Dune",
+		ContentType: models.ContentTypeMovies, MovieID: &movie.ID, DownloadInfoID: &dl2.ID,
+		State: models.StateDownloaded, ProcessedAt: time.Now(),
+	}
+	require.NoError(t, db.Create(&line2).Error)
+
+	reconcileDownloadPaths(context.Background(), db, nil, nil, false)
+
+	require.Contains(t, buf.String(), "duplicate detection")
+	require.Contains(t, buf.String(), fmt.Sprintf("movie_id=%d", movie.ID))
+
+	var lines []models.ProcessedLine
+	require.NoError(t, db.Find(&lines).Error)
+	for _, l := range lines {
+		require.Equal(t, models.StateDownloaded, l.State, "duplicate detection must not mutate processed_lines state")
+	}
+	var infos []models.DownloadInfo
+	require.NoError(t, db.Find(&infos).Error)
+	for _, i := range infos {
+		require.Equal(t, "completed", i.Status, "duplicate detection must not mutate download_info status")
+	}
+}

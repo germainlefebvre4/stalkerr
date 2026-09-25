@@ -2,12 +2,15 @@ import { TFunction } from 'i18next';
 import { DownloadEnriched } from '../types';
 
 export interface ErrorReasonBadge {
-  key: 'missing_year' | 'year_mismatch' | 'unknown_format';
+  key: 'missing_year' | 'year_mismatch' | 'unknown_format' | 'duplicate_download';
   label: string;
 }
 
 export function getErrorReasons(item: DownloadEnriched, t: TFunction): ErrorReasonBadge[] {
   const badges: ErrorReasonBadge[] = [];
+  if (item.duplicate_siblings && item.duplicate_siblings.length > 0) {
+    badges.push({ key: 'duplicate_download', label: t('badges.duplicateDownload') });
+  }
   if (!item.file_info) return badges;
   if (!item.file_info.has_year_in_path) {
     badges.push({ key: 'missing_year', label: t('badges.missingYear') });

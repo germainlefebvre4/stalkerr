@@ -31,7 +31,8 @@ import {
   M3uSourceInput,
   ScheduleWindow,
   ScheduleWindowInput,
-  EffectivePolicy
+  EffectivePolicy,
+  ResolveDuplicateResponse
 } from '../types';
 
 export class ApiError extends Error {
@@ -277,6 +278,12 @@ export const api = {
 
   async cancelDownload(id: number): Promise<CancelDownloadResponse> {
     const res = await fetch(`/api/v1/downloads/${id}/cancel`, { method: 'POST' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async resolveDuplicateDownload(id: number): Promise<ResolveDuplicateResponse> {
+    const res = await fetch(`/api/v1/downloads/${id}/resolve-duplicate`, { method: 'POST' });
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

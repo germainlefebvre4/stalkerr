@@ -75,6 +75,15 @@ describe('ErrorsTab reason filter', () => {
 
     expect(setReasonFilter).toHaveBeenCalledWith('');
   });
+
+  it('calls setReasonFilter with duplicate_download when "Duplicate download" is selected', () => {
+    const setReasonFilter = vi.fn();
+    renderErrorsTab([], { setReasonFilter });
+
+    fireEvent.change(screen.getByDisplayValue('All'), { target: { value: 'duplicate_download' } });
+
+    expect(setReasonFilter).toHaveBeenCalledWith('duplicate_download');
+  });
 });
 
 describe('ErrorsTab pagination', () => {

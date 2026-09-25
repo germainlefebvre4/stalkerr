@@ -59,6 +59,7 @@ export function ErrorsTab({
           <option value="unknown_format">{t('reasonFilter.unknownFormat')}</option>
           <option value="missing_year">{t('reasonFilter.missingYear')}</option>
           <option value="year_mismatch">{t('reasonFilter.yearMismatch')}</option>
+          <option value="duplicate_download">{t('reasonFilter.duplicateDownload')}</option>
         </select>
       </div>
 

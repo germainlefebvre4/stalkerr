@@ -82,4 +82,15 @@ describe('ErrorsTable', () => {
 
     expect(onRowClick).toHaveBeenCalledWith(item);
   });
+
+  it('renders the duplicate download badge for an item with duplicate_siblings', () => {
+    const download: DownloadEnriched = {
+      ...baseDownload,
+      content: { type: 'movies', title: 'Duplicated Movie' },
+      duplicate_siblings: [{ download_info_id: 2, download_path: '/media/movies/Duplicated Movie (2)/file.mkv' }],
+    };
+    renderTable([download]);
+
+    expect(screen.getByText(/Duplicate download/)).toBeInTheDocument();
+  });
 });
