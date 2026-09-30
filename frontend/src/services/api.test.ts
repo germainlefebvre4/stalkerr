@@ -167,3 +167,33 @@ describe('api.dryRunFilter', () => {
     expect(result).toEqual({ no_archive: false, results: [{ group_title: 'Movies', tvg_name: 'A', matched: true }], truncated: false });
   });
 });
+
+describe('duplicate keep-one API', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('getDuplicateCandidates GETs the candidates endpoint and returns the typed body', async () => {
+    const body = { candidates: [{ download_path: '/m/a.mkv', exists: true, size_bytes: 10, download_info_ids: [1], suggested: true }] };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => body });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await api.getDuplicateCandidates(5);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/downloads/5/duplicate-candidates');
+    expect(res.candidates[0].suggested).toBe(true);
+  });
+
+  it('keepDuplicateDownload POSTs the keep-duplicate endpoint and returns the typed body', async () => {
+    const body = { occurrences: [{ download_info_id: 5, download_path: '/m/a.mkv', outcome: 'kept' }], refresh: 'requested' };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => body });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await api.keepDuplicateDownload(5);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/downloads/5/keep-duplicate', { method: 'POST' });
+    expect(res.refresh).toBe('requested');
+    expect(res.occurrences[0].outcome).toBe('kept');
+  });
+});
+

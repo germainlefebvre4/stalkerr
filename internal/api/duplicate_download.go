@@ -103,12 +103,18 @@ func findGroupContaining(groups []database.DuplicateGroup, downloadInfoID uint) 
 // terminal status, reusing the same transaction shape cancelDownload
 // (internal/api/cancel_download.go) uses to reach that status.
 func cancelDuplicateOccurrence(db *gorm.DB, downloadInfoID uint) error {
+	return cancelDuplicateOccurrenceWithMessage(db, downloadInfoID, duplicateResolveErrorMessage)
+}
+
+// cancelDuplicateOccurrenceWithMessage is cancelDuplicateOccurrence with the
+// recorded error_message chosen by the triggering action.
+func cancelDuplicateOccurrenceWithMessage(db *gorm.DB, downloadInfoID uint, message string) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.DownloadInfo{}).
 			Where("id = ?", downloadInfoID).
 			Updates(map[string]interface{}{
 				"status":        string(models.DownloadStatusCancelled),
-				"error_message": duplicateResolveErrorMessage,
+				"error_message": message,
 			}).Error; err != nil {
 			return err
 		}

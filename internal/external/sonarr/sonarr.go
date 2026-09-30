@@ -347,6 +347,33 @@ func (c *Client) RescanSeries(ctx context.Context, seriesID int) error {
 	return nil
 }
 
+// refreshSeriesCommand is the /api/v3/command request body Sonarr expects to
+// queue "Refresh & Scan" for a single series, matching Sonarr's
+// RefreshSeriesCommand (field SeriesId, serialized camelCase as seriesId -
+// confirmed against Sonarr's source, not merely assumed).
+type refreshSeriesCommand struct {
+	Name     string `json:"name"`
+	SeriesID int    `json:"seriesId"`
+}
+
+// RefreshSeries requests Sonarr's "Refresh & Scan" (metadata refresh plus disk
+// scan) for a specific series. Used by the on-demand keep-one duplicate
+// action; the post-download path keeps using the lighter RescanSeries.
+// Best-effort: callers should treat a non-nil error as non-fatal.
+func (c *Client) RefreshSeries(ctx context.Context, seriesID int) error {
+	endpoint := "/api/v3/command"
+
+	err := retry.Do(ctx, c.http.Retry, func() error {
+		return httpclient.Post(ctx, c.http, endpoint, refreshSeriesCommand{Name: "RefreshSeries", SeriesID: seriesID})
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return apperrors.ExternalServiceError("sonarr", "failed to request series refresh", err)
+	}
+
+	return nil
+}
+
 // UpdateEpisode updates an episode in Sonarr
 func (c *Client) UpdateEpisode(ctx context.Context, episode *Episode) error {
 	endpoint := fmt.Sprintf("/api/v3/episode/%d", episode.ID)

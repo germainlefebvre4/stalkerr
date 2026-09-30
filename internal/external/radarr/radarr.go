@@ -214,6 +214,34 @@ func (c *Client) RescanMovie(ctx context.Context, movieID int) error {
 	return nil
 }
 
+// refreshMovieCommand is the /api/v3/command request body Radarr expects to
+// queue "Refresh & Scan" for specific movies, matching Radarr's
+// RefreshMovieCommand (field MovieIds, a List<int>, serialized camelCase as
+// movieIds - confirmed against Radarr's source, not merely assumed). Unlike
+// RescanMovieCommand's single MovieId, this one takes a list.
+type refreshMovieCommand struct {
+	Name     string `json:"name"`
+	MovieIDs []int  `json:"movieIds"`
+}
+
+// RefreshMovie requests Radarr's "Refresh & Scan" (metadata refresh plus disk
+// scan) for a specific movie. Used by the on-demand keep-one duplicate action;
+// the post-download path keeps using the lighter RescanMovie. Best-effort:
+// callers should treat a non-nil error as non-fatal.
+func (c *Client) RefreshMovie(ctx context.Context, movieID int) error {
+	endpoint := "/api/v3/command"
+
+	err := retry.Do(ctx, c.http.Retry, func() error {
+		return httpclient.Post(ctx, c.http, endpoint, refreshMovieCommand{Name: "RefreshMovie", MovieIDs: []int{movieID}})
+	}, apperrors.IsRetryable)
+
+	if err != nil {
+		return apperrors.ExternalServiceError("radarr", "failed to request movie refresh", err)
+	}
+
+	return nil
+}
+
 // UpdateMovie updates a movie in Radarr
 func (c *Client) UpdateMovie(ctx context.Context, movie *Movie) error {
 	endpoint := fmt.Sprintf("/api/v3/movie/%d", movie.ID)

@@ -250,6 +250,8 @@ func (s *Server) setupRoutes() {
 		v1.POST("/downloads/:id/resync-path", s.resyncDownloadPath)
 		v1.POST("/downloads/:id/cancel", s.cancelDownload)
 		v1.POST("/downloads/:id/resolve-duplicate", s.resolveDuplicateDownload)
+		v1.GET("/downloads/:id/duplicate-candidates", s.getDuplicateCandidates)
+		v1.POST("/downloads/:id/keep-duplicate", s.keepDuplicateDownload)
 		v1.GET("/config/paths", s.getConfigPaths)
 
 		// System status endpoint

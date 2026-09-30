@@ -1,0 +1,20 @@
+schema: spec-driven
+created: "2026-09-30"
+tags:
+    type: []
+    complexity: 4
+    components:
+        - duplicate-download-detection
+        - downloads-errors-view
+        - downloads-enrichment-api
+        - radarr-sonarr-post-download-rescan
+        - radarr-client
+        - sonarr-client
+    agent_specialization:
+        - backend
+        - frontend
+        - api-design
+        - security
+        - devops
+    _auto: true
+    _tagged_at: "2026-09-30"

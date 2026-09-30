@@ -157,6 +157,32 @@ CREATE INDEX idx_download_info_locked_at ON download_info(locked_at);
 CREATE INDEX idx_download_info_updated_at ON download_info(updated_at);
 ```
 
+## Duplicate Downloads (Errors tab)
+
+A movie or episode with two or more completed automated downloads at different paths is flagged `duplicate_download` in the Errors tab. Two operator-triggered actions are available in its sidepanel; neither runs automatically (not from the scheduled `download` reconciliation pass, which only logs).
+
+| Action | Endpoint | Touches files? |
+|---|---|---|
+| Resolve duplicate (verify files) | `POST /api/v1/downloads/:id/resolve-duplicate` | Never. Cancels occurrences whose file is already gone. |
+| Keep one, delete the others | `POST /api/v1/downloads/:id/keep-duplicate` | Yes: deletes the non-kept files. |
+
+### Keep one, delete the others
+
+1. `GET /api/v1/downloads/:id/duplicate-candidates` (read-only) lists the group's distinct files: `download_path`, `exists`, `size_bytes` (when present), `completed_at`, `download_info_ids`, and `matches_library_name` when Radarr/Sonarr could be queried (omitted otherwise). At most one existing file is flagged `suggested`: the one matching the library's canonical name, else the most recently completed. The operator can choose any existing file.
+2. `POST /api/v1/downloads/:id/keep-duplicate`, where `:id` is any `download_info` id of the file to keep. The sidepanel asks for confirmation naming the kept and deleted files first.
+
+Response: `occurrences[]` (`download_info_id`, `download_path`, `outcome` = `kept` | `deleted` | `cancelled_file_missing`) and `refresh` (`requested` | `failed` | `not_configured` | `not_found_in_library`).
+
+**Safety rules**
+- Only paths recorded as `download_path` of an occurrence of the identified group are ever deleted; nothing comes from request input.
+- The kept file must exist (else `409 kept_file_missing`, nothing changed) and is never deleted, including when several occurrences share its path.
+- Only regular files are deleted. If any other path is a directory or symlink, the whole request is refused with `409 not_a_regular_file` before anything is touched.
+- Each file is deleted before its occurrences are cancelled. A deletion failure (other than "already absent") stops the run with `500`, leaves that path's occurrences unchanged and keeps what was already processed.
+
+**Radarr/Sonarr refresh.** After a deletion or cancellation, stalkeer requests one "Refresh & Scan" (`RefreshMovie` / `RefreshSeries` command) for the movie/series. A failed, unconfigured or not-found refresh never undoes the deletion: the response still succeeds and reports the refresh outcome, and the UI says the library was not refreshed so it can be refreshed manually. Radarr/Sonarr's own automation may re-search the removed release; that is their configured behavior.
+
+**Deployment.** The API process needs read-write access to the media files. The Helm chart mounts `/media` read-write; with `docker-compose.yml`, the API service must see the same downloads volumes (`DOWNLOADS_DIR`) read-write at the paths stored in `download_path`. If it cannot see the kept file, the action fails safe with `409`.
+
 ## Testing
 
 - ✅ Build passes without errors

@@ -32,7 +32,9 @@ import {
   ScheduleWindow,
   ScheduleWindowInput,
   EffectivePolicy,
-  ResolveDuplicateResponse
+  ResolveDuplicateResponse,
+  DuplicateCandidatesResponse,
+  KeepDuplicateResponse
 } from '../types';
 
 export class ApiError extends Error {
@@ -284,6 +286,18 @@ export const api = {
 
   async resolveDuplicateDownload(id: number): Promise<ResolveDuplicateResponse> {
     const res = await fetch(`/api/v1/downloads/${id}/resolve-duplicate`, { method: 'POST' });
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async getDuplicateCandidates(id: number): Promise<DuplicateCandidatesResponse> {
+    const res = await fetch(`/api/v1/downloads/${id}/duplicate-candidates`);
+    if (!res.ok) return throwApiError(res);
+    return res.json();
+  },
+
+  async keepDuplicateDownload(id: number): Promise<KeepDuplicateResponse> {
+    const res = await fetch(`/api/v1/downloads/${id}/keep-duplicate`, { method: 'POST' });
     if (!res.ok) return throwApiError(res);
     return res.json();
   },

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { DownloadEnriched, ResolveDuplicateOccurrence } from '../types';
+import { DownloadEnriched, DuplicateCandidate, KeepDuplicateResponse, ResolveDuplicateOccurrence } from '../types';
 import { formatDate } from '../utils/date';
 import { getErrorReasons } from '../utils/errorReasons';
 import { api } from '../services/api';
@@ -9,6 +9,22 @@ import { api } from '../services/api';
 interface ErrorsSidepanelProps {
   item: DownloadEnriched | null;
   onOpenChange: (open: boolean) => void;
+  /** Called when the panel closes after a keep-one run, so the list can refresh. */
+  onChanged?: () => void;
+}
+
+type KeepStep = 'idle' | 'loading' | 'picking' | 'confirming' | 'running' | 'done';
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value.toFixed(1)} ${units[i]}`;
 }
 
 function getStatusLabel(item: DownloadEnriched, t: (key: string, options?: Record<string, unknown>) => string): string {
@@ -26,12 +42,19 @@ function getStatusLabel(item: DownloadEnriched, t: (key: string, options?: Recor
   }
 }
 
-export function ErrorsSidepanel({ item, onOpenChange }: ErrorsSidepanelProps) {
+export function ErrorsSidepanel({ item, onOpenChange, onChanged }: ErrorsSidepanelProps) {
   const { t, i18n } = useTranslation('errors');
 
   const [resolving, setResolving] = useState(false);
   const [resolveOutcome, setResolveOutcome] = useState<ResolveDuplicateOccurrence[] | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
+
+  const [keepStep, setKeepStep] = useState<KeepStep>('idle');
+  const [candidates, setCandidates] = useState<DuplicateCandidate[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [keepResult, setKeepResult] = useState<KeepDuplicateResponse | null>(null);
+  const [keepError, setKeepError] = useState<string | null>(null);
+  const [keepRan, setKeepRan] = useState(false);
 
   // Reset the resolve-action state when a different item is opened, following
   // React's "adjusting state when a prop changes" pattern (setState during
@@ -43,6 +66,12 @@ export function ErrorsSidepanel({ item, onOpenChange }: ErrorsSidepanelProps) {
     setResolveOutcome(null);
     setResolveError(null);
     setResolving(false);
+    setKeepStep('idle');
+    setCandidates([]);
+    setSelectedPath(null);
+    setKeepResult(null);
+    setKeepError(null);
+    setKeepRan(false);
   }
 
   const reasons = item ? getErrorReasons(item, t) : [];
@@ -62,8 +91,68 @@ export function ErrorsSidepanel({ item, onOpenChange }: ErrorsSidepanelProps) {
       .finally(() => setResolving(false));
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open && keepRan) {
+      setKeepRan(false);
+      onChanged?.();
+    }
+    onOpenChange(open);
+  };
+
+  const handleOpenKeepPicker = () => {
+    if (!item) return;
+    setKeepStep('loading');
+    setKeepError(null);
+    api.getDuplicateCandidates(item.id)
+      .then(res => {
+        setCandidates(res.candidates);
+        setSelectedPath(res.candidates.find(c => c.suggested && c.exists)?.download_path ?? null);
+        setKeepStep('picking');
+      })
+      .catch(() => {
+        setKeepError(t('duplicate.keepLoadError'));
+        setKeepStep('idle');
+      });
+  };
+
+  const selectedCandidate = candidates.find(c => c.download_path === selectedPath) ?? null;
+  const deletedCandidates = candidates.filter(c => c.exists && c.download_path !== selectedPath);
+
+  const handleConfirmKeep = () => {
+    if (!selectedCandidate) return;
+    setKeepStep('running');
+    setKeepError(null);
+    api.keepDuplicateDownload(selectedCandidate.download_info_ids[0])
+      .then(res => {
+        setKeepRan(true);
+        setKeepResult(res);
+        setKeepStep('done');
+      })
+      .catch(() => {
+        setKeepRan(true); // a partial run may have changed data
+        setKeepError(t('duplicate.keepError'));
+        setKeepStep('confirming');
+      });
+  };
+
+  const keepOutcomeLabel = (outcome: string) => {
+    switch (outcome) {
+      case 'kept': return t('duplicate.outcomeKept');
+      case 'deleted': return t('duplicate.outcomeDeleted');
+      default: return t('duplicate.outcomeCancelledFileMissing');
+    }
+  };
+
+  const refreshLabel = (refresh: KeepDuplicateResponse['refresh']) => {
+    switch (refresh) {
+      case 'requested': return t('duplicate.refreshRequested');
+      case 'not_found_in_library': return t('duplicate.refreshNotFound');
+      default: return t('duplicate.refreshNotRefreshed');
+    }
+  };
+
   return (
-    <Dialog.Root open={!!item} onOpenChange={onOpenChange}>
+    <Dialog.Root open={!!item} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="drawer-overlay" />
         <Dialog.Content className="drawer-content">
@@ -137,6 +226,132 @@ export function ErrorsSidepanel({ item, onOpenChange }: ErrorsSidepanelProps) {
                         {resolving ? t('duplicate.resolveInProgress') : t('duplicate.resolveAction')}
                       </button>
                     </div>
+
+                    <div>
+                      {keepStep === 'idle' && (
+                        <button
+                          onClick={handleOpenKeepPicker}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                        >
+                          {t('duplicate.keepAction')}
+                        </button>
+                      )}
+                      {keepStep === 'loading' && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('duplicate.keepLoading')}</div>
+                      )}
+                    </div>
+
+                    {keepError && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--error-color, #dc2626)', fontWeight: 500 }}>{keepError}</div>
+                    )}
+
+                    {keepStep === 'picking' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{t('duplicate.keepPickerTitle')}</div>
+                        {candidates.map(cand => (
+                          <label
+                            key={cand.download_path}
+                            style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.8rem', opacity: cand.exists ? 1 : 0.6 }}
+                          >
+                            <input
+                              type="radio"
+                              name="keep-duplicate-file"
+                              checked={selectedPath === cand.download_path}
+                              disabled={!cand.exists}
+                              onChange={() => setSelectedPath(cand.download_path)}
+                            />
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <span style={{ wordBreak: 'break-all', fontFamily: "'Courier New', monospace" }}>{cand.download_path}</span>
+                              <span style={{ color: 'var(--text-muted)' }}>
+                                {cand.exists
+                                  ? (cand.size_bytes != null ? t('duplicate.keepSize', { size: formatSize(cand.size_bytes) }) : '')
+                                  : t('duplicate.keepMissing')}
+                                {cand.completed_at && ` · ${t('completedAt', { date: formatDate(cand.completed_at, i18n.language) })}`}
+                              </span>
+                              <span style={{ display: 'flex', gap: '0.35rem' }}>
+                                {cand.suggested && <span className="badge badge-pending">{t('duplicate.keepSuggested')}</span>}
+                                {cand.matches_library_name && <span className="badge badge-pending">{t('duplicate.keepMatchesName')}</span>}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => setKeepStep('confirming')}
+                            disabled={!selectedCandidate}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                          >
+                            {t('duplicate.keepContinue')}
+                          </button>
+                          <button
+                            onClick={() => setKeepStep('idle')}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                          >
+                            {t('duplicate.keepCancel')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(keepStep === 'confirming' || keepStep === 'running') && selectedCandidate && (
+                      <div role="alertdialog" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{t('duplicate.keepConfirmTitle')}</div>
+                        <div style={{ fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: 700 }}>{t('duplicate.keepConfirmKeep')}</div>
+                          <div style={{ wordBreak: 'break-all', fontFamily: "'Courier New', monospace" }}>{selectedCandidate.download_path}</div>
+                        </div>
+                        <div style={{ fontSize: '0.8rem' }}>
+                          {deletedCandidates.length > 0 ? (
+                            <>
+                              <div style={{ fontWeight: 700 }}>{t('duplicate.keepConfirmDelete')}</div>
+                              {deletedCandidates.map(c => (
+                                <div key={c.download_path} style={{ wordBreak: 'break-all', fontFamily: "'Courier New', monospace" }}>{c.download_path}</div>
+                              ))}
+                            </>
+                          ) : (
+                            <div>{t('duplicate.keepConfirmNone')}</div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={handleConfirmKeep}
+                            disabled={keepStep === 'running'}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                          >
+                            {keepStep === 'running' ? t('duplicate.keepInProgress') : t('duplicate.keepConfirmAction')}
+                          </button>
+                          <button
+                            onClick={() => setKeepStep('picking')}
+                            disabled={keepStep === 'running'}
+                            className="btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
+                          >
+                            {t('duplicate.keepCancel')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {keepStep === 'done' && keepResult && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {keepResult.occurrences.map(occ => (
+                          <div key={occ.download_info_id} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            <span style={{ wordBreak: 'break-all' }}>{occ.download_path}</span>
+                            {': '}
+                            <span style={{ fontWeight: 700 }}>{keepOutcomeLabel(occ.outcome)}</span>
+                          </div>
+                        ))}
+                        <div
+                          style={{ fontSize: '0.8rem', fontWeight: 600, color: keepResult.refresh === 'requested' ? 'var(--text-secondary)' : 'var(--error-color, #dc2626)' }}
+                        >
+                          {refreshLabel(keepResult.refresh)}
+                        </div>
+                      </div>
+                    )}
 
                     {resolveError && (
                       <div style={{ fontSize: '0.8rem', color: 'var(--error-color, #dc2626)', fontWeight: 500 }}>{resolveError}</div>

@@ -153,6 +153,34 @@ export interface ResolveDuplicateResponse {
   occurrences: ResolveDuplicateOccurrence[];
 }
 
+export interface DuplicateCandidate {
+  download_path: string;
+  exists: boolean;
+  size_bytes?: number;
+  completed_at?: string;
+  download_info_ids: number[];
+  matches_library_name?: boolean;
+  suggested: boolean;
+}
+
+export interface DuplicateCandidatesResponse {
+  candidates: DuplicateCandidate[];
+}
+
+export type KeepDuplicateOutcome = 'kept' | 'deleted' | 'cancelled_file_missing';
+export type KeepDuplicateRefresh = 'requested' | 'failed' | 'not_configured' | 'not_found_in_library';
+
+export interface KeepDuplicateOccurrence {
+  download_info_id: number;
+  download_path: string;
+  outcome: KeepDuplicateOutcome;
+}
+
+export interface KeepDuplicateResponse {
+  occurrences: KeepDuplicateOccurrence[];
+  refresh: KeepDuplicateRefresh;
+}
+
 export interface RenameDownloadResponse {
   status: string;
   new_path: string;
