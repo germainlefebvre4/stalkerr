@@ -73,6 +73,10 @@ The frontend SHALL allow the user to dry-run test a single attribute's include/e
 - **WHEN** the dry-run endpoint rejects the request because an include or exclude pattern is not a valid regular expression
 - **THEN** the frontend SHALL display, inside the test drawer, an inline error identifying the invalid pattern instead of a summary
 
+#### Scenario: Top matched and top excluded render side by side
+- **WHEN** a dry-run summary includes top matched and/or top excluded values
+- **THEN** the frontend SHALL render the top matched column and the top excluded column next to each other horizontally rather than one below the other
+
 ### Requirement: Dry-Run Content Search
 Once a single-attribute dry-run's aggregate summary is displayed in the test drawer, the frontend SHALL offer a search field scoped to the tested attribute that lets the user verify specific content: submitting a search term SHALL query the dry-run endpoint's content search mode and display each matching line, together with whether it would match or be excluded under the tested patterns, as a table with a fixed maximum height and its own internal vertical scrollbar, so that a search returning many lines does not grow the height of the enclosing drawer.
 

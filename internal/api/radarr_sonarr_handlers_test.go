@@ -1769,3 +1769,12 @@ func TestListSonarrMonitoredSeries_PageSizeBoundsEpisodeFetches(t *testing.T) {
 		t.Errorf("expected exactly %d episode fetches (bounded by page size), got %d (catalog has %d series)", pageSize, calls, catalogSize)
 	}
 }
+
+func TestArrTimeoutBudgets(t *testing.T) {
+	if arrListTimeout <= existenceCheckTimeout {
+		t.Errorf("arrListTimeout (%v) must exceed existenceCheckTimeout (%v)", arrListTimeout, existenceCheckTimeout)
+	}
+	if arrStatsTimeout < arrListTimeout {
+		t.Errorf("arrStatsTimeout (%v) must be at least arrListTimeout (%v)", arrStatsTimeout, arrListTimeout)
+	}
+}
