@@ -103,7 +103,9 @@ func (s *Server) Run(port int) error {
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      s.router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		// Must exceed arrStatsTimeout, the longest handler budget, or a slow
+		// Radarr/Sonarr answer would be cut off while the handler still runs.
+		WriteTimeout: 65 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

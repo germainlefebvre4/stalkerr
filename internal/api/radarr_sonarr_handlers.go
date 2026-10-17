@@ -8,11 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/matcher"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
@@ -26,6 +28,17 @@ import (
 const (
 	radarrSonarrDefaultPageSize = 20
 	radarrSonarrMaxPageSize     = 50
+)
+
+// arrListTimeout bounds each live Radarr/Sonarr call made by the monitoring
+// view's handlers. It is much looser than existenceCheckTimeout (a single
+// fail-fast lookup for force-download) because these handlers read whole
+// catalogs from instances that can answer slowly. arrStatsTimeout is wider
+// still since /stats shares one context across its Radarr and Sonarr phases.
+// Both must stay below the HTTP server's WriteTimeout (see Server.Run).
+const (
+	arrListTimeout  = 30 * time.Second
+	arrStatsTimeout = 60 * time.Second
 )
 
 // RadarrMovieListItem is one row of the Radarr monitoring list.
@@ -154,19 +167,22 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 
 	limit, offset := parsePaginationBounded(c, radarrSonarrDefaultPageSize, radarrSonarrMaxPageSize)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), arrListTimeout)
 	defer cancel()
 
 	client := radarr.New(radarr.Config{
 		BaseURL:     cfg.Radarr.URL,
 		APIKey:      cfg.Radarr.APIKey,
-		Timeout:     existenceCheckTimeout,
+		Timeout:     arrListTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
 		Breaker:     s.radarrBreaker,
 	})
 
 	allMovies, err := client.GetAllMovies(ctx)
 	if err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{
+			"error": err,
+		}).Warn("radarr monitoring list: failed to fetch movies")
 		respondError(c, http.StatusBadGateway, "radarr_unreachable", "failed to reach Radarr")
 		return
 	}
@@ -297,19 +313,22 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 	limit, offset := parsePaginationBounded(c, radarrSonarrDefaultPageSize, radarrSonarrMaxPageSize)
 	filter := matchStatusFilter(c)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), arrListTimeout)
 	defer cancel()
 
 	client := sonarr.New(sonarr.Config{
 		BaseURL:     cfg.Sonarr.URL,
 		APIKey:      cfg.Sonarr.APIKey,
-		Timeout:     existenceCheckTimeout,
+		Timeout:     arrListTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
 		Breaker:     s.sonarrBreaker,
 	})
 
 	allSeries, err := client.GetAllSeries(ctx)
 	if err != nil {
+		logger.AppLogger().WithFields(map[string]interface{}{
+			"error": err,
+		}).Warn("sonarr monitoring list: failed to fetch series")
 		respondError(c, http.StatusBadGateway, "sonarr_unreachable", "failed to reach Sonarr")
 		return
 	}
@@ -475,7 +494,7 @@ type RadarrSonarrStatsResponse struct {
 // fan-out while a warm cache costs nothing extra (see
 // radarr-sonarr-monitoring-api spec).
 func (s *Server) listRadarrSonarrStats(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), arrStatsTimeout)
 	defer cancel()
 
 	cfg := settings.Effective()
@@ -487,7 +506,7 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 		radarrClient := radarr.New(radarr.Config{
 			BaseURL:     cfg.Radarr.URL,
 			APIKey:      cfg.Radarr.APIKey,
-			Timeout:     existenceCheckTimeout,
+			Timeout:     arrListTimeout,
 			RetryConfig: retry.Config{MaxAttempts: 1},
 			Breaker:     s.radarrBreaker,
 		})
@@ -526,7 +545,7 @@ func (s *Server) listRadarrSonarrStats(c *gin.Context) {
 		sonarrClient := sonarr.New(sonarr.Config{
 			BaseURL:     cfg.Sonarr.URL,
 			APIKey:      cfg.Sonarr.APIKey,
-			Timeout:     existenceCheckTimeout,
+			Timeout:     arrListTimeout,
 			RetryConfig: retry.Config{MaxAttempts: 1},
 			Breaker:     s.sonarrBreaker,
 		})
@@ -593,13 +612,13 @@ func (s *Server) getRadarrMovieMatches(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), arrListTimeout)
 	defer cancel()
 
 	client := radarr.New(radarr.Config{
 		BaseURL:     cfg.Radarr.URL,
 		APIKey:      cfg.Radarr.APIKey,
-		Timeout:     existenceCheckTimeout,
+		Timeout:     arrListTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
 		Breaker:     s.radarrBreaker,
 	})
@@ -650,13 +669,13 @@ func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), existenceCheckTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), arrListTimeout)
 	defer cancel()
 
 	client := sonarr.New(sonarr.Config{
 		BaseURL:     cfg.Sonarr.URL,
 		APIKey:      cfg.Sonarr.APIKey,
-		Timeout:     existenceCheckTimeout,
+		Timeout:     arrListTimeout,
 		RetryConfig: retry.Config{MaxAttempts: 1},
 		Breaker:     s.sonarrBreaker,
 	})
