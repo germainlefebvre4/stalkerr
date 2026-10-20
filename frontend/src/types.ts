@@ -311,9 +311,8 @@ export interface RadarrMovieListItem {
   radarr_id: number;
   title: string;
   year: number;
-  has_file: boolean;
   monitored: boolean;
-  missing: boolean;
+  file_state: FileState;
   matched: boolean;
   movie_id?: number;
   occurrence_count: number;
@@ -324,7 +323,9 @@ export interface SonarrSeriesListItem {
   title: string;
   year: number;
   monitored: boolean;
-  missing: boolean;
+  file_state: FileState;
+  episode_file_count: number;
+  episode_count: number;
   matched_count: number;
   monitored_count: number;
   occurrence_count: number;
@@ -332,10 +333,16 @@ export interface SonarrSeriesListItem {
 
 export type MatchStatusFilter = '' | 'matched' | 'no_match';
 
-// The État (status) filter: Monitored/Unmonitored/Missing, cumulative
-// (multi-select, combined as a logical AND - see radarr-sonarr-monitoring-api).
-export type EtatStatus = 'monitored' | 'unmonitored' | 'missing';
-export type EtatFilter = Set<EtatStatus>;
+// The Suivi filter: Radarr/Sonarr's own monitored flag. Multi-select, values
+// combine as a logical OR (see radarr-sonarr-monitoring-api).
+export type SuiviStatus = 'monitored' | 'unmonitored';
+export type SuiviFilter = Set<SuiviStatus>;
+
+// The Fichier axis: whether the file is on disk. Independent of Suivi.
+// "partial" only ever applies to a series. As a filter, values combine as OR
+// and an empty set means no restriction.
+export type FileState = 'downloaded' | 'partial' | 'none';
+export type FileFilter = Set<FileState>;
 
 export interface RadarrMovieMatchesResponse {
   matched: boolean;
@@ -347,7 +354,7 @@ export interface SonarrSeriesEpisodeItem {
   season: number;
   episode: number;
   monitored: boolean;
-  missing: boolean;
+  file_state: FileState;
   matched: boolean;
   occurrences: OccurrenceResponse[];
 }

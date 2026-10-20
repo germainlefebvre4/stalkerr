@@ -150,9 +150,9 @@ export default function App() {
 
   const {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
-    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus,
+    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing,
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
-    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus,
+    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing,
     stats: radarrSonarrStats, statsLoading: radarrSonarrStatsLoading, statsError: radarrSonarrStatsError, fetchStats: fetchRadarrSonarrStats,
   } = useRadarrSonarr(activeTab === 'radarr-sonarr', activeTab === 'radarr-sonarr' || activeTab === 'home');
 
@@ -388,13 +388,13 @@ export default function App() {
           filmsLimit={filmsLimit} fetchFilms={fetchFilms}
           filmsSearch={filmsSearch} setFilmsSearch={setFilmsSearch}
           filmsFilter={filmsFilter} setFilmsFilter={setFilmsFilter}
-          filmsStatus={filmsStatus} setFilmsStatus={setFilmsStatus}
+          filmsStatus={filmsStatus} setFilmsStatus={setFilmsStatus} filmsFile={filmsFile} setFilmsFile={setFilmsFile} setFilmsMissing={setFilmsMissing}
           seriesItems={seriesItems} seriesLoading={seriesLoading} seriesError={seriesError}
           seriesTotal={seriesTotal} seriesPage={seriesPage} setSeriesPage={setSeriesPage}
           seriesLimit={seriesLimit} fetchSeries={fetchSeries} refreshSeries={refreshSeries}
           seriesSearch={seriesSearch} setSeriesSearch={setSeriesSearch}
           seriesFilter={seriesFilter} setSeriesFilter={setSeriesFilter}
-          seriesStatus={seriesStatus} setSeriesStatus={setSeriesStatus}
+          seriesStatus={seriesStatus} setSeriesStatus={setSeriesStatus} seriesFile={seriesFile} setSeriesFile={setSeriesFile} setSeriesMissing={setSeriesMissing}
           stats={radarrSonarrStats} statsLoading={radarrSonarrStatsLoading} statsError={radarrSonarrStatsError} fetchStats={fetchRadarrSonarrStats}
           onOpenOverride={handleOpenOverride}
         />

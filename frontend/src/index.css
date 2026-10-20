@@ -469,15 +469,15 @@ input, select {
   border-radius: 50%;
 }
 
-/* État filter dropdown (Radix DropdownMenu): trigger reuses .custom-select's
+/* Multi-select filter dropdown (Radix DropdownMenu): trigger reuses .custom-select's
    look, content/items get their own small popover styling. */
-.etat-filter-trigger {
+.multi-select-trigger {
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
 }
 
-.etat-filter-content {
+.multi-select-content {
   min-width: 200px;
   padding: 0.35rem;
   background-color: var(--bg-card);
@@ -487,7 +487,7 @@ input, select {
   z-index: 200;
 }
 
-.etat-filter-item {
+.multi-select-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -501,11 +501,11 @@ input, select {
   user-select: none;
 }
 
-.etat-filter-item[data-highlighted] {
+.multi-select-item[data-highlighted] {
   background-color: var(--bg-active);
 }
 
-.etat-filter-item-check {
+.multi-select-item-check {
   width: 1rem;
   display: inline-flex;
   justify-content: center;
@@ -1503,4 +1503,15 @@ input, select {
   .settings-section-header {
     font-size: 0.8rem;
   }
+}
+
+/* "Manquants" preset button next to the Suivi/Fichier filters */
+.missing-preset {
+  white-space: nowrap;
+}
+
+.missing-preset--active {
+  background-color: var(--bg-active);
+  border-color: var(--primary-accent);
+  color: var(--primary-accent);
 }

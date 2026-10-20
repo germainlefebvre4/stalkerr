@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -34,9 +35,9 @@ func TestNew(t *testing.T) {
 
 func TestGetMissingSeries(t *testing.T) {
 	series := []Series{
-		{ID: 1, Title: "Test Series 1", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 5},
-		{ID: 2, Title: "Test Series 2", TvdbID: 102, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
-		{ID: 3, Title: "Test Series 3", TvdbID: 103, Monitored: false, TotalEpisodeCount: 10, EpisodeFileCount: 5},
+		{ID: 1, Title: "Test Series 1", TvdbID: 101, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 5},
+		{ID: 2, Title: "Test Series 2", TvdbID: 102, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 3, Title: "Test Series 3", TvdbID: 103, Monitored: false, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 5},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -78,8 +79,8 @@ func TestGetMissingSeries(t *testing.T) {
 
 func TestGetAllSeries(t *testing.T) {
 	series := []Series{
-		{ID: 1, Title: "Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
-		{ID: 3, Title: "Unmonitored", TvdbID: 103, Monitored: false, TotalEpisodeCount: 10, EpisodeFileCount: 0},
+		{ID: 1, Title: "Monitored", TvdbID: 101, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 3, Title: "Unmonitored", TvdbID: 103, Monitored: false, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 0},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -119,9 +120,9 @@ func TestGetAllSeries(t *testing.T) {
 
 func TestGetAllMonitoredSeries(t *testing.T) {
 	series := []Series{
-		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
-		{ID: 2, Title: "Missing Episodes, Monitored", TvdbID: 102, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 5},
-		{ID: 3, Title: "Unmonitored", TvdbID: 103, Monitored: false, TotalEpisodeCount: 10, EpisodeFileCount: 0},
+		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 2, Title: "Missing Episodes, Monitored", TvdbID: 102, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 5},
+		{ID: 3, Title: "Unmonitored", TvdbID: 103, Monitored: false, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 0},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,8 +157,8 @@ func TestGetAllMonitoredSeries(t *testing.T) {
 func TestGetAllMonitoredSeriesDoesNotAffectGetMissingSeries(t *testing.T) {
 	callCount := 0
 	series := []Series{
-		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 10},
-		{ID: 2, Title: "Missing Episodes, Monitored", TvdbID: 102, Monitored: true, TotalEpisodeCount: 10, EpisodeFileCount: 5},
+		{ID: 1, Title: "Fully Downloaded, Monitored", TvdbID: 101, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 10},
+		{ID: 2, Title: "Missing Episodes, Monitored", TvdbID: 102, Monitored: true, EpisodeCount: 10, TotalEpisodeCount: 10, EpisodeFileCount: 5},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -928,4 +929,63 @@ func TestRefreshSeries(t *testing.T) {
 			t.Fatal("expected error for server failure")
 		}
 	})
+}
+
+// The fixture follows the documented Sonarr v3 shape (counters nested under
+// "statistics"); it was not captured from a live instance.
+func TestSeriesUnmarshalNestedStatistics(t *testing.T) {
+	raw, err := os.ReadFile("testdata/series_statistics.json")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	var series []Series
+	if err := json.Unmarshal(raw, &series); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(series) != 1 {
+		t.Fatalf("expected 1 series, got %d", len(series))
+	}
+
+	s := series[0]
+	if s.EpisodeFileCount != 28 || s.EpisodeCount != 28 || s.TotalEpisodeCount != 36 || s.SeasonCount != 3 {
+		t.Errorf("unexpected counters: files=%d aired=%d total=%d seasons=%d",
+			s.EpisodeFileCount, s.EpisodeCount, s.TotalEpisodeCount, s.SeasonCount)
+	}
+	if s.Title != "Continuing Show" || !s.Monitored || s.TvdbID != 111111 {
+		t.Errorf("non-counter fields lost: %+v", s)
+	}
+}
+
+func TestSeriesUnmarshalLegacyFlatShape(t *testing.T) {
+	var s Series
+	raw := `{"id":1,"title":"Flat","monitored":true,"episodeFileCount":4,"episodeCount":6,"totalEpisodeCount":9,"seasonCount":2}`
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if s.EpisodeFileCount != 4 || s.EpisodeCount != 6 || s.TotalEpisodeCount != 9 || s.SeasonCount != 2 {
+		t.Errorf("unexpected counters: %+v", s)
+	}
+}
+
+func TestSeriesUnmarshalFallsBackToTotalWhenEpisodeCountAbsent(t *testing.T) {
+	var s Series
+	raw := `{"id":1,"episodeFileCount":4,"totalEpisodeCount":9}`
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if s.EpisodeCount != 9 {
+		t.Errorf("expected EpisodeCount to fall back to TotalEpisodeCount (9), got %d", s.EpisodeCount)
+	}
+}
+
+func TestSeriesUnmarshalExplicitZeroAiredEpisodes(t *testing.T) {
+	var s Series
+	raw := `{"id":1,"statistics":{"episodeFileCount":0,"episodeCount":0,"totalEpisodeCount":8}}`
+	if err := json.Unmarshal([]byte(raw), &s); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if s.EpisodeCount != 0 {
+		t.Errorf("explicit zero aired count must not fall back to total, got %d", s.EpisodeCount)
+	}
 }

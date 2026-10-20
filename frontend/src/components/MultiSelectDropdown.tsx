@@ -1,25 +1,23 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { EtatFilter, EtatStatus } from '../types';
-
-export interface EtatFilterDropdownOption {
-  value: EtatStatus;
+export interface MultiSelectDropdownOption<T extends string> {
+  value: T;
   label: string;
 }
 
-interface EtatFilterDropdownProps {
+interface MultiSelectDropdownProps<T extends string> {
   label: string;
-  value: EtatFilter;
-  onChange: (value: EtatFilter) => void;
-  options: EtatFilterDropdownOption[];
+  value: Set<T>;
+  onChange: (value: Set<T>) => void;
+  options: MultiSelectDropdownOption<T>[];
   noneLabel: string;
 }
 
-// A small trigger + checkbox-menu control for the État (Monitored/Unmonitored/
-// Missing) cumulative multi-select filter, shared by the Films and Séries
-// sections. Selecting an option never closes the menu (onSelect is
-// prevented), matching a standard multi-select checkbox group's behavior.
-export function EtatFilterDropdown({ label, value, onChange, options, noneLabel }: EtatFilterDropdownProps) {
-  const toggle = (option: EtatStatus, checked: boolean) => {
+// A small trigger + checkbox-menu control for a multi-select filter, shared by
+// the Suivi and Fichier filters of the Films and Séries sections. Selecting an
+// option never closes the menu (onSelect is prevented), matching a standard
+// multi-select checkbox group's behavior.
+export function MultiSelectDropdown<T extends string>({ label, value, onChange, options, noneLabel }: MultiSelectDropdownProps<T>) {
+  const toggle = (option: T, checked: boolean) => {
     const next = new Set(value);
     if (checked) next.add(option);
     else next.delete(option);
@@ -32,21 +30,21 @@ export function EtatFilterDropdown({ label, value, onChange, options, noneLabel 
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button type="button" className="custom-select etat-filter-trigger">
+        <button type="button" className="custom-select multi-select-trigger">
           {triggerText}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="etat-filter-content" align="start" sideOffset={4}>
+        <DropdownMenu.Content className="multi-select-content" align="start" sideOffset={4}>
           {options.map(option => (
             <DropdownMenu.CheckboxItem
               key={option.value}
-              className="etat-filter-item"
+              className="multi-select-item"
               checked={value.has(option.value)}
               onCheckedChange={(checked) => toggle(option.value, checked === true)}
               onSelect={(e) => e.preventDefault()}
             >
-              <DropdownMenu.ItemIndicator className="etat-filter-item-check">✓</DropdownMenu.ItemIndicator>
+              <DropdownMenu.ItemIndicator className="multi-select-item-check">✓</DropdownMenu.ItemIndicator>
               {option.label}
             </DropdownMenu.CheckboxItem>
           ))}

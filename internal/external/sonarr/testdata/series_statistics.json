@@ -1,0 +1,20 @@
+[
+  {
+    "id": 7,
+    "title": "Continuing Show",
+    "year": 2019,
+    "tvdbId": 111111,
+    "path": "/tv/Continuing Show",
+    "monitored": true,
+    "qualityProfileId": 1,
+    "added": "2023-04-02T10:00:00Z",
+    "statistics": {
+      "seasonCount": 3,
+      "episodeFileCount": 28,
+      "episodeCount": 28,
+      "totalEpisodeCount": 36,
+      "sizeOnDisk": 123456789,
+      "percentOfEpisodes": 100.0
+    }
+  }
+]
