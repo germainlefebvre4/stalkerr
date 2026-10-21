@@ -3,7 +3,7 @@ import {
   PlaylistItem,
   MediaGroupItem,
   ProcessingLog,
-  DownloadEnriched,
+  DownloadsPage,
   ConfigPaths,
   StatsResponse,
   FilterConfig,
@@ -192,12 +192,14 @@ export const api = {
     status?: string,
     type?: string,
     problem?: string,
-    offset: number = 0
-  ): Promise<PaginatedResponse<DownloadEnriched>> {
+    offset: number = 0,
+    search?: string
+  ): Promise<DownloadsPage> {
     let url = `/api/v1/downloads?limit=${limit}&offset=${offset}`;
     if (status) url += `&status=${status}`;
     if (type) url += `&type=${type}`;
     if (problem) url += `&problem=${problem}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
     const res = await fetch(url);
     if (!res.ok) return throwApiError(res);
     return res.json();

@@ -3,12 +3,20 @@
   "subtitle": "Dynamic tracking of video file downloads and reorganizations",
   "refresh": "Refresh ↻",
   "statusFilter": {
+    "active": "Active",
+    "pending": "Pending",
+    "retrying": "Retrying",
     "all": "Status: All",
     "completed": "Completed",
     "downloading": "In progress",
     "failed": "Failed",
     "cancelled": "Cancelled"
   },
+  "search": {
+    "placeholder": "Search a title…"
+  },
+  "cancelledHidden_one": "{{count}} cancelled hidden",
+  "cancelledHidden_other": "{{count}} cancelled hidden",
   "typeFilter": {
     "all": "Type: All",
     "movies": "Movies",

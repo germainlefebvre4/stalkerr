@@ -1,2 +1,15 @@
 schema: spec-driven
-created: 2026-10-20
+created: "2026-10-20"
+tags:
+    type:
+        - frontend
+    complexity: 2
+    components:
+        - radarr-sonarr-monitoring-view
+        - arr-suite-filters-ui
+    agent_specialization:
+        - frontend
+        - ux-design
+        - testing
+    _auto: true
+    _tagged_at: "2026-10-21"

@@ -35,6 +35,11 @@ interface PaginationOverrides {
   setDownloadsLimit?: (limit: number) => void;
   onResyncPath?: (item: DownloadEnriched) => Promise<void>;
   onCancelDownload?: (item: DownloadEnriched) => Promise<void>;
+  statusFilter?: string;
+  setStatusFilter?: (status: string) => void;
+  searchInput?: string;
+  setSearchInput?: (value: string) => void;
+  cancelledHidden?: number;
 }
 
 function renderDownloadsTab(downloads: DownloadEnriched[], overrides: PaginationOverrides = {}) {
@@ -44,12 +49,15 @@ function renderDownloadsTab(downloads: DownloadEnriched[], overrides: Pagination
         <DownloadsTab
           downloads={downloads}
           downloadsLoading={false}
-          statusFilter=""
-          setStatusFilter={() => {}}
+          statusFilter={overrides.statusFilter ?? 'active'}
+          setStatusFilter={overrides.setStatusFilter ?? (() => {})}
           typeFilter=""
           setTypeFilter={() => {}}
           problemFilter=""
           setProblemFilter={() => {}}
+          searchInput={overrides.searchInput ?? ''}
+          setSearchInput={overrides.setSearchInput ?? (() => {})}
+          cancelledHidden={overrides.cancelledHidden ?? 0}
           downloadsTotal={overrides.downloadsTotal ?? downloads.length}
           downloadsPage={overrides.downloadsPage ?? 1}
           setDownloadsPage={overrides.setDownloadsPage ?? (() => {})}
@@ -206,12 +214,15 @@ describe('DownloadsTab sidepanel', () => {
           <DownloadsTab
             downloads={[]}
             downloadsLoading={false}
-            statusFilter=""
+            statusFilter="active"
             setStatusFilter={() => {}}
             typeFilter=""
             setTypeFilter={() => {}}
             problemFilter=""
             setProblemFilter={() => {}}
+            searchInput=""
+            setSearchInput={() => {}}
+            cancelledHidden={0}
             downloadsTotal={0}
             downloadsPage={1}
             setDownloadsPage={() => {}}
@@ -400,5 +411,39 @@ describe('DownloadsTab pagination', () => {
     fireEvent.change(screen.getByDisplayValue('20'), { target: { value: '50' } });
 
     expect(setDownloadsLimit).toHaveBeenCalledWith(50);
+  });
+});
+
+describe('DownloadsTab status filter, search and hidden cancelled indicator', () => {
+  it('offers the status options with their mapped values and selects the current one', () => {
+    renderDownloadsTab([], { statusFilter: 'active' });
+    const select = screen.getAllByRole('combobox')[0] as HTMLSelectElement;
+    const values = Array.from(select.options).map(o => o.value);
+    expect(values).toEqual(['active', 'all', 'completed', 'downloading', 'pending', 'retrying', 'failed', 'cancelled']);
+    expect(select.value).toBe('active');
+  });
+
+  it('forwards typing in the search input', () => {
+    const setSearchInput = vi.fn();
+    renderDownloadsTab([], { setSearchInput });
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'peacemaker' } });
+    expect(setSearchInput).toHaveBeenCalledWith('peacemaker');
+  });
+
+  it('shows the hidden cancelled indicator when active and count > 0, and switches to cancelled on click', () => {
+    const setStatusFilter = vi.fn();
+    renderDownloadsTab([], { cancelledHidden: 3, setStatusFilter });
+    fireEvent.click(screen.getByText('3 cancelled hidden'));
+    expect(setStatusFilter).toHaveBeenCalledWith('cancelled');
+  });
+
+  it('hides the indicator at zero count', () => {
+    renderDownloadsTab([], { cancelledHidden: 0 });
+    expect(screen.queryByText(/cancelled hidden/)).not.toBeInTheDocument();
+  });
+
+  it('hides the indicator when the status is not active', () => {
+    renderDownloadsTab([], { cancelledHidden: 3, statusFilter: 'all' });
+    expect(screen.queryByText(/cancelled hidden/)).not.toBeInTheDocument();
   });
 });

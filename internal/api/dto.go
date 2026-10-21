@@ -17,6 +17,13 @@ type PaginatedResponse struct {
 	TotalPages int         `json:"total_pages"`
 }
 
+// DownloadsListResponse is the paginated response of GET /api/v1/downloads.
+// CancelledHidden counts the cancelled downloads excluded by status=active.
+type DownloadsListResponse struct {
+	PaginatedResponse
+	CancelledHidden int64 `json:"cancelled_hidden"`
+}
+
 // ItemResponse represents a processed line response
 type ItemResponse struct {
 	ID              uint                   `json:"id"`

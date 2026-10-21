@@ -29,6 +29,24 @@ const (
 	DownloadStatusPolicyStopped DownloadStatus = "policy_stopped"
 )
 
+// DownloadStatusRank orders statuses for listings: in-flight work first (0),
+// then completed (1), failed (2), other resumable/stopped states (3) and
+// cancelled last (4). Every DownloadStatus constant must have an entry; a
+// status missing from the map falls into the middle rank (3).
+var DownloadStatusRank = map[DownloadStatus]int{
+	DownloadStatusDownloading:   0,
+	DownloadStatusRetrying:      0,
+	DownloadStatusPending:       0,
+	DownloadStatusCompleted:     1,
+	DownloadStatusFailed:        2,
+	DownloadStatusPaused:        3,
+	DownloadStatusPolicyStopped: 3,
+	DownloadStatusCancelled:     4,
+}
+
+// DownloadStatusDefaultRank is the rank of a status absent from DownloadStatusRank.
+const DownloadStatusDefaultRank = 3
+
 // DownloadInfo represents download tracking information
 type DownloadInfo struct {
 	ID              uint       `gorm:"primaryKey" json:"id"`

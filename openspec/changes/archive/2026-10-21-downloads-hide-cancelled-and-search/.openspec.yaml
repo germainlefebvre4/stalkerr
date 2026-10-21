@@ -1,0 +1,18 @@
+schema: spec-driven
+created: "2026-10-21"
+tags:
+    type:
+        - frontend
+    complexity: 3
+    components:
+        - downloads-enrichment-api
+        - downloads-display-ui
+        - downloads-status-filter
+        - downloads-title-search
+    agent_specialization:
+        - backend
+        - frontend
+        - api-design
+        - testing
+    _auto: true
+    _tagged_at: "2026-10-21"

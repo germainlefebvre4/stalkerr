@@ -1,2 +1,12 @@
 schema: spec-driven
-created: 2026-10-18
+created: "2026-10-18"
+tags:
+    type: []
+    complexity: 2
+    components:
+        - radarr-sonarr-monitoring-api
+        - http-server-config
+    agent_specialization:
+        - backend
+    _auto: true
+    _tagged_at: "2026-10-21"

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -91,6 +92,50 @@ func (s *Server) listDownloads(c *gin.Context) {
 	})
 }
 
+// downloadStatusRankOrder builds the ORDER BY expression ranking download
+// statuses (see models.DownloadStatusRank), then most recently updated first.
+func downloadStatusRankOrder() string {
+	var sb strings.Builder
+	sb.WriteString("CASE download_info.status")
+	statuses := make([]string, 0, len(models.DownloadStatusRank))
+	for st := range models.DownloadStatusRank {
+		statuses = append(statuses, string(st))
+	}
+	sort.Strings(statuses)
+	for _, st := range statuses {
+		fmt.Fprintf(&sb, " WHEN '%s' THEN %d", st, models.DownloadStatusRank[models.DownloadStatus(st)])
+	}
+	fmt.Fprintf(&sb, " ELSE %d END, download_info.updated_at DESC", models.DownloadStatusDefaultRank)
+	return sb.String()
+}
+
+// escapeLikePattern escapes the LIKE wildcards of user input (used with ESCAPE '\').
+func escapeLikePattern(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
+// applyDownloadsContentFilters adds the type and search predicates as EXISTS
+// subqueries, so no row is duplicated and no DISTINCT (incompatible with the
+// rank ORDER BY on PostgreSQL) is needed.
+func applyDownloadsContentFilters(db *gorm.DB, query *gorm.DB, contentType, search string) *gorm.DB {
+	if contentType != "" {
+		query = query.Where("EXISTS (SELECT 1 FROM processed_lines pl WHERE pl.download_info_id = download_info.id AND pl.content_type = ?)", contentType)
+	}
+	if search != "" {
+		op := getLikeOp(db)
+		pattern := "%" + escapeLikePattern(search) + "%"
+		query = query.Where(
+			"(download_info.download_path "+op+" ? ESCAPE '\\' OR EXISTS ("+
+				"SELECT 1 FROM processed_lines pl "+
+				"LEFT JOIN movies m ON m.id = pl.movie_id "+
+				"LEFT JOIN tvshows t ON t.id = pl.tv_show_id "+
+				"WHERE pl.download_info_id = download_info.id AND ("+
+				"m.tmdb_title "+op+" ? ESCAPE '\\' OR t.tmdb_title "+op+" ? ESCAPE '\\' OR pl.tvg_name "+op+" ? ESCAPE '\\')))",
+			pattern, pattern, pattern, pattern)
+	}
+	return query
+}
+
 // listDownloadsEnriched returns a paginated, metadata-enriched list of downloads with advanced filtering
 func (s *Server) listDownloadsEnriched(c *gin.Context) {
 	db := database.Get()
@@ -98,17 +143,19 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 	status := c.Query("status")
 	contentType := c.Query("type")
 	problem := c.Query("problem")
+	search := strings.TrimSpace(c.Query("search"))
 
-	query := db.Model(&models.DownloadInfo{})
-
-	if status != "" {
-		query = query.Where("status = ?", status)
+	newBase := func() *gorm.DB {
+		return applyDownloadsContentFilters(db, db.Model(&models.DownloadInfo{}), contentType, search)
 	}
 
-	if contentType != "" {
-		query = query.Joins("JOIN processed_lines pl ON pl.download_info_id = download_info.id").
-			Where("pl.content_type = ?", contentType).
-			Distinct()
+	query := newBase()
+	switch status {
+	case "":
+	case "active":
+		query = query.Where("download_info.status <> ?", string(models.DownloadStatusCancelled))
+	default:
+		query = query.Where("download_info.status = ?", status)
 	}
 
 	duplicateSiblings, err := buildDuplicateSiblingsByDownloadID(db)
@@ -118,6 +165,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 	}
 
 	var total int64
+	var cancelledHidden int64
 	var enriched []DownloadEnrichedResponse
 
 	if problem != "" {
@@ -128,7 +176,7 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 		var downloads []models.DownloadInfo
 		if err := query.Preload("ProcessedLines.Movie").
 			Preload("ProcessedLines.TVShow").
-			Order("download_info.updated_at desc").
+			Order(downloadStatusRankOrder()).
 			Find(&downloads).Error; err != nil {
 			respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch downloads")
 			return
@@ -139,6 +187,22 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 			resp := enrichDownloadInfo(dl, duplicateSiblings)
 			if matchesProblem(resp, problem) {
 				filtered = append(filtered, resp)
+			}
+		}
+
+		if status == "active" {
+			var cancelled []models.DownloadInfo
+			if err := newBase().Where("download_info.status = ?", string(models.DownloadStatusCancelled)).
+				Preload("ProcessedLines.Movie").
+				Preload("ProcessedLines.TVShow").
+				Find(&cancelled).Error; err != nil {
+				respondError(c, http.StatusInternalServerError, "database_error", "failed to count cancelled downloads")
+				return
+			}
+			for _, dl := range cancelled {
+				if matchesProblem(enrichDownloadInfo(dl, duplicateSiblings), problem) {
+					cancelledHidden++
+				}
 			}
 		}
 
@@ -158,10 +222,18 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 			return
 		}
 
+		if status == "active" {
+			if err := newBase().Where("download_info.status = ?", string(models.DownloadStatusCancelled)).
+				Count(&cancelledHidden).Error; err != nil {
+				respondError(c, http.StatusInternalServerError, "database_error", "failed to count cancelled downloads")
+				return
+			}
+		}
+
 		var downloads []models.DownloadInfo
 		if err := query.Preload("ProcessedLines.Movie").
 			Preload("ProcessedLines.TVShow").
-			Order("download_info.updated_at desc").
+			Order(downloadStatusRankOrder()).
 			Limit(limit).Offset(offset).
 			Find(&downloads).Error; err != nil {
 			respondError(c, http.StatusInternalServerError, "database_error", "failed to fetch downloads")
@@ -176,12 +248,15 @@ func (s *Server) listDownloadsEnriched(c *gin.Context) {
 
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 
-	c.JSON(http.StatusOK, PaginatedResponse{
-		Data:       enriched,
-		Total:      total,
-		Limit:      limit,
-		Offset:     offset,
-		TotalPages: totalPages,
+	c.JSON(http.StatusOK, DownloadsListResponse{
+		PaginatedResponse: PaginatedResponse{
+			Data:       enriched,
+			Total:      total,
+			Limit:      limit,
+			Offset:     offset,
+			TotalPages: totalPages,
+		},
+		CancelledHidden: cancelledHidden,
 	})
 }
 

@@ -6,6 +6,10 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
+export interface DownloadsPage extends PaginatedResponse<DownloadEnriched> {
+  cancelled_hidden?: number;
+}
+
 export interface MovieResponse {
   id: number;
   tmdb_id: number;

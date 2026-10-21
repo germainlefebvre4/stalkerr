@@ -5,9 +5,26 @@ import { useURLState, URLStateSchema } from './useURLState';
 
 const VALID_LIMITS = [20, 50, 100];
 const DEFAULT_LIMIT = 20;
+const SEARCH_DEBOUNCE_MS = 300;
+
+// Status filter value meaning "no status constraint" (Tous). Serialized in the
+// URL so a refresh doesn't fall back to the "active" default.
+export const STATUS_ALL = 'all';
+export const STATUS_ACTIVE = 'active';
+
+// Playlist-style `searchName` links are honored once as an alias of `dlSearch`.
+function readSearchAlias(): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('dlSearch') === null ? params.get('searchName') ?? '' : '';
+  } catch {
+    return '';
+  }
+}
 
 const DOWNLOADS_URL_SCHEMA = {
-  dlStatus: { default: '', parse: (raw: string) => raw, serialize: (v: string) => v },
+  dlStatus: { default: STATUS_ACTIVE, parse: (raw: string) => raw, serialize: (v: string) => v },
+  dlSearch: { default: '', parse: (raw: string) => raw, serialize: (v: string) => v },
   dlType: { default: '', parse: (raw: string) => raw, serialize: (v: string) => v },
   dlProblem: { default: '', parse: (raw: string) => raw, serialize: (v: string) => v },
   dlPage: {
@@ -29,13 +46,31 @@ export function useDownloads(isActive: boolean) {
   const [downloadsLoading, setDownloadsLoading] = useState(false);
   const [downloadsTotal, setDownloadsTotal] = useState(0);
   const [urlState, patchURLState] = useURLState(DOWNLOADS_URL_SCHEMA);
+  const [cancelledHidden, setCancelledHidden] = useState(0);
   const [configPaths, setConfigPaths] = useState<ConfigPaths | null>(null);
 
   const statusFilter = urlState.dlStatus;
   const typeFilter = urlState.dlType;
   const problemFilter = urlState.dlProblem;
+  const searchFilter = urlState.dlSearch;
   const downloadsPage = urlState.dlPage;
   const downloadsLimit = urlState.dlLimit;
+
+  // The input value updates immediately; the URL/search filter follows after a debounce.
+  const [searchInput, setSearchInput] = useState(() => urlState.dlSearch || readSearchAlias());
+
+  // Promote a `searchName` alias to `dlSearch` once, so the first fetch is filtered.
+  useEffect(() => {
+    const alias = readSearchAlias();
+    if (alias) patchURLState({ dlSearch: alias });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (searchInput === searchFilter) return;
+    const timer = setTimeout(() => patchURLState({ dlSearch: searchInput, dlPage: 1 }), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchInput, searchFilter, patchURLState]);
 
   const setStatusFilter = useCallback((value: string) => patchURLState({ dlStatus: value }), [patchURLState]);
   const setTypeFilter = useCallback((value: string) => patchURLState({ dlType: value }), [patchURLState]);
@@ -57,14 +92,16 @@ export function useDownloads(isActive: boolean) {
   const fetchDownloads = useCallback(() => {
     setDownloadsLoading(true);
     const offset = (downloadsPage - 1) * downloadsLimit;
-    api.getDownloads(downloadsLimit, statusFilter, typeFilter, problemFilter, offset)
+    const apiStatus = statusFilter === STATUS_ALL ? '' : statusFilter;
+    api.getDownloads(downloadsLimit, apiStatus, typeFilter, problemFilter, offset, searchFilter)
       .then(data => {
         setDownloads(data.data || []);
         setDownloadsTotal(data.total || 0);
+        setCancelledHidden(data.cancelled_hidden || 0);
       })
       .catch(() => {})
       .finally(() => setDownloadsLoading(false));
-  }, [statusFilter, typeFilter, problemFilter, downloadsPage, downloadsLimit]);
+  }, [statusFilter, typeFilter, problemFilter, searchFilter, downloadsPage, downloadsLimit]);
 
   useEffect(() => {
     api.getConfigPaths()
@@ -80,15 +117,15 @@ export function useDownloads(isActive: boolean) {
   // Reset to page 1 when a filter actually changes value, but not on the
   // initial mount (which would otherwise clobber a page number restored from
   // the URL). Mirrors usePlaylist's equivalent effect.
-  const prevFiltersRef = useRef({ status: statusFilter, type: typeFilter, problem: problemFilter });
+  const prevFiltersRef = useRef({ status: statusFilter, type: typeFilter, problem: problemFilter, search: searchFilter });
   useEffect(() => {
     const prev = prevFiltersRef.current;
-    const changed = prev.status !== statusFilter || prev.type !== typeFilter || prev.problem !== problemFilter;
-    prevFiltersRef.current = { status: statusFilter, type: typeFilter, problem: problemFilter };
+    const changed = prev.status !== statusFilter || prev.type !== typeFilter || prev.problem !== problemFilter || prev.search !== searchFilter;
+    prevFiltersRef.current = { status: statusFilter, type: typeFilter, problem: problemFilter, search: searchFilter };
     if (changed) {
       patchURLState({ dlPage: 1 });
     }
-  }, [statusFilter, typeFilter, problemFilter, patchURLState]);
+  }, [statusFilter, typeFilter, problemFilter, searchFilter, patchURLState]);
 
   const updateDownloadPath = useCallback((id: number, newPath: string) => {
     setDownloads(prev => prev.map(item => {
@@ -119,6 +156,9 @@ export function useDownloads(isActive: boolean) {
     setTypeFilter,
     problemFilter,
     setProblemFilter,
+    searchInput,
+    setSearchInput,
+    cancelledHidden,
     downloadsPage,
     setDownloadsPage,
     downloadsLimit,

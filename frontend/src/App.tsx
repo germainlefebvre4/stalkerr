@@ -139,6 +139,7 @@ export default function App() {
   const {
     downloads, downloadsLoading, statusFilter, setStatusFilter,
     typeFilter, setTypeFilter, problemFilter, setProblemFilter,
+    searchInput: downloadsSearchInput, setSearchInput: setDownloadsSearchInput, cancelledHidden,
     downloadsPage, setDownloadsPage, downloadsLimit, setDownloadsLimit, downloadsTotal,
     configPaths, fetchDownloads, updateDownloadPath, updateDownloadStatus
   } = useDownloads(activeTab === 'downloads');
@@ -367,6 +368,7 @@ export default function App() {
         <DownloadsTab
           downloads={downloads} downloadsLoading={downloadsLoading} statusFilter={statusFilter} setStatusFilter={setStatusFilter}
           typeFilter={typeFilter} setTypeFilter={setTypeFilter} problemFilter={problemFilter} setProblemFilter={setProblemFilter}
+          searchInput={downloadsSearchInput} setSearchInput={setDownloadsSearchInput} cancelledHidden={cancelledHidden}
           downloadsTotal={downloadsTotal} downloadsPage={downloadsPage} setDownloadsPage={setDownloadsPage}
           downloadsLimit={downloadsLimit} setDownloadsLimit={setDownloadsLimit}
           onFetchDownloads={fetchDownloads} onOpenMoveDialog={openMoveDialog}

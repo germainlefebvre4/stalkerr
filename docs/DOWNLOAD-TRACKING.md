@@ -157,6 +157,25 @@ CREATE INDEX idx_download_info_locked_at ON download_info(locked_at);
 CREATE INDEX idx_download_info_updated_at ON download_info(updated_at);
 ```
 
+## Listing Downloads (`GET /api/v1/downloads`)
+
+| Query | Meaning |
+|---|---|
+| `status` | A concrete status (`completed`, `downloading`, `pending`, `retrying`, `failed`, `cancelled`, ...), or `active` = every status except `cancelled`. Omitted = every status. |
+| `type` | `movies` or `tvshows`. |
+| `search` | Case-insensitive substring matched against the movie/TV show title, the M3U `tvg_name` or the download path (file name). `%` and `_` are literal. |
+| `problem` | Comma-separated problem filters (`missing_year`, `year_mismatch`, `unknown_format`, `low_quality`, `duplicate_download`). |
+| `limit`, `offset` | Pagination. |
+
+Results are ordered by status rank (`downloading`/`retrying`/`pending`, then `completed`, then `failed`, then other statuses, then `cancelled`), then `updated_at` descending. The response is the usual paginated envelope plus `cancelled_hidden`: with `status=active`, the number of `cancelled` downloads matching the other filters that `active` excluded; `0` for any other `status`.
+
+```bash
+curl -s 'http://localhost:8080/api/v1/downloads?status=active&search=peacemaker&limit=20&offset=0'
+# {"data":[...],"total":3,"limit":20,"offset":0,"total_pages":1,"cancelled_hidden":2}
+```
+
+**Behavioral change (Downloads tab).** The tab now opens on **Actifs** (`status=active`) instead of every status, so cancelled downloads are hidden until you pick **Tous** (`dlStatus=all` in the URL) or **Annulés**; an "N annulés masqués" link under the list switches to **Annulés**. A title search box (`dlSearch` in the URL; `?tab=downloads&searchName=...` links are read as an alias) was added. API clients that omit `status` still get every status.
+
 ## Duplicate Downloads (Errors tab)
 
 A movie or episode with two or more completed automated downloads at different paths is flagged `duplicate_download` in the Errors tab. Two operator-triggered actions are available in its sidepanel; neither runs automatically (not from the scheduled `download` reconciliation pass, which only logs).

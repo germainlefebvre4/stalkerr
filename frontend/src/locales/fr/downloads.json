@@ -3,12 +3,20 @@
   "subtitle": "Suivi dynamique des téléchargements de fichiers vidéo et réorganisations",
   "refresh": "Actualiser ↻",
   "statusFilter": {
+    "active": "Actifs",
+    "pending": "En attente",
+    "retrying": "Réessai",
     "all": "Statut : Tous",
     "completed": "Complétés",
     "downloading": "En cours",
     "failed": "Échoués",
     "cancelled": "Annulés"
   },
+  "search": {
+    "placeholder": "Rechercher un titre…"
+  },
+  "cancelledHidden_one": "{{count}} annulé masqué",
+  "cancelledHidden_other": "{{count}} annulés masqués",
   "typeFilter": {
     "all": "Type : Tous",
     "movies": "Films",

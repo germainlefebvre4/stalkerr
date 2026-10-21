@@ -18,6 +18,9 @@ interface DownloadsTabProps {
   setTypeFilter: (type: string) => void;
   problemFilter: string;
   setProblemFilter: (problem: string) => void;
+  searchInput: string;
+  setSearchInput: (value: string) => void;
+  cancelledHidden: number;
   downloadsTotal: number;
   downloadsPage: number;
   setDownloadsPage: React.Dispatch<React.SetStateAction<number>>;
@@ -44,6 +47,9 @@ export function DownloadsTab({
   setTypeFilter,
   problemFilter,
   setProblemFilter,
+  searchInput,
+  setSearchInput,
+  cancelledHidden,
   downloadsTotal,
   downloadsPage,
   setDownloadsPage,
@@ -174,14 +180,25 @@ export function DownloadsTab({
 
       {/* Filter Bar */}
       <div className="filters" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <input
+          type="search"
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          placeholder={t('search.placeholder')}
+          aria-label={t('search.placeholder')}
+          style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)', minWidth: '14rem' }}
+        />
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
           style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
         >
-          <option value="">{t('statusFilter.all')}</option>
+          <option value="active">{t('statusFilter.active')}</option>
+          <option value="all">{t('statusFilter.all')}</option>
           <option value="completed">{t('statusFilter.completed')}</option>
           <option value="downloading">{t('statusFilter.downloading')}</option>
+          <option value="pending">{t('statusFilter.pending')}</option>
+          <option value="retrying">{t('statusFilter.retrying')}</option>
           <option value="failed">{t('statusFilter.failed')}</option>
           <option value="cancelled">{t('statusFilter.cancelled')}</option>
         </select>
@@ -214,6 +231,17 @@ export function DownloadsTab({
         loading={downloadsLoading}
         onRowClick={item => setSelectedId(item.id)}
       />
+
+      {statusFilter === 'active' && cancelledHidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setStatusFilter('cancelled')}
+          className="btn-secondary"
+          style={{ marginTop: '0.75rem', fontSize: '0.8rem' }}
+        >
+          {t('cancelledHidden', { count: cancelledHidden })}
+        </button>
+      )}
 
       <Pagination
         total={downloadsTotal}
