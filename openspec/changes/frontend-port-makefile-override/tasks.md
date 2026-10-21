@@ -16,5 +16,5 @@
 ## 4. Verification
 
 - [x] 4.1 Run `make dev FRONTEND_PORT=3000` and confirm Vite listens on 3000 and the echo shows 3000 <!-- human review required -->
-- [ ] 4.2 Occupy the port and confirm Vite fails instead of incrementing <!-- human review required -->
+- [x] 4.2 Occupy the port and confirm Vite fails instead of incrementing <!-- human review required -->
 - [ ] 4.3 Run `make dev` with no override and confirm 5173 is used <!-- human review required -->
