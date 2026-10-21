@@ -537,6 +537,8 @@ make dev
 *   **Web Dashboard (IHM)**: Available at [http://localhost:5173](http://localhost:5173)
 *   **API v1 Server**: Available at [http://localhost:8080](http://localhost:8080)
 
+To use a different frontend port, override `FRONTEND_PORT` (e.g. `make dev FRONTEND_PORT=3000`). Vite uses strict port mode: if the port is already in use, it fails instead of falling back to the next free port.
+
 *Note:* Vite is preconfigured to automatically proxy all REST API requests on `/api/v1/*` directly to port `8080` to avoid CORS issues.
 
 For advanced settings, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development setup instructions.
