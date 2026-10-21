@@ -469,15 +469,15 @@ input, select {
   border-radius: 50%;
 }
 
-/* État filter dropdown (Radix DropdownMenu): trigger reuses .custom-select's
+/* Multi-select filter dropdown (Radix DropdownMenu): trigger reuses .custom-select's
    look, content/items get their own small popover styling. */
-.etat-filter-trigger {
+.multi-select-trigger {
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
 }
 
-.etat-filter-content {
+.multi-select-content {
   min-width: 200px;
   padding: 0.35rem;
   background-color: var(--bg-card);
@@ -487,7 +487,7 @@ input, select {
   z-index: 200;
 }
 
-.etat-filter-item {
+.multi-select-item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -501,11 +501,11 @@ input, select {
   user-select: none;
 }
 
-.etat-filter-item[data-highlighted] {
+.multi-select-item[data-highlighted] {
   background-color: var(--bg-active);
 }
 
-.etat-filter-item-check {
+.multi-select-item-check {
   width: 1rem;
   display: inline-flex;
   justify-content: center;
@@ -1502,5 +1502,111 @@ input, select {
   .drawer-section-title,
   .settings-section-header {
     font-size: 0.8rem;
+  }
+}
+
+/* "Manquants" preset button next to the Suivi/Fichier filters */
+.missing-preset {
+  white-space: nowrap;
+}
+
+.missing-preset--active {
+  background-color: var(--bg-active);
+  border-color: var(--primary-accent);
+  color: var(--primary-accent);
+}
+
+/* Filter bar of the Films/Séries sections: search on its own line, then labelled
+   groups. Width/height overrides are scoped here so .custom-select stays untouched elsewhere. */
+.arr-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.arr-filter-groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.5rem;
+}
+
+.arr-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.arr-filter-caption,
+.arr-filter-select-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.arr-filter-select-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.arr-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.arr-filter-bar .arr-filter-control,
+.arr-filter-bar .multi-select-trigger {
+  width: auto;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.arr-filter-bar .missing-preset--active {
+  background-color: var(--bg-active);
+  border-color: var(--primary-accent);
+  color: var(--primary-accent);
+}
+
+.arr-filter-reset {
+  margin-left: auto;
+}
+
+@media (max-width: 767.98px) {
+  .arr-filter-groups {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .arr-filter-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .arr-filter-group:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .arr-filter-group:first-child .arr-filter-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .arr-filter-reset {
+    grid-column: 1 / -1;
+    margin-left: 0;
   }
 }

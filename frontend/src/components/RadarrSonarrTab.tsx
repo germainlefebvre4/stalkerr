@@ -4,13 +4,14 @@ import * as Dialog from '@radix-ui/react-dialog';
 import * as Progress from '@radix-ui/react-progress';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats, MatchStatusFilter, EtatFilter } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrMovieMatchesResponse, SonarrSeriesEpisodesResponse, SonarrSeriesEpisodeItem, OccurrenceResponse, PlaylistItem, RadarrSonarrStats, MatchStatusFilter, SuiviFilter, FileFilter, FileState } from '../types';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import { useRadarrSonarrView } from '../hooks/useRadarrSonarrView';
 import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
 import { MediaOccurrenceDrawer, MediaOccurrenceDrawerBody } from './MediaOccurrenceDrawer';
-import { EtatFilterDropdown, EtatFilterDropdownOption } from './EtatFilterDropdown';
+import { MultiSelectDropdownOption } from './MultiSelectDropdown';
+import { ArrFilterBar } from './ArrFilterBar';
 import { api, ApiError } from '../services/api';
 import radarrIcon from '../assets/icons/radarr.svg';
 import sonarrIcon from '../assets/icons/sonarr.svg';
@@ -28,8 +29,12 @@ interface RadarrSonarrTabProps {
   setFilmsSearch: (value: string) => void;
   filmsFilter: MatchStatusFilter;
   setFilmsFilter: (value: MatchStatusFilter) => void;
-  filmsStatus: EtatFilter;
-  setFilmsStatus: (value: EtatFilter) => void;
+  filmsStatus: SuiviFilter;
+  setFilmsStatus: (value: SuiviFilter) => void;
+  filmsFile: FileFilter;
+  setFilmsFile: (value: FileFilter) => void;
+  setFilmsMissing: () => void;
+  resetFilmsFilters: () => void;
 
   seriesItems: SonarrSeriesListItem[];
   seriesLoading: boolean;
@@ -44,8 +49,12 @@ interface RadarrSonarrTabProps {
   setSeriesSearch: (value: string) => void;
   seriesFilter: MatchStatusFilter;
   setSeriesFilter: (value: MatchStatusFilter) => void;
-  seriesStatus: EtatFilter;
-  setSeriesStatus: (value: EtatFilter) => void;
+  seriesStatus: SuiviFilter;
+  setSeriesStatus: (value: SuiviFilter) => void;
+  seriesFile: FileFilter;
+  setSeriesFile: (value: FileFilter) => void;
+  setSeriesMissing: () => void;
+  resetSeriesFilters: () => void;
 
   stats: RadarrSonarrStats | null;
   statsLoading: boolean;
@@ -63,18 +72,32 @@ function seriesBadgeClass(matched: number, monitored: number): string {
   return 'badge-progress';
 }
 
-// État badge: Missing -> badge-failed, Monitored (complete) -> badge-success,
-// Unmonitored -> badge-neutral. See design.md decision 6.
-function etatBadgeClass(monitored: boolean, missing: boolean): string {
-  if (missing) return 'badge-failed';
-  if (monitored) return 'badge-success';
-  return 'badge-neutral';
+// Suivi badge: Radarr/Sonarr's own monitored flag, kept visually quieter than
+// the Fichier badge. See design.md decision 6.
+function suiviBadgeClass(monitored: boolean): string {
+  return monitored ? 'badge-progress' : 'badge-neutral';
 }
 
-function etatLabel(t: TFunction, monitored: boolean, missing: boolean): string {
-  if (missing) return t('filterStatus.etat.missing');
-  if (monitored) return t('filterStatus.etat.monitored');
-  return t('filterStatus.etat.unmonitored');
+function suiviLabel(t: TFunction, monitored: boolean): string {
+  return monitored ? t('suivi.monitored') : t('suivi.unmonitored');
+}
+
+// Fichier badge: Absent is only alarming (red) when Radarr/Sonarr is waiting
+// for the file, i.e. the item is monitored; otherwise it is intentional (grey).
+function fichierBadgeClass(state: FileState, monitored: boolean): string {
+  switch (state) {
+    case 'downloaded': return 'badge-success';
+    case 'partial': return 'badge-pending';
+    default: return monitored ? 'badge-failed' : 'badge-neutral';
+  }
+}
+
+function fichierLabel(t: TFunction, state: FileState, counts?: { files: number; aired: number }): string {
+  switch (state) {
+    case 'downloaded': return t('fichier.downloaded');
+    case 'partial': return counts ? t('fichier.partialRatio', { files: counts.files, aired: counts.aired }) : t('fichier.partial');
+    default: return t('fichier.none');
+  }
 }
 
 function padNumber(n: number): string {
@@ -88,11 +111,34 @@ function renderStatusIndicator(isMobile: boolean, badgeClass: string, label: str
   return <span className={`badge ${badgeClass}`}>{label}</span>;
 }
 
+function renderSuivi(isMobile: boolean, t: TFunction, monitored: boolean) {
+  return renderStatusIndicator(isMobile, suiviBadgeClass(monitored), suiviLabel(t, monitored));
+}
+
+function renderFichier(isMobile: boolean, t: TFunction, state: FileState, monitored: boolean, counts?: { files: number; aired: number }) {
+  return renderStatusIndicator(isMobile, fichierBadgeClass(state, monitored), fichierLabel(t, state, counts));
+}
+
+const MISSING_FILMS_FILE: FileState[] = ['none'];
+const MISSING_SERIES_FILE: FileState[] = ['partial', 'none'];
+
+// The "Manquants" preset is active when the selections equal its own: only
+// Surveillé, and exactly the preset's Fichier values.
+function isMissingPreset(status: SuiviFilter, file: FileFilter, presetFile: FileState[]): boolean {
+  return status.size === 1 && status.has('monitored')
+    && file.size === presetFile.length && presetFile.every(v => file.has(v));
+}
+
+// The default view is: any match status, Surveillé only, no Fichier selection.
+function isDefaultFilters(matchStatus: MatchStatusFilter, status: SuiviFilter, file: FileFilter): boolean {
+  return matchStatus === '' && status.size === 1 && status.has('monitored') && file.size === 0;
+}
+
 export function RadarrSonarrTab({
   filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
-  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus,
+  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing, resetFilmsFilters,
   seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
-  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus,
+  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing, resetSeriesFilters,
   stats, statsLoading, statsError, fetchStats,
   onOpenOverride,
 }: RadarrSonarrTabProps) {
@@ -101,10 +147,18 @@ export function RadarrSonarrTab({
   const { t: tPlaylist } = useTranslation('playlist');
   const isMobile = useIsMobile();
 
-  const etatOptions: EtatFilterDropdownOption[] = [
-    { value: 'monitored', label: t('filterStatus.etat.monitored') },
-    { value: 'unmonitored', label: t('filterStatus.etat.unmonitored') },
-    { value: 'missing', label: t('filterStatus.etat.missing') },
+  const suiviOptions: MultiSelectDropdownOption<'monitored' | 'unmonitored'>[] = [
+    { value: 'monitored', label: t('suivi.monitored') },
+    { value: 'unmonitored', label: t('suivi.unmonitored') },
+  ];
+  const filmsFileOptions: MultiSelectDropdownOption<FileState>[] = [
+    { value: 'downloaded', label: t('fichier.downloaded') },
+    { value: 'none', label: t('fichier.none') },
+  ];
+  const seriesFileOptions: MultiSelectDropdownOption<FileState>[] = [
+    { value: 'downloaded', label: t('fichier.downloaded') },
+    { value: 'partial', label: t('fichier.partial') },
+    { value: 'none', label: t('fichier.none') },
   ];
 
   const { activeSubTab, setActiveSubTab } = useRadarrSonarrView();
@@ -383,32 +437,24 @@ export function RadarrSonarrTab({
               <button onClick={fetchFilms} className="btn-secondary">{t('films.refresh')}</button>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder={t('films.searchPlaceholder')}
-                value={filmsSearchInput}
-                onChange={e => setFilmsSearchInput(e.target.value)}
-                className="custom-input"
-                style={{ flex: 1, minWidth: '200px' }}
-              />
-              <select
-                value={filmsFilter}
-                onChange={e => setFilmsFilter(e.target.value as MatchStatusFilter)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
-              >
-                <option value="">{t('filterStatus.all')}</option>
-                <option value="matched">{t('filterStatus.matched')}</option>
-                <option value="no_match">{t('filterStatus.noMatch')}</option>
-              </select>
-              <EtatFilterDropdown
-                label={t('filterStatus.etat.label')}
-                value={filmsStatus}
-                onChange={setFilmsStatus}
-                options={etatOptions}
-                noneLabel={t('filterStatus.etat.none')}
-              />
-            </div>
+            <ArrFilterBar
+              service="radarr"
+              searchPlaceholder={t('films.searchPlaceholder')}
+              searchValue={filmsSearchInput}
+              onSearchChange={setFilmsSearchInput}
+              matchStatus={filmsFilter}
+              onMatchStatusChange={setFilmsFilter}
+              suivi={filmsStatus}
+              onSuiviChange={setFilmsStatus}
+              suiviOptions={suiviOptions}
+              file={filmsFile}
+              onFileChange={setFilmsFile}
+              fileOptions={filmsFileOptions}
+              missingActive={isMissingPreset(filmsStatus, filmsFile, MISSING_FILMS_FILE)}
+              onMissing={setFilmsMissing}
+              isDefault={isDefaultFilters(filmsFilter, filmsStatus, filmsFile)}
+              onReset={resetFilmsFilters}
+            />
 
             {filmsError ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
@@ -429,7 +475,8 @@ export function RadarrSonarrTab({
                         <span className="mobile-list-card-subtitle">{item.year} · {t('films.table.occurrences')}: {item.occurrence_count}</span>
                       </div>
                       <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                        {renderStatusIndicator(true, etatBadgeClass(item.monitored, item.missing), etatLabel(t, item.monitored, item.missing))}
+                        {renderSuivi(true, t, item.monitored)}
+                        {renderFichier(true, t, item.file_state, item.monitored)}
                         <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
                           {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
                         </span>
@@ -445,26 +492,24 @@ export function RadarrSonarrTab({
                     <tr>
                       <th>{t('films.table.title')}</th>
                       <th>{t('films.table.year')}</th>
-                      <th>{t('films.table.etat')}</th>
+                      <th>{t('films.table.suivi')}</th>
+                      <th>{t('films.table.fichier')}</th>
                       <th>{t('films.table.status')}</th>
                       <th>{t('films.table.occurrences')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filmsLoading && filmsItems.length === 0 ? (
-                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
+                      <tr><td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('films.loading')}</td></tr>
                     ) : filmsItems.length === 0 ? (
-                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
+                      <tr><td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{filmsEmptyMessage}</td></tr>
                     ) : (
                       filmsItems.map(item => (
                         <tr key={item.radarr_id} className="clickable-row" onClick={() => openMovie(item)}>
                           <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
                           <td>{item.year}</td>
-                          <td>
-                            <span className={`badge ${etatBadgeClass(item.monitored, item.missing)}`}>
-                              {etatLabel(t, item.monitored, item.missing)}
-                            </span>
-                          </td>
+                          <td>{renderSuivi(false, t, item.monitored)}</td>
+                          <td>{renderFichier(false, t, item.file_state, item.monitored)}</td>
                           <td>
                             <span className={`badge ${item.matched ? 'badge-success' : 'badge-pending'}`}>
                               {item.matched ? t('films.badge.matched') : t('films.badge.unmatched')}
@@ -496,32 +541,24 @@ export function RadarrSonarrTab({
               <button onClick={refreshSeries} className="btn-secondary">{t('series.refresh')}</button>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder={t('series.searchPlaceholder')}
-                value={seriesSearchInput}
-                onChange={e => setSeriesSearchInput(e.target.value)}
-                className="custom-input"
-                style={{ flex: 1, minWidth: '200px' }}
-              />
-              <select
-                value={seriesFilter}
-                onChange={e => setSeriesFilter(e.target.value as MatchStatusFilter)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
-              >
-                <option value="">{t('filterStatus.all')}</option>
-                <option value="matched">{t('filterStatus.matched')}</option>
-                <option value="no_match">{t('filterStatus.noMatch')}</option>
-              </select>
-              <EtatFilterDropdown
-                label={t('filterStatus.etat.label')}
-                value={seriesStatus}
-                onChange={setSeriesStatus}
-                options={etatOptions}
-                noneLabel={t('filterStatus.etat.none')}
-              />
-            </div>
+            <ArrFilterBar
+              service="sonarr"
+              searchPlaceholder={t('series.searchPlaceholder')}
+              searchValue={seriesSearchInput}
+              onSearchChange={setSeriesSearchInput}
+              matchStatus={seriesFilter}
+              onMatchStatusChange={setSeriesFilter}
+              suivi={seriesStatus}
+              onSuiviChange={setSeriesStatus}
+              suiviOptions={suiviOptions}
+              file={seriesFile}
+              onFileChange={setSeriesFile}
+              fileOptions={seriesFileOptions}
+              missingActive={isMissingPreset(seriesStatus, seriesFile, MISSING_SERIES_FILE)}
+              onMissing={setSeriesMissing}
+              isDefault={isDefaultFilters(seriesFilter, seriesStatus, seriesFile)}
+              onReset={resetSeriesFilters}
+            />
 
             {seriesError ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
@@ -542,7 +579,8 @@ export function RadarrSonarrTab({
                         <span className="mobile-list-card-subtitle">{item.year} · {t('series.table.occurrences')}: {item.occurrence_count}</span>
                       </div>
                       <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                        {renderStatusIndicator(true, etatBadgeClass(item.monitored, item.missing), etatLabel(t, item.monitored, item.missing))}
+                        {renderSuivi(true, t, item.monitored)}
+                        {renderFichier(true, t, item.file_state, item.monitored, { files: item.episode_file_count, aired: item.episode_count })}
                         <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
                           {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
                         </span>
@@ -558,26 +596,24 @@ export function RadarrSonarrTab({
                     <tr>
                       <th>{t('series.table.title')}</th>
                       <th>{t('series.table.year')}</th>
-                      <th>{t('series.table.etat')}</th>
+                      <th>{t('series.table.suivi')}</th>
+                      <th>{t('series.table.fichier')}</th>
                       <th>{t('series.table.status')}</th>
                       <th>{t('series.table.occurrences')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {seriesLoading && seriesItems.length === 0 ? (
-                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
+                      <tr><td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('series.loading')}</td></tr>
                     ) : seriesItems.length === 0 ? (
-                      <tr><td colSpan={5} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
+                      <tr><td colSpan={6} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{seriesEmptyMessage}</td></tr>
                     ) : (
                       seriesItems.map(item => (
                         <tr key={item.sonarr_id} className="clickable-row" onClick={() => openSeries(item)}>
                           <td style={{ fontWeight: 700, color: 'var(--primary-slate)' }}>{item.title}</td>
                           <td>{item.year}</td>
-                          <td>
-                            <span className={`badge ${etatBadgeClass(item.monitored, item.missing)}`}>
-                              {etatLabel(t, item.monitored, item.missing)}
-                            </span>
-                          </td>
+                          <td>{renderSuivi(false, t, item.monitored)}</td>
+                          <td>{renderFichier(false, t, item.file_state, item.monitored, { files: item.episode_file_count, aired: item.episode_count })}</td>
                           <td>
                             <span className={`badge ${seriesBadgeClass(item.matched_count, item.monitored_count)}`}>
                               {t('series.ratio', { matched: item.matched_count, monitored: item.monitored_count })}
@@ -653,7 +689,8 @@ export function RadarrSonarrTab({
                       <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
                         {selectedMovie.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedMovie.year})</span>
                       </div>
-                      {renderStatusIndicator(isMobile, etatBadgeClass(selectedMovie.monitored, selectedMovie.missing), etatLabel(t, selectedMovie.monitored, selectedMovie.missing))}
+                      {renderSuivi(isMobile, t, selectedMovie.monitored)}
+                      {renderFichier(isMobile, t, selectedMovie.file_state, selectedMovie.monitored)}
                     </div>
 
                     {!movieDetail.matched ? (
@@ -677,7 +714,8 @@ export function RadarrSonarrTab({
                       <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-accent)' }}>
                         {selectedSeries.title} <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>({selectedSeries.year})</span>
                       </div>
-                      {renderStatusIndicator(isMobile, etatBadgeClass(selectedSeries.monitored, selectedSeries.missing), etatLabel(t, selectedSeries.monitored, selectedSeries.missing))}
+                      {renderSuivi(isMobile, t, selectedSeries.monitored)}
+                      {renderFichier(isMobile, t, selectedSeries.file_state, selectedSeries.monitored, { files: selectedSeries.episode_file_count, aired: selectedSeries.episode_count })}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -724,7 +762,8 @@ export function RadarrSonarrTab({
                                                 </span>
                                               </div>
                                               <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                                                {renderStatusIndicator(true, etatBadgeClass(ep.monitored, ep.missing), etatLabel(t, ep.monitored, ep.missing))}
+                                                {renderSuivi(true, t, ep.monitored)}
+                                                {renderFichier(true, t, ep.file_state, ep.monitored)}
                                                 <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
                                                   {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
                                                 </span>
@@ -748,7 +787,8 @@ export function RadarrSonarrTab({
                                       <thead>
                                         <tr>
                                           <th></th>
-                                          <th>{t('drawer.etat')}</th>
+                                          <th>{t('drawer.suivi')}</th>
+                                          <th>{t('drawer.fichier')}</th>
                                           <th>{t('drawer.occurrenceState')}</th>
                                         </tr>
                                       </thead>
@@ -765,11 +805,8 @@ export function RadarrSonarrTab({
                                                   <span style={{ marginRight: '0.5rem', display: 'inline-block', transform: isEpExpanded ? 'rotate(90deg)' : 'none' }}>▸</span>
                                                   <span>{t('drawer.episode', { season: padNumber(ep.season), episode: padNumber(ep.episode) })}</span>
                                                 </td>
-                                                <td>
-                                                  <span className={`badge ${etatBadgeClass(ep.monitored, ep.missing)}`}>
-                                                    {etatLabel(t, ep.monitored, ep.missing)}
-                                                  </span>
-                                                </td>
+                                                <td>{renderSuivi(false, t, ep.monitored)}</td>
+                                                <td>{renderFichier(false, t, ep.file_state, ep.monitored)}</td>
                                                 <td>
                                                   <span className={`badge ${ep.matched ? 'badge-success' : 'badge-pending'}`}>
                                                     {ep.matched ? t('drawer.episodeMatched') : t('drawer.episodeUnmatched')}
@@ -778,7 +815,7 @@ export function RadarrSonarrTab({
                                               </tr>
                                               {isEpExpanded && (
                                                 <tr>
-                                                  <td colSpan={3} style={{ padding: 0 }}>
+                                                  <td colSpan={4} style={{ padding: 0 }}>
                                                     {ep.occurrences.length === 0 ? (
                                                       <div style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem', backgroundColor: 'var(--bg-app)' }}>
                                                         {t('drawer.episodeNoOccurrences')}

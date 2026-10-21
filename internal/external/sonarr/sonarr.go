@@ -2,6 +2,7 @@ package sonarr
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,9 +44,57 @@ type Series struct {
 	Monitored         bool      `json:"monitored"`
 	SeasonCount       int       `json:"seasonCount"`
 	EpisodeFileCount  int       `json:"episodeFileCount"`
+	EpisodeCount      int       `json:"episodeCount"`
 	TotalEpisodeCount int       `json:"totalEpisodeCount"`
 	Added             time.Time `json:"added"`
 	QualityProfileID  int       `json:"qualityProfileId"`
+}
+
+// seriesStatistics mirrors the "statistics" object Sonarr v3/v4 nests the
+// episode counters under. Pointers distinguish an absent counter from zero.
+type seriesStatistics struct {
+	SeasonCount       *int `json:"seasonCount"`
+	EpisodeFileCount  *int `json:"episodeFileCount"`
+	EpisodeCount      *int `json:"episodeCount"`
+	TotalEpisodeCount *int `json:"totalEpisodeCount"`
+}
+
+// UnmarshalJSON reads the episode counters from the nested "statistics" object
+// when present, falling back to the top-level fields of older/flat shapes.
+// EpisodeCount is the number of aired episodes; when the payload carries no
+// such counter it falls back to TotalEpisodeCount.
+func (s *Series) UnmarshalJSON(data []byte) error {
+	type plain Series
+	aux := struct {
+		*plain
+		EpisodeCount *int              `json:"episodeCount"`
+		Statistics   *seriesStatistics `json:"statistics"`
+	}{plain: (*plain)(s)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if st := aux.Statistics; st != nil {
+		if st.SeasonCount != nil {
+			s.SeasonCount = *st.SeasonCount
+		}
+		if st.EpisodeFileCount != nil {
+			s.EpisodeFileCount = *st.EpisodeFileCount
+		}
+		if st.TotalEpisodeCount != nil {
+			s.TotalEpisodeCount = *st.TotalEpisodeCount
+		}
+		if st.EpisodeCount != nil {
+			aux.EpisodeCount = st.EpisodeCount
+		}
+	}
+
+	if aux.EpisodeCount != nil {
+		s.EpisodeCount = *aux.EpisodeCount
+	} else {
+		s.EpisodeCount = s.TotalEpisodeCount
+	}
+	return nil
 }
 
 // Episode represents a Sonarr episode
@@ -102,7 +151,7 @@ func (c *Client) GetMissingSeries(ctx context.Context) ([]Series, error) {
 	// Filter for monitored series with missing episodes
 	var missing []Series
 	for _, s := range allSeries {
-		if s.Monitored && s.EpisodeFileCount < s.TotalEpisodeCount {
+		if s.Monitored && s.EpisodeFileCount < s.EpisodeCount {
 			missing = append(missing, s)
 		}
 	}
@@ -139,7 +188,7 @@ func (c *Client) GetAllSeries(ctx context.Context) ([]Series, error) {
 
 // GetAllMonitoredSeries retrieves every monitored series in Sonarr, regardless of
 // missing-episode status. Unlike GetMissingSeries (which also requires
-// EpisodeFileCount < TotalEpisodeCount), a fully-downloaded monitored series is
+// EpisodeFileCount < EpisodeCount), a fully-downloaded monitored series is
 // still included here.
 func (c *Client) GetAllMonitoredSeries(ctx context.Context) ([]Series, error) {
 	allSeries, err := c.GetAllSeries(ctx)

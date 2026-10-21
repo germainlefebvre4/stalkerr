@@ -1,28 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, ApiError } from '../services/api';
-import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats, MatchStatusFilter, EtatFilter, EtatStatus } from '../types';
+import { RadarrMovieListItem, SonarrSeriesListItem, RadarrSonarrStats, MatchStatusFilter, SuiviFilter, SuiviStatus, FileFilter, FileState } from '../types';
 import { useURLState, URLStateSchema } from './useURLState';
 
 const PAGE_SIZE = 20;
 
 const VALID_MATCH_FILTERS: MatchStatusFilter[] = ['', 'matched', 'no_match'];
 
-const VALID_ETAT_VALUES: EtatStatus[] = ['monitored', 'unmonitored', 'missing'];
-const DEFAULT_ETAT_STATUS = 'monitored';
+const VALID_SUIVI_VALUES: SuiviStatus[] = ['monitored', 'unmonitored'];
+const VALID_FILE_VALUES: FileState[] = ['downloaded', 'partial', 'none'];
+const DEFAULT_SUIVI_STATUS = 'monitored';
 
-function isValidEtatStatusString(raw: string): boolean {
-  return raw.length > 0 && raw.split(',').every(v => (VALID_ETAT_VALUES as string[]).includes(v));
+function isValidSuiviString(raw: string): boolean {
+  return raw.length > 0 && raw.split(',').every(v => (VALID_SUIVI_VALUES as string[]).includes(v));
 }
 
-// The État filter is persisted to the URL as a comma-joined string (matching
-// the existing filmsFilter/seriesFilter pattern) and converted to/from a
-// Set<EtatStatus> at the hook boundary.
-function parseEtatFilter(raw: string): EtatFilter {
-  return new Set(raw.split(',').filter((v): v is EtatStatus => (VALID_ETAT_VALUES as string[]).includes(v)));
+// The file filter may legitimately be empty (no restriction).
+function isValidFileString(raw: string): boolean {
+  return raw === '' || raw.split(',').every(v => (VALID_FILE_VALUES as string[]).includes(v));
 }
 
-function serializeEtatFilter(filter: EtatFilter): string {
-  return VALID_ETAT_VALUES.filter(v => filter.has(v)).join(',');
+// The Suivi and Fichier filters are persisted to the URL as comma-joined
+// strings (matching the existing filmsFilter/seriesFilter pattern) and
+// converted to/from Sets at the hook boundary.
+function parseSuiviFilter(raw: string): SuiviFilter {
+  return new Set(raw.split(',').filter((v): v is SuiviStatus => (VALID_SUIVI_VALUES as string[]).includes(v)));
+}
+
+function serializeSuiviFilter(filter: SuiviFilter): string {
+  return VALID_SUIVI_VALUES.filter(v => filter.has(v)).join(',');
+}
+
+function parseFileFilter(raw: string): FileFilter {
+  return new Set(raw.split(',').filter((v): v is FileState => (VALID_FILE_VALUES as string[]).includes(v)));
+}
+
+function serializeFileFilter(filter: FileFilter): string {
+  return VALID_FILE_VALUES.filter(v => filter.has(v)).join(',');
 }
 
 // Kept as its own useURLState instance so the match-status filters don't
@@ -41,16 +55,28 @@ const RADARR_SONARR_FILTER_URL_SCHEMA = {
     isValid: (v: MatchStatusFilter) => VALID_MATCH_FILTERS.includes(v),
   },
   filmsStatus: {
-    default: DEFAULT_ETAT_STATUS,
+    default: DEFAULT_SUIVI_STATUS,
     parse: (raw: string) => raw,
     serialize: (v: string) => v,
-    isValid: isValidEtatStatusString,
+    isValid: isValidSuiviString,
   },
   seriesStatus: {
-    default: DEFAULT_ETAT_STATUS,
+    default: DEFAULT_SUIVI_STATUS,
     parse: (raw: string) => raw,
     serialize: (v: string) => v,
-    isValid: isValidEtatStatusString,
+    isValid: isValidSuiviString,
+  },
+  filmsFile: {
+    default: '',
+    parse: (raw: string) => raw,
+    serialize: (v: string) => v,
+    isValid: isValidFileString,
+  },
+  seriesFile: {
+    default: '',
+    parse: (raw: string) => raw,
+    serialize: (v: string) => v,
+    isValid: isValidFileString,
   },
 } satisfies URLStateSchema;
 
@@ -80,8 +106,10 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
   const [filterURLState, patchFilterURLState] = useURLState(RADARR_SONARR_FILTER_URL_SCHEMA);
   const filmsFilter = filterURLState.filmsFilter;
   const seriesFilter = filterURLState.seriesFilter;
-  const filmsStatus = parseEtatFilter(filterURLState.filmsStatus);
-  const seriesStatus = parseEtatFilter(filterURLState.seriesStatus);
+  const filmsStatus = parseSuiviFilter(filterURLState.filmsStatus);
+  const seriesStatus = parseSuiviFilter(filterURLState.seriesStatus);
+  const filmsFile = parseFileFilter(filterURLState.filmsFile);
+  const seriesFile = parseFileFilter(filterURLState.seriesFile);
 
   const [stats, setStats] = useState<RadarrSonarrStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -107,20 +135,53 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
     setSeriesPage(1);
   }, [patchFilterURLState]);
 
-  const setFilmsStatus = useCallback((value: EtatFilter) => {
-    patchFilterURLState({ filmsStatus: serializeEtatFilter(value) });
+  const setFilmsStatus = useCallback((value: SuiviFilter) => {
+    patchFilterURLState({ filmsStatus: serializeSuiviFilter(value) });
     setFilmsPage(1);
   }, [patchFilterURLState]);
 
-  const setSeriesStatus = useCallback((value: EtatFilter) => {
-    patchFilterURLState({ seriesStatus: serializeEtatFilter(value) });
+  const setSeriesStatus = useCallback((value: SuiviFilter) => {
+    patchFilterURLState({ seriesStatus: serializeSuiviFilter(value) });
+    setSeriesPage(1);
+  }, [patchFilterURLState]);
+
+  const setFilmsFile = useCallback((value: FileFilter) => {
+    patchFilterURLState({ filmsFile: serializeFileFilter(value) });
+    setFilmsPage(1);
+  }, [patchFilterURLState]);
+
+  const setSeriesFile = useCallback((value: FileFilter) => {
+    patchFilterURLState({ seriesFile: serializeFileFilter(value) });
+    setSeriesPage(1);
+  }, [patchFilterURLState]);
+
+  // The "Manquants" preset sets both axes in one URL patch so a single fetch fires.
+  const setFilmsMissing = useCallback(() => {
+    patchFilterURLState({ filmsStatus: 'monitored', filmsFile: 'none' });
+    setFilmsPage(1);
+  }, [patchFilterURLState]);
+
+  const setSeriesMissing = useCallback(() => {
+    patchFilterURLState({ seriesStatus: 'monitored', seriesFile: 'partial,none' });
+    setSeriesPage(1);
+  }, [patchFilterURLState]);
+
+  // Reset restores the three filters in one URL patch so a single fetch fires;
+  // the search term is local state and is left alone.
+  const resetFilmsFilters = useCallback(() => {
+    patchFilterURLState({ filmsFilter: '', filmsStatus: DEFAULT_SUIVI_STATUS, filmsFile: '' });
+    setFilmsPage(1);
+  }, [patchFilterURLState]);
+
+  const resetSeriesFilters = useCallback(() => {
+    patchFilterURLState({ seriesFilter: '', seriesStatus: DEFAULT_SUIVI_STATUS, seriesFile: '' });
     setSeriesPage(1);
   }, [patchFilterURLState]);
 
   const fetchFilms = useCallback(() => {
     setFilmsLoading(true);
     setFilmsError(null);
-    api.listRadarrMovies(filmsPage, PAGE_SIZE, filmsSearch, filmsFilter, filmsStatus)
+    api.listRadarrMovies(filmsPage, PAGE_SIZE, filmsSearch, filmsFilter, filmsStatus, filmsFile)
       .then(data => {
         setFilmsItems(data.data || []);
         setFilmsTotal(data.total);
@@ -132,14 +193,14 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
       })
       .finally(() => setFilmsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filmsPage, filmsSearch, filmsFilter, filterURLState.filmsStatus]);
+  }, [filmsPage, filmsSearch, filmsFilter, filterURLState.filmsStatus, filterURLState.filmsFile]);
 
   // `refresh` clears the backend's Sonarr match-status cache before recomputing,
   // matching the manual refresh button's contract - never set automatically.
   const fetchSeries = useCallback((refresh?: boolean) => {
     setSeriesLoading(true);
     setSeriesError(null);
-    api.listSonarrSeries(seriesPage, PAGE_SIZE, seriesSearch, seriesFilter, refresh, seriesStatus)
+    api.listSonarrSeries(seriesPage, PAGE_SIZE, seriesSearch, seriesFilter, refresh, seriesStatus, seriesFile)
       .then(data => {
         setSeriesItems(data.data || []);
         setSeriesTotal(data.total);
@@ -151,7 +212,7 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
       })
       .finally(() => setSeriesLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seriesPage, seriesSearch, seriesFilter, filterURLState.seriesStatus]);
+  }, [seriesPage, seriesSearch, seriesFilter, filterURLState.seriesStatus, filterURLState.seriesFile]);
 
   const fetchStats = useCallback(() => {
     setStatsLoading(true);
@@ -175,13 +236,13 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
     if (!isActive) return;
     void Promise.resolve().then(fetchFilms);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, filmsPage, filmsSearch, filmsFilter, filterURLState.filmsStatus]);
+  }, [isActive, filmsPage, filmsSearch, filmsFilter, filterURLState.filmsStatus, filterURLState.filmsFile]);
 
   useEffect(() => {
     if (!isActive) return;
     void Promise.resolve().then(() => fetchSeries());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, seriesPage, seriesSearch, seriesFilter, filterURLState.seriesStatus]);
+  }, [isActive, seriesPage, seriesSearch, seriesFilter, filterURLState.seriesStatus, filterURLState.seriesFile]);
 
   useEffect(() => {
     if (!statsActive) return;
@@ -191,9 +252,9 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
 
   return {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit: PAGE_SIZE, fetchFilms,
-    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus,
+    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing, resetFilmsFilters,
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit: PAGE_SIZE, fetchSeries, refreshSeries,
-    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus,
+    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing, resetSeriesFilters,
     stats, statsLoading, statsError, fetchStats,
   };
 }

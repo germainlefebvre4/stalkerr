@@ -40,21 +40,6 @@ The Radarr/Sonarr monitoring tab SHALL organize its content into three sub-tabs:
 - **WHEN** the user opens the Radarr/Sonarr monitoring tab on a mobile-width viewport
 - **THEN** the user SHALL be able to switch between the Résumé, Radarr, and Sonarr sub-tabs, using a control distinct from the app's bottom tab-bar navigation
 
-### Requirement: Films section lists Radarr monitored movies with match status
-The tab SHALL include a Films section listing Radarr movies matching the active État filter (Monitored, by default - see "État status filter control on the Films section"), each showing at minimum its title, year, whether it has a matching entry in the local playlist, and its État (Monitored, Unmonitored, or Missing), with pagination controls.
-
-#### Scenario: Matched vs unmatched movies are visually distinguishable
-- **WHEN** the Films section is displayed
-- **THEN** movies with a playlist match SHALL be visually distinguished from movies without one (e.g. a status badge)
-
-#### Scenario: Monitored, Unmonitored, and Missing movies are visually distinguishable
-- **WHEN** the Films section is displayed
-- **THEN** a movie's État (Monitored, Unmonitored, or Missing) SHALL be shown via a badge distinct from the existing matched/unmatched badge, and the three États SHALL be visually distinguishable from one another
-
-#### Scenario: Paginating the Films section
-- **WHEN** the user navigates to another page in the Films section
-- **THEN** the section SHALL request and display that page's movies with their match status
-
 ### Requirement: Search field filters the Radarr movies table by title
 The Radarr sub-tab SHALL provide a search field that filters the movies table by title across the entire monitored catalog, not only the currently loaded page.
 
@@ -93,33 +78,6 @@ The Radarr sub-tab SHALL provide a match-status filter control (All / Matched / 
 - **WHEN** the user selects "All" in the Films filter control
 - **THEN** the table SHALL return to showing every monitored movie regardless of match status
 
-### Requirement: État status filter control on the Films section
-The Radarr sub-tab SHALL provide an État filter control, separate from the existing match-status filter, offering three cumulative (multi-select) values - Monitored, Unmonitored, Missing - that filters the Films table by Radarr's own monitored/file-presence state across the entire catalog, applied before pagination. Multiple selected values SHALL combine as a logical AND, matching the backend filter's semantics (see the `radarr-sonarr-monitoring-api` capability). The control SHALL default to Monitored selected on first load. The selected combination SHALL persist across a page refresh, following the same URL-persistence pattern already used for the existing match-status filter.
-
-#### Scenario: Default selection preserves today's view
-- **WHEN** the user opens the Films section without having chosen an État filter before
-- **THEN** only Monitored SHALL be selected, and the table SHALL show the same set of movies it would have shown before this filter existed
-
-#### Scenario: Selecting Missing narrows the table
-- **WHEN** the user selects only "Missing" in the État filter
-- **THEN** the table SHALL update to show only movies that are monitored and missing a file, re-paginated from the first page
-
-#### Scenario: Selecting Unmonitored reveals movies not shown before this feature
-- **WHEN** the user selects only "Unmonitored" in the État filter
-- **THEN** the table SHALL update to show only unmonitored movies, which were not previously retrievable through this table
-
-#### Scenario: Selecting a contradictory combination shows an empty table
-- **WHEN** the user selects both "Unmonitored" and "Missing" (or both "Monitored" and "Unmonitored")
-- **THEN** the table SHALL display its empty-results state, since no movie can satisfy both conditions at once - this is expected, not an error
-
-#### Scenario: État filter combines with the existing match-status filter
-- **WHEN** the user has both an État selection and a match-status selection active
-- **THEN** the table SHALL show only movies satisfying both filters together
-
-#### Scenario: Selection persists across a page refresh
-- **WHEN** the user changes the État filter selection and then refreshes the page
-- **THEN** the same combination SHALL remain selected and applied after the page reloads
-
 ### Requirement: Occurrence count column in the Films table
 The Films table SHALL include a column showing each movie's total playlist occurrence count, counting every matching playlist entry including duplicates at different resolutions or qualities.
 
@@ -130,21 +88,6 @@ The Films table SHALL include a column showing each movie's total playlist occur
 #### Scenario: Unmatched movie shows zero occurrences
 - **WHEN** a movie has no playlist match
 - **THEN** the Occurrences column SHALL display 0
-
-### Requirement: Séries section lists Sonarr monitored series with aggregate match status
-The tab SHALL include a Séries section listing Sonarr series matching the active État filter (Monitored, by default - see "État status filter control on the Séries section"), each showing at minimum its title, an aggregate ratio of matched vs. monitored episodes (e.g. "8/12"), and its own État (Monitored, Unmonitored, or Missing), with pagination controls. Per-episode detail is not shown in this list view.
-
-#### Scenario: Series aggregate ratio is displayed
-- **WHEN** the Séries section is displayed
-- **THEN** each series SHALL show the count of monitored episodes matched in the playlist over the total count of monitored episodes
-
-#### Scenario: Fully matched series is distinguishable from partially or unmatched series
-- **WHEN** a series has all monitored episodes matched, some matched, or none matched
-- **THEN** the three cases SHALL be visually distinguishable from one another
-
-#### Scenario: Monitored, Unmonitored, and Missing series are visually distinguishable
-- **WHEN** the Séries section is displayed
-- **THEN** a series' État (Monitored, Unmonitored, or Missing) SHALL be shown via a badge distinct from the existing matched-ratio badge, and the three États SHALL be visually distinguishable from one another
 
 ### Requirement: Search field filters the Sonarr series table by title
 The Sonarr sub-tab SHALL provide a search field that filters the series table by title across the entire monitored catalog, not only the currently loaded page.
@@ -183,33 +126,6 @@ The Sonarr sub-tab SHALL provide a match-status filter control (All / Matched / 
 #### Scenario: Selecting "All" restores the unfiltered list
 - **WHEN** the user selects "All" in the Séries filter control
 - **THEN** the table SHALL return to showing every monitored series regardless of match status
-
-### Requirement: État status filter control on the Séries section
-The Sonarr sub-tab SHALL provide an État filter control, separate from the existing match-status filter, offering three cumulative (multi-select) values - Monitored, Unmonitored, Missing - that filters the Séries table by Sonarr's own monitored/file-presence state across the entire catalog, applied before pagination. Multiple selected values SHALL combine as a logical AND, matching the backend filter's semantics (see the `radarr-sonarr-monitoring-api` capability). The control SHALL default to Monitored selected on first load. The selected combination SHALL persist across a page refresh, following the same URL-persistence pattern already used for the existing match-status filter.
-
-#### Scenario: Default selection preserves today's view
-- **WHEN** the user opens the Séries section without having chosen an État filter before
-- **THEN** only Monitored SHALL be selected, and the table SHALL show the same set of series it would have shown before this filter existed
-
-#### Scenario: Selecting Missing narrows the table
-- **WHEN** the user selects only "Missing" in the État filter
-- **THEN** the table SHALL update to show only series that are monitored with at least one monitored episode missing a file, re-paginated from the first page
-
-#### Scenario: Selecting Unmonitored reveals series not shown before this feature
-- **WHEN** the user selects only "Unmonitored" in the État filter
-- **THEN** the table SHALL update to show only unmonitored series, which were not previously retrievable through this table
-
-#### Scenario: Selecting a contradictory combination shows an empty table
-- **WHEN** the user selects both "Unmonitored" and "Missing" (or both "Monitored" and "Unmonitored")
-- **THEN** the table SHALL display its empty-results state, since no series can satisfy both conditions at once - this is expected, not an error
-
-#### Scenario: État filter combines with the existing match-status filter
-- **WHEN** the user has both an État selection and a match-status selection active
-- **THEN** the table SHALL show only series satisfying both filters together
-
-#### Scenario: Selection persists across a page refresh
-- **WHEN** the user changes the État filter selection and then refreshes the page
-- **THEN** the same combination SHALL remain selected and applied after the page reloads
 
 ### Requirement: Occurrence count column in the Séries table
 The Séries table SHALL include a column showing each series' total playlist occurrence count, aggregated across all of its monitored episodes and counting every matching playlist entry including duplicates at different resolutions or qualities.
@@ -316,17 +232,6 @@ Selecting a movie or series row SHALL open a sidepanel showing the matched local
 - **WHEN** the sidepanel is displayed on a mobile-width viewport
 - **THEN** its occurrence and episode tables SHALL render as a mobile-appropriate list layout instead of the fixed-width desktop table, without requiring horizontal scrolling to read a row
 
-### Requirement: Sidepanel header shows the selected movie's or series' État
-The sidepanel opened for a selected movie or series SHALL display that item's État (Monitored, Unmonitored, or Missing) next to its title/year header, using the same badge convention as the table.
-
-#### Scenario: Sidepanel header shows État for a movie
-- **WHEN** the user selects a movie row and its sidepanel opens
-- **THEN** the header SHALL display that movie's État alongside its title and year
-
-#### Scenario: Sidepanel header shows État for a series
-- **WHEN** the user selects a series row and its sidepanel opens
-- **THEN** the header SHALL display that series' État alongside its title and year
-
 ### Requirement: Selecting an occurrence opens the full media detail drawer
 Selecting a playlist occurrence row (a movie's occurrence, or one of a series episode's occurrences after expanding it) SHALL open the same media detail drawer used by the Playlist tab for that occurrence - TMDB metadata, pipeline state, M3U provenance, raw line and stream URL, the "Associate" action, and the force-download action - rather than only the resolution/state summary shown in the occurrences list.
 
@@ -373,24 +278,203 @@ Each monitored-episode row in the Séries sidepanel SHALL be expandable to revea
 - **WHEN** an episode row is expanded to reveal its occurrences
 - **THEN** the occurrences SHALL be visually separated (e.g. indentation, spacing, distinct styling) from both the expanded episode row and the next episode row, rather than sharing the same row styling and sitting directly adjacent to it
 
-### Requirement: Episode rows display their own État alongside their matched/unmatched status
-Each monitored-episode row in the Séries sidepanel's per-episode breakdown SHALL display its own État (Monitored or Missing, derived from Sonarr's own per-episode monitored/file-presence state), in addition to its existing matched/unmatched playlist badge.
+### Requirement: Suivi and Fichier filter controls on the Films section
+The Radarr sub-tab SHALL provide two independent multi-select filter controls, Suivi (Surveillé, Non surveillé) and Fichier (Téléchargé, Absent), that filter the Films table across the entire catalog before pagination, separately from the match-status filter. Values within one control combine as OR, the two controls combine as AND. Suivi SHALL default to Surveillé and Fichier to no selection (no restriction). Both selections SHALL persist across a page refresh via the URL.
 
-#### Scenario: Missing episode is visually distinguishable
-- **WHEN** an episode row is displayed for an episode that is monitored in Sonarr but has no file there
-- **THEN** the row SHALL display a Missing État badge distinct from its matched/unmatched playlist badge
+#### Scenario: Default selection preserves today's view
+- **WHEN** the user opens the Films section without having chosen any filter before
+- **THEN** only Surveillé SHALL be selected in Suivi, Fichier SHALL have no selection, and the table SHALL show the same movies it showed before this change
 
-#### Scenario: Monitored, complete episode shows no Missing indicator
-- **WHEN** an episode row is displayed for an episode that is monitored and has a file in Sonarr
-- **THEN** the row's État badge SHALL indicate Monitored without a Missing indication
+#### Scenario: Filtering on downloaded movies
+- **WHEN** the user selects only "Téléchargé" in Fichier
+- **THEN** the table SHALL show only movies for which Radarr already has a file, re-paginated from the first page
 
-### Requirement: État badge renders as a compact status dot on mobile viewports
-On mobile-width viewports, every État badge introduced by this capability (table row, mobile card, sidepanel header, episode row) SHALL render as a small colored status dot with a short label, following the same compact-indicator convention already used elsewhere in this tab's mobile summary cards, instead of the full-size text badge used on desktop.
+#### Scenario: Both Suivi values selected
+- **WHEN** the user selects both Surveillé and Non surveillé
+- **THEN** the table SHALL show monitored and unmonitored movies alike
 
-#### Scenario: Mobile card shows a compact État indicator
+#### Scenario: Unmonitored movies that are downloaded
+- **WHEN** the user selects Non surveillé in Suivi and Téléchargé in Fichier
+- **THEN** the table SHALL show only unmonitored movies that Radarr already has a file for
+
+#### Scenario: Filters combine with the match-status filter
+- **WHEN** a Suivi/Fichier selection and a match-status selection are both active
+- **THEN** the table SHALL show only movies satisfying all of them
+
+#### Scenario: Selection persists across a page refresh
+- **WHEN** the user changes the Suivi or Fichier selection and then refreshes the page
+- **THEN** the same selections SHALL remain applied after the page reloads
+
+#### Scenario: Obsolete URL value falls back to the default
+- **WHEN** the page is opened with a URL carrying the retired `missing` value in the Suivi selection
+- **THEN** the control SHALL fall back to its default (Surveillé) instead of failing
+
+### Requirement: Suivi and Fichier filter controls on the Séries section
+The Sonarr sub-tab SHALL provide two independent multi-select filter controls, Suivi (Surveillé, Non surveillé) and Fichier (Téléchargé, Partiel, Absent), that filter the Séries table across the entire catalog before pagination, separately from the match-status filter. Values within one control combine as OR, the two controls combine as AND. Suivi SHALL default to Surveillé and Fichier to no selection. Both selections SHALL persist across a page refresh via the URL.
+
+#### Scenario: Default selection preserves today's view
+- **WHEN** the user opens the Séries section without having chosen any filter before
+- **THEN** only Surveillé SHALL be selected in Suivi, Fichier SHALL have no selection, and the table SHALL show the same series it showed before this change
+
+#### Scenario: Filtering on partially downloaded series
+- **WHEN** the user selects only "Partiel" in Fichier
+- **THEN** the table SHALL show only series with some but not all aired episodes downloaded, re-paginated from the first page
+
+#### Scenario: Several Fichier values
+- **WHEN** the user selects "Partiel" and "Absent" in Fichier
+- **THEN** the table SHALL show series whose file state is either Partiel or Absent
+
+#### Scenario: Filters combine with the match-status filter
+- **WHEN** a Suivi/Fichier selection and a match-status selection are both active
+- **THEN** the table SHALL show only series satisfying all of them
+
+#### Scenario: Selection persists across a page refresh
+- **WHEN** the user changes the Suivi or Fichier selection and then refreshes the page
+- **THEN** the same selections SHALL remain applied after the page reloads
+
+#### Scenario: Obsolete URL value falls back to the default
+- **WHEN** the page is opened with a URL carrying the retired `missing` value in the Suivi selection
+- **THEN** the control SHALL fall back to its default (Surveillé) instead of failing
+
+### Requirement: Manquants shortcut on both filter groups
+Both the Films and Séries sections SHALL offer a one-click "Manquants" shortcut next to their Suivi and Fichier controls that sets Suivi to Surveillé only and Fichier to Absent and Partiel (Absent only for Films), replacing the current selections.
+
+#### Scenario: Activating the shortcut on Séries
+- **WHEN** the user clicks "Manquants" in the Séries section
+- **THEN** Suivi SHALL be set to Surveillé only, Fichier to Partiel and Absent, and the table SHALL show monitored series that are not fully downloaded, re-paginated from the first page
+
+#### Scenario: Activating the shortcut on Films
+- **WHEN** the user clicks "Manquants" in the Films section
+- **THEN** Suivi SHALL be set to Surveillé only, Fichier to Absent, and the table SHALL show monitored movies Radarr has no file for
+
+#### Scenario: Shortcut reflects the current selection
+- **WHEN** the current selections equal the shortcut's selections
+- **THEN** the shortcut SHALL appear active
+
+### Requirement: Fichier badge uses an actionability-aware color
+Wherever a movie, series, or episode shows its Fichier state, the badge SHALL read Téléchargé, Partiel, or Absent. Téléchargé SHALL be green and Partiel orange. Absent SHALL be red when the item is monitored and neutral grey when it is not. A series Partiel badge SHALL also show the downloaded/aired ratio (e.g. 18/28).
+
+#### Scenario: Absent and monitored
+- **WHEN** a monitored movie has no file
+- **THEN** its Fichier badge SHALL read Absent and be red
+
+#### Scenario: Absent and unmonitored
+- **WHEN** an unmonitored movie has no file
+- **THEN** its Fichier badge SHALL read Absent and be neutral grey
+
+#### Scenario: Series partially downloaded
+- **WHEN** a series has 18 of 28 aired episodes downloaded
+- **THEN** its Fichier badge SHALL read Partiel, be orange, and show 18/28
+
+#### Scenario: Downloaded item
+- **WHEN** an item's file state is downloaded
+- **THEN** its Fichier badge SHALL read Téléchargé and be green, whether or not it is monitored
+
+### Requirement: Sidepanel header shows the selected item's Suivi and Fichier
+The sidepanel opened for a selected movie or series SHALL display that item's Suivi (Surveillé or Non surveillé) and Fichier badge next to its title/year header, using the same badge conventions as the table.
+
+#### Scenario: Sidepanel header for a movie
+- **WHEN** the user selects a movie row and its sidepanel opens
+- **THEN** the header SHALL display that movie's Suivi and Fichier badges alongside its title and year
+
+#### Scenario: Sidepanel header for a series
+- **WHEN** the user selects a series row and its sidepanel opens
+- **THEN** the header SHALL display that series' Suivi and Fichier badges, with the ratio when Partiel, alongside its title and year
+
+### Requirement: Episode rows display their own Suivi and Fichier
+Each monitored-episode row in the Séries sidepanel's per-episode breakdown SHALL display its own Suivi and Fichier (Téléchargé or Absent) from Sonarr's per-episode state, in addition to its existing matched/unmatched playlist badge.
+
+#### Scenario: Missing episode is distinguishable
+- **WHEN** an episode row is shown for an episode monitored in Sonarr without a file there
+- **THEN** the row SHALL display a red Absent Fichier badge distinct from its matched/unmatched playlist badge
+
+#### Scenario: Downloaded episode
+- **WHEN** an episode row is shown for an episode that has a file in Sonarr
+- **THEN** the row SHALL display a green Téléchargé Fichier badge
+
+### Requirement: Suivi and Fichier badges render as compact status dots on mobile viewports
+On mobile-width viewports, every Suivi and Fichier badge (table row, mobile card, sidepanel header, episode row) SHALL render as a small colored status dot with a short label, following the compact-indicator convention already used by this tab's mobile summary cards, instead of the full-size text badge.
+
+#### Scenario: Mobile card shows two compact indicators
 - **WHEN** the Films or Séries section is displayed on a mobile-width viewport
-- **THEN** each mobile list card SHALL show its État as a compact colored dot with a short label, alongside its existing matched/unmatched badge, without the card's layout overflowing or wrapping awkwardly
+- **THEN** each mobile list card SHALL show Suivi and Fichier as two compact colored dots with short labels, alongside its matched/unmatched badge, without overflowing or wrapping awkwardly
 
-#### Scenario: Mobile episode row shows a compact État indicator
+#### Scenario: Mobile episode row shows compact indicators
 - **WHEN** the Séries sidepanel's per-episode breakdown is displayed on a mobile-width viewport
-- **THEN** each episode row SHALL show its État as a compact colored dot with a short label, alongside its existing matched/unmatched badge
+- **THEN** each episode row SHALL show its Suivi and Fichier as compact colored dots with short labels, alongside its matched/unmatched badge
+
+### Requirement: Films section lists Radarr movies with match status, Suivi and Fichier
+The tab SHALL include a Films section listing Radarr movies matching the active Suivi and Fichier filters (Surveillé and no Fichier restriction, by default - see "Suivi and Fichier filter controls on the Films section"), each showing at minimum its title, year, whether it has a matching entry in the local playlist, its Suivi (Surveillé or Non surveillé) and its Fichier (Téléchargé or Absent), with pagination controls.
+
+#### Scenario: Matched vs unmatched movies are visually distinguishable
+- **WHEN** the Films section is displayed
+- **THEN** movies with a playlist match SHALL be visually distinguished from movies without one (e.g. a status badge)
+
+#### Scenario: Suivi and Fichier are shown separately from the match badge
+- **WHEN** the Films section is displayed
+- **THEN** a movie's Suivi and Fichier SHALL each be shown as their own indicator (a Suivi column and a Fichier badge), distinct from the matched/unmatched badge and from each other
+
+#### Scenario: Paginating the Films section
+- **WHEN** the user navigates to another page in the Films section
+- **THEN** the section SHALL request and display that page's movies with their match status
+
+### Requirement: Séries section lists Sonarr series with aggregate match status, Suivi and Fichier
+The tab SHALL include a Séries section listing Sonarr series matching the active Suivi and Fichier filters (Surveillé and no Fichier restriction, by default - see "Suivi and Fichier filter controls on the Séries section"), each showing at minimum its title, an aggregate ratio of matched vs. monitored episodes (e.g. "8/12"), its Suivi, and its Fichier (Téléchargé, Partiel or Absent), with pagination controls. Per-episode detail is not shown in this list view.
+
+#### Scenario: Series aggregate ratio is displayed
+- **WHEN** the Séries section is displayed
+- **THEN** each series SHALL show the count of monitored episodes matched in the playlist over the total count of monitored episodes
+
+#### Scenario: Fully matched series is distinguishable from partially or unmatched series
+- **WHEN** a series has all monitored episodes matched, some matched, or none matched
+- **THEN** the three cases SHALL be visually distinguishable from one another
+
+#### Scenario: Suivi and Fichier are shown separately from the matched ratio
+- **WHEN** the Séries section is displayed
+- **THEN** a series' Suivi and Fichier SHALL each be shown as their own indicator, distinct from the matched-ratio badge and from each other
+
+### Requirement: Filter bar groups controls by concern on Films and Séries
+On both the Films and the Séries sections, the title search field SHALL sit alone on its own line, and below it the filter controls SHALL be arranged in labelled groups: a Radarr/Sonarr group (Suivi, Fichier, "Manquants") and a Playlist group (match-status, labelled "Correspondance"). All controls in the bar SHALL share the same height and visual style.
+
+#### Scenario: Search field on its own line
+- **WHEN** the user opens the Films or the Séries section
+- **THEN** the search field SHALL be displayed alone on the first line of the filter area, with the filter groups on the line(s) below
+
+#### Scenario: Groups are labelled
+- **WHEN** the filter bar is displayed
+- **THEN** the Suivi, Fichier and "Manquants" controls SHALL appear together under a Radarr/Sonarr group label, and the match-status control SHALL appear under a separate Playlist group label with its own "Correspondance" label
+
+#### Scenario: Controls stay on one row when space allows
+- **WHEN** the viewport is wide enough to hold the group controls
+- **THEN** no dropdown SHALL stretch to a full row of its own
+
+#### Scenario: Mobile layout
+- **WHEN** the section is displayed on a mobile viewport
+- **THEN** the search field SHALL take the full width and the filter controls SHALL wrap into a two-column layout without horizontal page scroll
+
+#### Scenario: Filtering behavior is unchanged
+- **WHEN** the user changes any control of the reorganised bar
+- **THEN** the filtering semantics, defaults and URL persistence SHALL be identical to those before the reorganisation
+
+### Requirement: Réinitialiser control restores the default filters
+Both the Films and the Séries sections SHALL offer a "Réinitialiser" control in the filter bar that restores that section's Suivi to Surveillé only, Fichier to no selection, and match-status to "Tous", in a single update, and returns the table to its first page. It SHALL NOT alter the search field. It SHALL be disabled while the three filters already hold their default values.
+
+#### Scenario: Resetting after changing filters
+- **WHEN** the user has changed Suivi, Fichier or match-status in a section and clicks "Réinitialiser"
+- **THEN** that section's Suivi SHALL be Surveillé only, Fichier SHALL have no selection, match-status SHALL be "Tous", and the table SHALL show the first page of the unfiltered-by-Fichier default view
+
+#### Scenario: Reset is disabled at defaults
+- **WHEN** a section's three filters already hold their default values
+- **THEN** its "Réinitialiser" control SHALL be disabled
+
+#### Scenario: Reset keeps the search term
+- **WHEN** the user has typed a search term and clicks "Réinitialiser"
+- **THEN** the search field SHALL keep its content and the search SHALL stay applied
+
+#### Scenario: Reset is scoped to its own section
+- **WHEN** the user clicks "Réinitialiser" in the Films section
+- **THEN** the Séries section's filters SHALL be left unchanged
+
+#### Scenario: Reset persists in the URL
+- **WHEN** the user clicks "Réinitialiser" and then refreshes the page
+- **THEN** the default filters SHALL remain applied after the page reloads

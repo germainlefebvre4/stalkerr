@@ -28,7 +28,8 @@
     "table": {
       "title": "Title",
       "year": "Year",
-      "etat": "Status",
+      "suivi": "Monitoring",
+      "fichier": "File",
       "status": "Playlist match",
       "occurrences": "Occurrences"
     },
@@ -48,7 +49,8 @@
     "table": {
       "title": "Title",
       "year": "Year",
-      "etat": "Status",
+      "suivi": "Monitoring",
+      "fichier": "File",
       "status": "Monitored episodes matched",
       "occurrences": "Occurrences"
     },
@@ -58,13 +60,33 @@
     "all": "All",
     "matched": "Matched",
     "noMatch": "No match",
-    "etat": {
-      "label": "Status",
-      "monitored": "Monitored",
-      "unmonitored": "Unmonitored",
-      "missing": "Missing",
-      "none": "No filter"
-    }
+    "suivi": {
+      "label": "Monitoring"
+    },
+    "fichier": {
+      "label": "File"
+    },
+    "none": "No filter",
+    "missingPreset": "Missing"
+  },
+  "filterBar": {
+    "group": {
+      "radarr": "Radarr",
+      "sonarr": "Sonarr",
+      "playlist": "Playlist"
+    },
+    "correspondance": "Match",
+    "reset": "Reset"
+  },
+  "suivi": {
+    "monitored": "Monitored",
+    "unmonitored": "Unmonitored"
+  },
+  "fichier": {
+    "downloaded": "Downloaded",
+    "partial": "Partial",
+    "partialRatio": "Partial {{files}}/{{aired}}",
+    "none": "Absent"
   },
   "retry": "Retry",
   "drawer": {
@@ -80,7 +102,8 @@
     "occurrenceState": "State",
     "unknownResolution": "Unknown",
     "episodesSection": "Monitored episodes",
-    "etat": "Status",
+    "suivi": "Monitoring",
+    "fichier": "File",
     "season": "Season {{season}}",
     "episode": "S{{season}} E{{episode}}",
     "episodeMatched": "Matched",

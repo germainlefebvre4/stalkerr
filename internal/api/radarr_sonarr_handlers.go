@@ -46,9 +46,8 @@ type RadarrMovieListItem struct {
 	RadarrID        int    `json:"radarr_id"`
 	Title           string `json:"title"`
 	Year            int    `json:"year"`
-	HasFile         bool   `json:"has_file"`
 	Monitored       bool   `json:"monitored"`
-	Missing         bool   `json:"missing"`
+	FileState       string `json:"file_state"`
 	Matched         bool   `json:"matched"`
 	MovieID         *uint  `json:"movie_id,omitempty"`
 	OccurrenceCount int    `json:"occurrence_count"`
@@ -56,14 +55,16 @@ type RadarrMovieListItem struct {
 
 // SonarrSeriesListItem is one row of the Sonarr monitoring list, aggregated per series.
 type SonarrSeriesListItem struct {
-	SonarrID        int    `json:"sonarr_id"`
-	Title           string `json:"title"`
-	Year            int    `json:"year"`
-	Monitored       bool   `json:"monitored"`
-	Missing         bool   `json:"missing"`
-	MatchedCount    int    `json:"matched_count"`
-	MonitoredCount  int    `json:"monitored_count"`
-	OccurrenceCount int    `json:"occurrence_count"`
+	SonarrID         int    `json:"sonarr_id"`
+	Title            string `json:"title"`
+	Year             int    `json:"year"`
+	Monitored        bool   `json:"monitored"`
+	FileState        string `json:"file_state"`
+	EpisodeFileCount int    `json:"episode_file_count"`
+	EpisodeCount     int    `json:"episode_count"`
+	MatchedCount     int    `json:"matched_count"`
+	MonitoredCount   int    `json:"monitored_count"`
+	OccurrenceCount  int    `json:"occurrence_count"`
 }
 
 // matchStatusFilter parses the "matched"/"no_match" match-status filter query
@@ -78,43 +79,84 @@ func matchStatusFilter(c *gin.Context) string {
 	}
 }
 
+// File states exposed as the "Fichier" axis, independent of the monitored flag.
+const (
+	fileStateDownloaded = "downloaded"
+	fileStatePartial    = "partial"
+	fileStateNone       = "none"
+)
+
+// movieFileState is the file state of a movie or an episode, which have at
+// most one file: downloaded or none, never partial.
+func movieFileState(hasFile bool) string {
+	if hasFile {
+		return fileStateDownloaded
+	}
+	return fileStateNone
+}
+
+// seriesFileState derives a series' file state from its downloaded episode
+// count and its aired episode count (unaired episodes never count against a
+// series). No aired episode reads none; more files than aired episodes
+// (files kept for unmonitored episodes) reads downloaded.
+func seriesFileState(fileCount, airedCount int) string {
+	switch {
+	case airedCount <= 0 || fileCount <= 0:
+		return fileStateNone
+	case fileCount >= airedCount:
+		return fileStateDownloaded
+	default:
+		return fileStatePartial
+	}
+}
+
 // statusFilterSet parses the repeatable "status" query parameter shared by the
 // Radarr movie and Sonarr series listing endpoints into a set of accepted
-// État values (monitored/unmonitored/missing). An absent parameter defaults
-// to {"monitored"}, preserving the pre-status-filter default of
-// monitored-only results. Unrecognized values are ignored, and an empty
-// result (e.g. every supplied value was unrecognized) imposes no constraint.
+// Suivi values (monitored/unmonitored). Values combine as OR. An absent
+// parameter, or one with no recognized value (including the retired
+// "missing"), defaults to {"monitored"}, preserving the pre-status-filter
+// default of monitored-only results.
 func statusFilterSet(c *gin.Context) map[string]bool {
-	values := c.QueryArray("status")
-	if len(values) == 0 {
-		return map[string]bool{"monitored": true}
-	}
-	set := make(map[string]bool, len(values))
-	for _, v := range values {
+	set := make(map[string]bool, 2)
+	for _, v := range c.QueryArray("status") {
 		switch v {
-		case "monitored", "unmonitored", "missing":
+		case "monitored", "unmonitored":
+			set[v] = true
+		}
+	}
+	if len(set) == 0 {
+		set["monitored"] = true
+	}
+	return set
+}
+
+// fileFilterSet parses the repeatable "file" query parameter into a set of
+// accepted file states (downloaded/partial/none). Unrecognized values are
+// ignored; an empty set means no file-state restriction.
+func fileFilterSet(c *gin.Context) map[string]bool {
+	set := make(map[string]bool, 3)
+	for _, v := range c.QueryArray("file") {
+		switch v {
+		case fileStateDownloaded, fileStatePartial, fileStateNone:
 			set[v] = true
 		}
 	}
 	return set
 }
 
-// matchesStatusFilter reports whether an entry with the given monitored/missing
-// state satisfies every value in the status filter set at once (logical AND
-// across values), per the "Optional status filter for both listing endpoints"
-// requirement - so a contradictory combination (e.g. unmonitored+missing)
-// correctly matches nothing.
-func matchesStatusFilter(statuses map[string]bool, monitored, missing bool) bool {
-	if statuses["monitored"] && !monitored {
-		return false
+// matchesStatusFilter reports whether an entry's monitored flag satisfies the
+// status filter set (logical OR across values).
+func matchesStatusFilter(statuses map[string]bool, monitored bool) bool {
+	if monitored {
+		return statuses["monitored"]
 	}
-	if statuses["unmonitored"] && monitored {
-		return false
-	}
-	if statuses["missing"] && !missing {
-		return false
-	}
-	return true
+	return statuses["unmonitored"]
+}
+
+// matchesFileFilter reports whether a file state satisfies the file filter set
+// (logical OR across values); an empty set matches everything.
+func matchesFileFilter(files map[string]bool, state string) bool {
+	return len(files) == 0 || files[state]
 }
 
 // OccurrenceResponse is one playlist occurrence, regardless of pipeline state.
@@ -137,7 +179,7 @@ type SonarrSeriesEpisodeItem struct {
 	Season      int                  `json:"season"`
 	Episode     int                  `json:"episode"`
 	Monitored   bool                 `json:"monitored"`
-	Missing     bool                 `json:"missing"`
+	FileState   string               `json:"file_state"`
 	Matched     bool                 `json:"matched"`
 	Occurrences []OccurrenceResponse `json:"occurrences"`
 }
@@ -149,8 +191,9 @@ type SonarrSeriesEpisodesResponse struct {
 
 // listRadarrMonitoredMovies handles GET /api/v1/radarr/movies?limit&offset&filter&search&status.
 // Pagination happens before matching: the full Radarr movie list is fetched once,
-// filtered by the requested État `status` filter (monitored-only when omitted,
-// see statusFilterSet) and sorted, then only the requested page's movies
+// filtered by the requested Suivi `status` and Fichier `file` filters
+// (monitored-only and unrestricted when omitted, see statusFilterSet and
+// fileFilterSet) and sorted, then only the requested page's movies
 // are matched against the local playlist database. When an optional match-status
 // `filter` (matched/no_match) is supplied, match status is instead computed for
 // the entire monitored (post-search) list before filtering and paginating, so the
@@ -189,11 +232,11 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 
 	search := strings.ToLower(strings.TrimSpace(c.Query("search")))
 	statuses := statusFilterSet(c)
+	files := fileFilterSet(c)
 
 	catalog := make([]radarr.Movie, 0, len(allMovies))
 	for _, m := range allMovies {
-		missing := m.Monitored && !m.HasFile
-		if !matchesStatusFilter(statuses, m.Monitored, missing) {
+		if !matchesStatusFilter(statuses, m.Monitored) || !matchesFileFilter(files, movieFileState(m.HasFile)) {
 			continue
 		}
 		if search != "" && !strings.Contains(strings.ToLower(m.Title), search) {
@@ -262,9 +305,8 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 			RadarrID:  m.ID,
 			Title:     m.Title,
 			Year:      m.Year,
-			HasFile:   m.HasFile,
 			Monitored: m.Monitored,
-			Missing:   m.Monitored && !m.HasFile,
+			FileState: movieFileState(m.HasFile),
 			Matched:   result.Matched,
 		}
 		if result.Matched && result.Movie != nil {
@@ -286,8 +328,8 @@ func (s *Server) listRadarrMonitoredMovies(c *gin.Context) {
 
 // listSonarrMonitoredSeries handles GET /api/v1/sonarr/series?limit&offset&filter&search&refresh&status.
 // Pagination happens before the per-series episode fetch/matching: the full
-// series catalog is fetched once, filtered by the requested État `status`
-// filter (monitored-only when omitted, see statusFilterSet) and sorted, then
+// series catalog is fetched once, filtered by the requested Suivi `status` and
+// Fichier `file` filters (monitored-only and unrestricted when omitted) and sorted, then
 // only the requested page's series get their monitored episodes fetched from
 // Sonarr (concurrently, bounded by the page size) and matched against the
 // local playlist database.
@@ -334,12 +376,13 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 	}
 
 	search := strings.ToLower(strings.TrimSpace(c.Query("search")))
-	etatStatuses := statusFilterSet(c)
+	suiviStatuses := statusFilterSet(c)
+	fileStates := fileFilterSet(c)
 	{
 		filtered := make([]sonarr.Series, 0, len(allSeries))
 		for _, s := range allSeries {
-			missing := s.Monitored && s.EpisodeFileCount < s.TotalEpisodeCount
-			if !matchesStatusFilter(etatStatuses, s.Monitored, missing) {
+			if !matchesStatusFilter(suiviStatuses, s.Monitored) ||
+				!matchesFileFilter(fileStates, seriesFileState(s.EpisodeFileCount, s.EpisodeCount)) {
 				continue
 			}
 			if search != "" && !strings.Contains(strings.ToLower(s.Title), search) {
@@ -450,14 +493,16 @@ func (s *Server) listSonarrMonitoredSeries(c *gin.Context) {
 		}
 
 		items[i] = SonarrSeriesListItem{
-			SonarrID:        series.ID,
-			Title:           series.Title,
-			Year:            series.Year,
-			Monitored:       series.Monitored,
-			Missing:         series.Monitored && series.EpisodeFileCount < series.TotalEpisodeCount,
-			MatchedCount:    matchedCount,
-			MonitoredCount:  len(details[i].details),
-			OccurrenceCount: occurrenceCount,
+			SonarrID:         series.ID,
+			Title:            series.Title,
+			Year:             series.Year,
+			Monitored:        series.Monitored,
+			FileState:        seriesFileState(series.EpisodeFileCount, series.EpisodeCount),
+			EpisodeFileCount: series.EpisodeFileCount,
+			EpisodeCount:     series.EpisodeCount,
+			MatchedCount:     matchedCount,
+			MonitoredCount:   len(details[i].details),
+			OccurrenceCount:  occurrenceCount,
 		}
 	}
 
@@ -720,7 +765,7 @@ func (s *Server) getSonarrSeriesEpisodes(c *gin.Context) {
 			Season:      d.Season,
 			Episode:     d.Episode,
 			Monitored:   ep.Monitored,
-			Missing:     ep.Monitored && !ep.HasFile,
+			FileState:   movieFileState(ep.HasFile),
 			Matched:     d.Matched,
 			Occurrences: []OccurrenceResponse{},
 		}
