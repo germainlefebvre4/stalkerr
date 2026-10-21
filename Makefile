@@ -13,6 +13,8 @@ VERSION ?= dev
 REGISTRY ?= docker.io/germainlefebvre4
 API_PORT ?= 8080
 export API_PORT
+FRONTEND_PORT ?= 5173
+export FRONTEND_PORT
 COMMIT := $(shell git rev-parse --short HEAD)
 DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS := -ldflags "-w -s -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
@@ -159,13 +161,13 @@ lint-front:
 dev: build
 	@echo "Starting stalkeer development environment (Backend + Frontend)..."
 	@echo "API server: http://localhost:$(API_PORT)"
-	@echo "Frontend dashboard: http://localhost:5173"
+	@echo "Frontend dashboard: http://localhost:$(FRONTEND_PORT)"
 	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server & cd frontend && npm run dev)
 
 ## dev-frontend: Run only the Frontend dev server
 dev-frontend:
 	@echo "Starting stalkeer development environment (Frontend)..."
-	@echo "Frontend dashboard: http://localhost:5173"
+	@echo "Frontend dashboard: http://localhost:$(FRONTEND_PORT)"
 	(trap 'kill 0' SIGINT; cd frontend && npm run dev)
 
 ## dev-backend: Run only the Backend API server
