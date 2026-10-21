@@ -45,6 +45,7 @@ interface Overrides {
   filmsFile?: FileFilter;
   setFilmsFile?: (value: FileFilter) => void;
   setFilmsMissing?: () => void;
+  resetFilmsFilters?: () => void;
   seriesItems?: SonarrSeriesListItem[];
   seriesSearch?: string;
   setSeriesSearch?: (value: string) => void;
@@ -55,6 +56,7 @@ interface Overrides {
   seriesFile?: FileFilter;
   setSeriesFile?: (value: FileFilter) => void;
   setSeriesMissing?: () => void;
+  resetSeriesFilters?: () => void;
   refreshSeries?: () => void;
   stats?: RadarrSonarrStats | null;
   statsLoading?: boolean;
@@ -83,6 +85,7 @@ function renderTab(overrides: Overrides = {}) {
           filmsFile={overrides.filmsFile ?? new Set()}
           setFilmsFile={overrides.setFilmsFile ?? (() => {})}
           setFilmsMissing={overrides.setFilmsMissing ?? (() => {})}
+          resetFilmsFilters={overrides.resetFilmsFilters ?? (() => {})}
           seriesItems={overrides.seriesItems ?? []}
           seriesLoading={false}
           seriesError={null}
@@ -101,6 +104,7 @@ function renderTab(overrides: Overrides = {}) {
           seriesFile={overrides.seriesFile ?? new Set()}
           setSeriesFile={overrides.setSeriesFile ?? (() => {})}
           setSeriesMissing={overrides.setSeriesMissing ?? (() => {})}
+          resetSeriesFilters={overrides.resetSeriesFilters ?? (() => {})}
           stats={overrides.stats ?? null}
           statsLoading={overrides.statsLoading ?? false}
           statsError={overrides.statsError ?? null}
@@ -170,7 +174,7 @@ describe('RadarrSonarrTab sub-tabs', () => {
     const series: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Series', year: 2019, monitored: true, file_state: 'downloaded', episode_file_count: 4, episode_count: 4, matched_count: 2, monitored_count: 4, occurrence_count: 0 };
     renderTab({ filmsItems: [movie], seriesItems: [series] });
 
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
 
     expect(screen.getByText('Example Series')).toBeInTheDocument();
     expect(screen.queryByText('Example Movie')).not.toBeInTheDocument();
@@ -180,7 +184,7 @@ describe('RadarrSonarrTab sub-tabs', () => {
     const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, monitored: true, file_state: 'downloaded', matched: true, occurrence_count: 0 };
     renderTab({ filmsItems: [movie] });
 
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     expect(screen.getByText('Example Movie')).toBeInTheDocument();
   });
@@ -220,7 +224,7 @@ describe('RadarrSonarrTab sub-tab persistence', () => {
   it('persists the selected sub-tab in the URL query string', () => {
     renderTab();
 
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
 
     expect(window.location.search).toContain('subtab=sonarr');
   });
@@ -238,8 +242,8 @@ describe('RadarrSonarrTab sub-tab icons', () => {
   it('renders the Radarr and Sonarr icons but not for Résumé', () => {
     renderTab();
 
-    expect(screen.getByText('Radarr').querySelector('img')).toBeInTheDocument();
-    expect(screen.getByText('Sonarr').querySelector('img')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Radarr' }).querySelector('img')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Sonarr' }).querySelector('img')).toBeInTheDocument();
     expect(screen.getByText('Summary').querySelector('img')).not.toBeInTheDocument();
   });
 });
@@ -248,12 +252,12 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
   it('renders the Suivi and Fichier dropdowns and the Manquants preset in both the Films and Séries filter bars', () => {
     renderTab();
 
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
     expect(screen.getByText('Monitoring: Monitored')).toBeInTheDocument();
     expect(screen.getByText('File: No filter')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Missing' })).toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     expect(screen.getByText('Monitoring: Monitored')).toBeInTheDocument();
     expect(screen.getByText('File: No filter')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Missing' })).toBeInTheDocument();
@@ -262,7 +266,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
   it('calling setFilmsStatus from the Suivi dropdown reports the updated selection', () => {
     const setFilmsStatus = vi.fn();
     renderTab({ setFilmsStatus });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     fireEvent.keyDown(screen.getByText('Monitoring: Monitored'), { key: 'Enter' });
     fireEvent.click(screen.getByText('Unmonitored'));
@@ -273,7 +277,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
   it('calling setFilmsFile from the Fichier dropdown reports the selection', () => {
     const setFilmsFile = vi.fn();
     renderTab({ setFilmsFile });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     fireEvent.keyDown(screen.getByText('File: No filter'), { key: 'Enter' });
     fireEvent.click(screen.getByText('Downloaded'));
@@ -283,13 +287,13 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
 
   it('offers a Partial option for Séries but not for Films', () => {
     renderTab();
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
     fireEvent.keyDown(screen.getByText('File: No filter'), { key: 'Enter' });
     expect(screen.queryByText('Partial')).not.toBeInTheDocument();
     cleanup();
 
     renderTab();
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     fireEvent.keyDown(screen.getByText('File: No filter'), { key: 'Enter' });
     expect(screen.getByText('Partial')).toBeInTheDocument();
   }, 60000);
@@ -297,7 +301,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
   it('the Manquants preset calls its setter and is not active by default', () => {
     const setSeriesMissing = vi.fn();
     renderTab({ setSeriesMissing });
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
 
     const preset = screen.getByRole('button', { name: 'Missing' });
     expect(preset).toHaveAttribute('aria-pressed', 'false');
@@ -308,30 +312,30 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
 
   it('the Films Manquants preset is active when Suivi is monitored only and Fichier is none', () => {
     renderTab({ filmsStatus: new Set(['monitored']), filmsFile: new Set(['none']) });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     expect(screen.getByRole('button', { name: 'Missing' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('the Séries Manquants preset is active only for exactly partial + none', () => {
     renderTab({ seriesStatus: new Set(['monitored']), seriesFile: new Set(['partial', 'none']) });
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     expect(screen.getByRole('button', { name: 'Missing' })).toHaveAttribute('aria-pressed', 'true');
     cleanup();
 
     renderTab({ seriesStatus: new Set(['monitored']), seriesFile: new Set(['none']) });
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     expect(screen.getByRole('button', { name: 'Missing' })).toHaveAttribute('aria-pressed', 'false');
     cleanup();
 
     renderTab({ seriesStatus: new Set(['monitored', 'unmonitored']), seriesFile: new Set(['partial', 'none']) });
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     expect(screen.getByRole('button', { name: 'Missing' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('a selection with no matching items shows the ordinary empty-results state, not an error', () => {
     renderTab({ filmsItems: [], filmsStatus: new Set(['unmonitored']), filmsFile: new Set(['downloaded']) });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     expect(screen.getByText('No monitored movies found')).toBeInTheDocument();
   });
@@ -344,7 +348,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
       { radarr_id: 4, title: 'Downloaded Unmonitored', year: 2023, monitored: false, file_state: 'downloaded', matched: false, occurrence_count: 0 },
     ];
     renderTab({ filmsItems: movies, filmsStatus: new Set(['monitored', 'unmonitored']) });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     const rowBadges = (title: string) => {
       const cells = screen.getByText(title).closest('tr')!.querySelectorAll('td');
@@ -375,7 +379,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
       { sonarr_id: 2, title: 'Absent Series', year: 2019, monitored: true, file_state: 'none', episode_file_count: 0, episode_count: 8, matched_count: 0, monitored_count: 8, occurrence_count: 0 },
     ];
     renderTab({ seriesItems: series });
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
 
     const partial = screen.getByText('Partial 18/28');
     expect(partial.className).toContain('badge-pending');
@@ -390,7 +394,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
       { radarr_id: 1, title: 'Mobile Movie', year: 2020, monitored: true, file_state: 'none', matched: false, occurrence_count: 0 },
     ];
     renderTab({ filmsItems: movies });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     const card = screen.getByText('Mobile Movie').closest('.mobile-list-card')!;
     const dots = card.querySelectorAll('.status-dot');
@@ -409,7 +413,7 @@ describe('RadarrSonarrTab Suivi and Fichier filters', () => {
     });
     const partialSeries: SonarrSeriesListItem = { ...seriesFixture, file_state: 'partial', episode_file_count: 1, episode_count: 2 };
     renderTab({ seriesItems: [partialSeries] });
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     fireEvent.click(screen.getByText('Example Series'));
 
     await waitFor(() => expect(screen.getByText('Season 1')).toBeInTheDocument());
@@ -429,7 +433,7 @@ describe('RadarrSonarrTab search', () => {
     vi.useFakeTimers();
     const setFilmsSearch = vi.fn();
     renderTab({ setFilmsSearch });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     const input = screen.getByPlaceholderText('Search movies by title...');
     fireEvent.change(input, { target: { value: 'matrix' } });
@@ -446,7 +450,7 @@ describe('RadarrSonarrTab search', () => {
 
   it('shows a search-specific empty state distinct from the no-items empty state', () => {
     renderTab({ filmsSearch: 'nomatch', filmsItems: [] });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     expect(screen.getByText('No movies match this search')).toBeInTheDocument();
     expect(screen.queryByText('No monitored movies found')).not.toBeInTheDocument();
@@ -454,7 +458,7 @@ describe('RadarrSonarrTab search', () => {
 
   it('shows the default empty state when there is no search term', () => {
     renderTab({ filmsItems: [] });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
 
     expect(screen.getByText('No monitored movies found')).toBeInTheDocument();
   });
@@ -473,7 +477,7 @@ const seriesFixture: SonarrSeriesListItem = { sonarr_id: 1, title: 'Example Seri
 
 function openExampleSeries(overrides: Overrides = {}) {
   renderTab({ seriesItems: [seriesFixture], ...overrides });
-  fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+  fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
   fireEvent.click(screen.getByText('Example Series'));
 }
 
@@ -522,10 +526,10 @@ describe('RadarrSonarrTab mobile sub-tab switcher', () => {
     vi.mocked(useIsMobile).mockReturnValue(true);
     renderTab({ seriesItems: [seriesFixture] });
 
-    const tabsList = screen.getByText('Radarr').closest('.segmented-tabs-list');
+    const tabsList = screen.getByRole('tab', { name: 'Radarr' }).closest('.segmented-tabs-list');
     expect(tabsList).toHaveClass('radarr-sonarr-subtabs');
 
-    fireEvent.mouseDown(screen.getByText('Sonarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
     expect(screen.getByText('Example Series')).toBeInTheDocument();
   });
 });
@@ -539,7 +543,7 @@ describe('RadarrSonarrTab mobile sidepanel lists', () => {
     });
     const movie: RadarrMovieListItem = { radarr_id: 1, title: 'Example Movie', year: 2020, monitored: true, file_state: 'downloaded', matched: true, occurrence_count: 0 };
     renderTab({ filmsItems: [movie] });
-    fireEvent.mouseDown(screen.getByText('Radarr'), { button: 0 });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
     fireEvent.click(screen.getByText('Example Movie'));
 
     await waitFor(() => expect(screen.getByText('1080p')).toBeInTheDocument());
@@ -557,5 +561,43 @@ describe('RadarrSonarrTab mobile sidepanel lists', () => {
     expect(screen.getByText('S01 E01')).toBeInTheDocument();
     expect(screen.getByText('S01 E01').closest('table')).toBeNull();
     expect(screen.getByText('S01 E01').closest('.mobile-list-card')).not.toBeNull();
+  });
+});
+
+describe('RadarrSonarrTab filter bar reset', () => {
+  it('Films reset calls only the Films handler; the search text is kept', () => {
+    const resetFilmsFilters = vi.fn();
+    const resetSeriesFilters = vi.fn();
+    renderTab({ resetFilmsFilters, resetSeriesFilters, filmsFilter: 'matched', filmsSearch: 'matrix' });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+
+    expect(resetFilmsFilters).toHaveBeenCalledTimes(1);
+    expect(resetSeriesFilters).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('matrix')).toBeInTheDocument();
+  });
+
+  it('Séries reset calls only the Séries handler', () => {
+    const resetFilmsFilters = vi.fn();
+    const resetSeriesFilters = vi.fn();
+    renderTab({ resetFilmsFilters, resetSeriesFilters, seriesFile: new Set(['none']) });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Sonarr' }), { button: 0 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+
+    expect(resetSeriesFilters).toHaveBeenCalledTimes(1);
+    expect(resetFilmsFilters).not.toHaveBeenCalled();
+  });
+
+  it('reset is disabled at the default filters and enabled once one differs', () => {
+    renderTab();
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
+    cleanup();
+
+    renderTab({ filmsStatus: new Set(['monitored', 'unmonitored']) });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Radarr' }), { button: 0 });
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeEnabled();
   });
 });

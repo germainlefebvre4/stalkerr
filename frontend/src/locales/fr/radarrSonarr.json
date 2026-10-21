@@ -69,6 +69,15 @@
     "none": "Aucun filtre",
     "missingPreset": "Manquants"
   },
+  "filterBar": {
+    "group": {
+      "radarr": "Radarr",
+      "sonarr": "Sonarr",
+      "playlist": "Playlist"
+    },
+    "correspondance": "Correspondance",
+    "reset": "Réinitialiser"
+  },
   "suivi": {
     "monitored": "Surveillé",
     "unmonitored": "Non surveillé"

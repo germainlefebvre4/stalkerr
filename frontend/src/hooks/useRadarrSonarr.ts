@@ -166,6 +166,18 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
     setSeriesPage(1);
   }, [patchFilterURLState]);
 
+  // Reset restores the three filters in one URL patch so a single fetch fires;
+  // the search term is local state and is left alone.
+  const resetFilmsFilters = useCallback(() => {
+    patchFilterURLState({ filmsFilter: '', filmsStatus: DEFAULT_SUIVI_STATUS, filmsFile: '' });
+    setFilmsPage(1);
+  }, [patchFilterURLState]);
+
+  const resetSeriesFilters = useCallback(() => {
+    patchFilterURLState({ seriesFilter: '', seriesStatus: DEFAULT_SUIVI_STATUS, seriesFile: '' });
+    setSeriesPage(1);
+  }, [patchFilterURLState]);
+
   const fetchFilms = useCallback(() => {
     setFilmsLoading(true);
     setFilmsError(null);
@@ -240,9 +252,9 @@ export function useRadarrSonarr(isActive: boolean, statsActive: boolean = isActi
 
   return {
     filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit: PAGE_SIZE, fetchFilms,
-    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing,
+    filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing, resetFilmsFilters,
     seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit: PAGE_SIZE, fetchSeries, refreshSeries,
-    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing,
+    seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing, resetSeriesFilters,
     stats, statsLoading, statsError, fetchStats,
   };
 }

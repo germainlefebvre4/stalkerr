@@ -69,6 +69,15 @@
     "none": "No filter",
     "missingPreset": "Missing"
   },
+  "filterBar": {
+    "group": {
+      "radarr": "Radarr",
+      "sonarr": "Sonarr",
+      "playlist": "Playlist"
+    },
+    "correspondance": "Match",
+    "reset": "Reset"
+  },
   "suivi": {
     "monitored": "Monitored",
     "unmonitored": "Unmonitored"

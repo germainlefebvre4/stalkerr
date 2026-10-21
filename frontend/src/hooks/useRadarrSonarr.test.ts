@@ -126,4 +126,46 @@ describe('useRadarrSonarr Suivi and Fichier filters', () => {
     expect(api.listSonarrSeries).toHaveBeenLastCalledWith(1, 20, '', '', undefined, new Set(['monitored']), new Set(['partial', 'none']));
     expect(api.listRadarrMovies).toHaveBeenLastCalledWith(1, 20, '', '', new Set(['monitored']), new Set(['none']));
   });
+
+  it('reset restores the section defaults in one fetch, leaves the other section and the search untouched', async () => {
+    mockEmptyApi();
+
+    const { result, rerender } = renderHook(() => useRadarrSonarr(true));
+    await act(async () => {});
+
+    act(() => {
+      result.current.setFilmsSearch('matrix');
+      result.current.setFilmsFilter('matched');
+      result.current.setFilmsStatus(new Set(['unmonitored']));
+      result.current.setFilmsFile(new Set(['downloaded']));
+      result.current.setSeriesFile(new Set(['none']));
+      result.current.setFilmsPage(3);
+    });
+    rerender();
+    await act(async () => {});
+
+    vi.mocked(api.listRadarrMovies).mockClear();
+    act(() => {
+      result.current.resetFilmsFilters();
+    });
+    rerender();
+    await act(async () => {});
+
+    expect(result.current.filmsFilter).toBe('');
+    expect(result.current.filmsStatus).toEqual(new Set(['monitored']));
+    expect(result.current.filmsFile).toEqual(new Set());
+    expect(result.current.filmsPage).toBe(1);
+    expect(result.current.filmsSearch).toBe('matrix');
+    expect(result.current.seriesFile).toEqual(new Set(['none']));
+    expect(api.listRadarrMovies).toHaveBeenCalledTimes(1);
+    expect(api.listRadarrMovies).toHaveBeenLastCalledWith(1, 20, 'matrix', '', new Set(['monitored']), new Set());
+
+    act(() => {
+      result.current.resetSeriesFilters();
+    });
+    rerender();
+    await act(async () => {});
+    expect(result.current.seriesFile).toEqual(new Set());
+    expect(result.current.seriesPage).toBe(1);
+  });
 });

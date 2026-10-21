@@ -10,7 +10,8 @@ import { useRadarrSonarrView } from '../hooks/useRadarrSonarrView';
 import { getProcessingStatus, getDownloadStatus, getProcessingStatusBadgeClass, getDownloadStatusBadgeClass } from '../utils/pipelineState';
 import { Pagination } from './Pagination';
 import { MediaOccurrenceDrawer, MediaOccurrenceDrawerBody } from './MediaOccurrenceDrawer';
-import { MultiSelectDropdown, MultiSelectDropdownOption } from './MultiSelectDropdown';
+import { MultiSelectDropdownOption } from './MultiSelectDropdown';
+import { ArrFilterBar } from './ArrFilterBar';
 import { api, ApiError } from '../services/api';
 import radarrIcon from '../assets/icons/radarr.svg';
 import sonarrIcon from '../assets/icons/sonarr.svg';
@@ -33,6 +34,7 @@ interface RadarrSonarrTabProps {
   filmsFile: FileFilter;
   setFilmsFile: (value: FileFilter) => void;
   setFilmsMissing: () => void;
+  resetFilmsFilters: () => void;
 
   seriesItems: SonarrSeriesListItem[];
   seriesLoading: boolean;
@@ -52,6 +54,7 @@ interface RadarrSonarrTabProps {
   seriesFile: FileFilter;
   setSeriesFile: (value: FileFilter) => void;
   setSeriesMissing: () => void;
+  resetSeriesFilters: () => void;
 
   stats: RadarrSonarrStats | null;
   statsLoading: boolean;
@@ -126,11 +129,16 @@ function isMissingPreset(status: SuiviFilter, file: FileFilter, presetFile: File
     && file.size === presetFile.length && presetFile.every(v => file.has(v));
 }
 
+// The default view is: any match status, Surveillé only, no Fichier selection.
+function isDefaultFilters(matchStatus: MatchStatusFilter, status: SuiviFilter, file: FileFilter): boolean {
+  return matchStatus === '' && status.size === 1 && status.has('monitored') && file.size === 0;
+}
+
 export function RadarrSonarrTab({
   filmsItems, filmsLoading, filmsError, filmsTotal, filmsPage, setFilmsPage, filmsLimit, fetchFilms,
-  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing,
+  filmsSearch, setFilmsSearch, filmsFilter, setFilmsFilter, filmsStatus, setFilmsStatus, filmsFile, setFilmsFile, setFilmsMissing, resetFilmsFilters,
   seriesItems, seriesLoading, seriesError, seriesTotal, seriesPage, setSeriesPage, seriesLimit, fetchSeries, refreshSeries,
-  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing,
+  seriesSearch, setSeriesSearch, seriesFilter, setSeriesFilter, seriesStatus, setSeriesStatus, seriesFile, setSeriesFile, setSeriesMissing, resetSeriesFilters,
   stats, statsLoading, statsError, fetchStats,
   onOpenOverride,
 }: RadarrSonarrTabProps) {
@@ -429,47 +437,24 @@ export function RadarrSonarrTab({
               <button onClick={fetchFilms} className="btn-secondary">{t('films.refresh')}</button>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder={t('films.searchPlaceholder')}
-                value={filmsSearchInput}
-                onChange={e => setFilmsSearchInput(e.target.value)}
-                className="custom-input"
-                style={{ flex: 1, minWidth: '200px' }}
-              />
-              <select
-                value={filmsFilter}
-                onChange={e => setFilmsFilter(e.target.value as MatchStatusFilter)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
-              >
-                <option value="">{t('filterStatus.all')}</option>
-                <option value="matched">{t('filterStatus.matched')}</option>
-                <option value="no_match">{t('filterStatus.noMatch')}</option>
-              </select>
-              <MultiSelectDropdown
-                label={t('filterStatus.suivi.label')}
-                value={filmsStatus}
-                onChange={setFilmsStatus}
-                options={suiviOptions}
-                noneLabel={t('filterStatus.none')}
-              />
-              <MultiSelectDropdown
-                label={t('filterStatus.fichier.label')}
-                value={filmsFile}
-                onChange={setFilmsFile}
-                options={filmsFileOptions}
-                noneLabel={t('filterStatus.none')}
-              />
-              <button
-                type="button"
-                className={`btn-secondary missing-preset${isMissingPreset(filmsStatus, filmsFile, MISSING_FILMS_FILE) ? ' missing-preset--active' : ''}`}
-                aria-pressed={isMissingPreset(filmsStatus, filmsFile, MISSING_FILMS_FILE)}
-                onClick={setFilmsMissing}
-              >
-                {t('filterStatus.missingPreset')}
-              </button>
-            </div>
+            <ArrFilterBar
+              service="radarr"
+              searchPlaceholder={t('films.searchPlaceholder')}
+              searchValue={filmsSearchInput}
+              onSearchChange={setFilmsSearchInput}
+              matchStatus={filmsFilter}
+              onMatchStatusChange={setFilmsFilter}
+              suivi={filmsStatus}
+              onSuiviChange={setFilmsStatus}
+              suiviOptions={suiviOptions}
+              file={filmsFile}
+              onFileChange={setFilmsFile}
+              fileOptions={filmsFileOptions}
+              missingActive={isMissingPreset(filmsStatus, filmsFile, MISSING_FILMS_FILE)}
+              onMissing={setFilmsMissing}
+              isDefault={isDefaultFilters(filmsFilter, filmsStatus, filmsFile)}
+              onReset={resetFilmsFilters}
+            />
 
             {filmsError ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
@@ -556,47 +541,24 @@ export function RadarrSonarrTab({
               <button onClick={refreshSeries} className="btn-secondary">{t('series.refresh')}</button>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder={t('series.searchPlaceholder')}
-                value={seriesSearchInput}
-                onChange={e => setSeriesSearchInput(e.target.value)}
-                className="custom-input"
-                style={{ flex: 1, minWidth: '200px' }}
-              />
-              <select
-                value={seriesFilter}
-                onChange={e => setSeriesFilter(e.target.value as MatchStatusFilter)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', background: 'var(--bg-card)', fontWeight: 600, color: 'var(--text-secondary)' }}
-              >
-                <option value="">{t('filterStatus.all')}</option>
-                <option value="matched">{t('filterStatus.matched')}</option>
-                <option value="no_match">{t('filterStatus.noMatch')}</option>
-              </select>
-              <MultiSelectDropdown
-                label={t('filterStatus.suivi.label')}
-                value={seriesStatus}
-                onChange={setSeriesStatus}
-                options={suiviOptions}
-                noneLabel={t('filterStatus.none')}
-              />
-              <MultiSelectDropdown
-                label={t('filterStatus.fichier.label')}
-                value={seriesFile}
-                onChange={setSeriesFile}
-                options={seriesFileOptions}
-                noneLabel={t('filterStatus.none')}
-              />
-              <button
-                type="button"
-                className={`btn-secondary missing-preset${isMissingPreset(seriesStatus, seriesFile, MISSING_SERIES_FILE) ? ' missing-preset--active' : ''}`}
-                aria-pressed={isMissingPreset(seriesStatus, seriesFile, MISSING_SERIES_FILE)}
-                onClick={setSeriesMissing}
-              >
-                {t('filterStatus.missingPreset')}
-              </button>
-            </div>
+            <ArrFilterBar
+              service="sonarr"
+              searchPlaceholder={t('series.searchPlaceholder')}
+              searchValue={seriesSearchInput}
+              onSearchChange={setSeriesSearchInput}
+              matchStatus={seriesFilter}
+              onMatchStatusChange={setSeriesFilter}
+              suivi={seriesStatus}
+              onSuiviChange={setSeriesStatus}
+              suiviOptions={suiviOptions}
+              file={seriesFile}
+              onFileChange={setSeriesFile}
+              fileOptions={seriesFileOptions}
+              missingActive={isMissingPreset(seriesStatus, seriesFile, MISSING_SERIES_FILE)}
+              onMissing={setSeriesMissing}
+              isDefault={isDefaultFilters(seriesFilter, seriesStatus, seriesFile)}
+              onReset={resetSeriesFilters}
+            />
 
             {seriesError ? (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-failed-text)' }}>
