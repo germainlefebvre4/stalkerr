@@ -11,7 +11,6 @@ import (
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/notifier"
-	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -28,10 +27,7 @@ logged and does not prevent the other sources from being attempted.`,
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
-
-		// Initialize logger
-		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
+		cfg := mustLoadEffectiveConfig(false)
 		log := logger.AppLogger()
 
 		notif := notifier.FromConfig(cfg.Notifications)
@@ -149,10 +145,7 @@ var listM3UArchivesCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
-
-		// Initialize logger
-		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
+		cfg := mustLoadEffectiveConfig(false)
 		log := logger.AppLogger()
 
 		for _, entry := range listAllSourceArchives(cfg, log) {
@@ -223,10 +216,7 @@ var cleanupM3UArchivesCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
-
-		// Initialize logger
-		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
+		cfg := mustLoadEffectiveConfig(false)
 		log := logger.AppLogger()
 
 		// Get retention count override from flag (-1 means: use each source's own config value)

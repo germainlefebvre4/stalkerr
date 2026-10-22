@@ -6,8 +6,6 @@ import (
 
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
-	"github.com/glefebvre/stalkeer/internal/logger"
-	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -66,13 +64,7 @@ func initDatabase() {
 		fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 		os.Exit(1)
 	}
-	cfg := settings.Effective()
-	logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
-
-	if err := database.Initialize(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-		os.Exit(1)
-	}
+	mustLoadEffectiveConfig(true)
 }
 
 func init() {

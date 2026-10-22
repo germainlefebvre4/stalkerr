@@ -11,7 +11,6 @@ import (
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/notifier"
 	"github.com/glefebvre/stalkeer/internal/processor"
-	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -31,10 +30,8 @@ configured source list entirely for a manual one-off run against that explicit f
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
-
-		// Initialize loggers with configured levels and format
-		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
+		cfg := mustLoadEffectiveConfig(true)
+		defer database.Close()
 		log := logger.AppLogger()
 
 		// Warn about legacy logging configuration
@@ -72,13 +69,6 @@ configured source list entirely for a manual one-off run against that explicit f
 			fmt.Printf("TMDB language: %s\n", tmdbLanguage)
 		}
 		fmt.Println()
-
-		// Initialize database
-		if err := database.Initialize(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
-		}
-		defer database.Close()
 
 		// A single positional file path bypasses the configured source list
 		// entirely for a manual one-off run against an explicit file, unchanged

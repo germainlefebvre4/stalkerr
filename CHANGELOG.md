@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **settings:** Command-line jobs (`download`, `process`, `m3u`, ...) now apply stored settings overrides, such as API keys corrected from the interface, instead of silently using the file/environment values. `settings.Effective()` now logs a warning when overrides cannot be read. Deployments whose stored overrides differ from their file/environment values will see jobs switch to the stored values.
+
 ## [1.4.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.3.0...v1.4.0) (2026-09-17)
 
 

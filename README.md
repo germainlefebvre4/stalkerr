@@ -122,6 +122,8 @@ export STALKEER_DATABASE_PASSWORD=your_password
 export STALKEER_DATABASE_DBNAME=stalkeer
 ```
 
+Values saved from the settings page of the application are stored in the database and take precedence over the file/environment values. This applies to the API server and to every command-line job (`download`, `process`, `m3u`, ...). The database connection itself (`database.*`) always comes from the file/environment. If the database is unreachable, `cleanup`, `config` and the `m3u` commands log a warning and fall back to file/environment values; the other commands exit with an error.
+
 ### Running
 
 ```bash

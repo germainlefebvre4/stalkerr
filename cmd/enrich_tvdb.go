@@ -8,7 +8,6 @@ import (
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/processor"
-	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
@@ -28,18 +27,13 @@ TVShow records are deduplicated by TMDB ID to minimise API calls.`,
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
+		cfg := mustLoadEffectiveConfig(true)
+		defer database.Close()
 
 		if !cfg.TMDB.Enabled || cfg.TMDB.APIKey == "" {
 			fmt.Fprintln(os.Stderr, "Error: TMDB integration is disabled or API key is not configured")
 			os.Exit(1)
 		}
-
-		if err := database.Initialize(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
-		}
-		defer database.Close()
 
 		tmdbClient := tmdb.NewClient(tmdb.Config{
 			APIKey:            cfg.TMDB.APIKey,

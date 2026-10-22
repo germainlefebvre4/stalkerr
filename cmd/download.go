@@ -66,7 +66,8 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
+		cfg := mustLoadEffectiveConfig(true)
+		defer database.Close()
 
 		if parallel <= 0 {
 			parallel = cfg.Downloads.MaxParallel
@@ -75,7 +76,6 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 			parallel = 3
 		}
 
-		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
 		notif := notifier.FromConfig(cfg.Notifications)
 
 		fmt.Println("=== Unified Download Command ===")
@@ -87,12 +87,6 @@ This command replaces the removed "radarr" and "sonarr" commands.`,
 		}
 		fmt.Printf("Parallel workers: %d\n", parallel)
 		fmt.Println()
-
-		if err := database.Initialize(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-			os.Exit(1)
-		}
-		defer database.Close()
 
 		ctx := context.Background()
 		db := database.Get()

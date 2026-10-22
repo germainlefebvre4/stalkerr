@@ -1,12 +1,15 @@
 package settings
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -224,5 +227,49 @@ func TestClearOverride_RejectsBootstrapAndUnknownKeys(t *testing.T) {
 	}
 	if err := ClearOverride("does.not.exist"); !errors.Is(err, ErrUnknownField) {
 		t.Errorf("expected ErrUnknownField, got %v", err)
+	}
+}
+
+func TestEffective_WarnsAndFallsBackWhenDatabaseNotInitialised(t *testing.T) {
+	database.SetDB(nil)
+	config.SetConfig(baseTestConfig())
+
+	var buf bytes.Buffer
+	logger.SetAppLogger(logger.New(logger.Config{Output: &buf, MinLevel: logger.LevelDebug}))
+
+	eff := Effective()
+
+	if !strings.Contains(buf.String(), "settings overrides not applied") {
+		t.Errorf("expected overrides-not-applied warning, got log output %q", buf.String())
+	}
+	if eff.Radarr.APIKey != "file-key" {
+		t.Errorf("radarr.api_key = %q, want file/env value", eff.Radarr.APIKey)
+	}
+}
+
+func TestEffective_NoWarningWhenDatabaseInitialised(t *testing.T) {
+	setupTestDB(t)
+	config.SetConfig(baseTestConfig())
+
+	var buf bytes.Buffer
+	logger.SetAppLogger(logger.New(logger.Config{Output: &buf, MinLevel: logger.LevelDebug}))
+
+	Effective()
+
+	if strings.Contains(buf.String(), "settings overrides not applied") {
+		t.Errorf("unexpected warning with a database set: %q", buf.String())
+	}
+}
+
+func TestEffective_AppliesStoredRadarrAPIKeyOverride(t *testing.T) {
+	setupTestDB(t)
+	config.SetConfig(baseTestConfig())
+
+	if err := SetOverride("radarr.api_key", json.RawMessage(`"ui-key"`)); err != nil {
+		t.Fatalf("SetOverride failed: %v", err)
+	}
+
+	if got := Effective().Radarr.APIKey; got != "ui-key" {
+		t.Errorf("radarr.api_key = %q, want stored override ui-key", got)
 	}
 }

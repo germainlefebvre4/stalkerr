@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/glefebvre/stalkeer/internal/downloader"
-	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +20,7 @@ crashes before completing the move to the final destination.`,
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		retentionHours, _ := cmd.Flags().GetInt("retention-hours")
 
-		cfg := settings.Effective()
+		cfg := mustLoadEffectiveConfig(false)
 
 		fmt.Println("=== Temp File Cleanup ===")
 		if dryRun {

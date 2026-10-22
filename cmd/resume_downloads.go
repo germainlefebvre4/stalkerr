@@ -11,7 +11,6 @@ import (
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/logger"
-	"github.com/glefebvre/stalkeer/internal/settings"
 	"github.com/glefebvre/stalkeer/internal/shutdown"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
@@ -46,22 +45,17 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := settings.Effective()
-
-		// Initialize loggers with configured levels and format
-		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
+		cfg, err := loadEffectiveConfig(true)
 		log := logger.AppLogger()
-
-		if verbose {
-			log.Info("resume-downloads command started")
-		}
-
-		// Initialize database
-		if err := database.Initialize(); err != nil {
+		if err != nil {
 			log.WithFields(map[string]interface{}{
 				"error": err,
 			}).Error("failed to initialize database", err)
 			os.Exit(1)
+		}
+
+		if verbose {
+			log.Info("resume-downloads command started")
 		}
 
 		// Create shutdown handler

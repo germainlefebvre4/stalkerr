@@ -48,6 +48,10 @@ const (
 func Effective() *config.Config {
 	cfgCopy := *config.Get()
 
+	if database.Get() == nil {
+		logger.AppLogger().Warn("settings overrides not applied: database not initialised")
+	}
+
 	for key, raw := range loadOverridesMap() {
 		field, ok := FieldByKey(key)
 		if !ok {
