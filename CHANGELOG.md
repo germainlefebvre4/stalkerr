@@ -6,6 +6,24 @@
 
 * **settings:** Command-line jobs (`download`, `process`, `m3u`, ...) now apply stored settings overrides, such as API keys corrected from the interface, instead of silently using the file/environment values. `settings.Effective()` now logs a warning when overrides cannot be read. Deployments whose stored overrides differ from their file/environment values will see jobs switch to the stored values.
 
+## [1.5.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.4.0...v1.5.0) (2026-10-23)
+
+
+### Features
+
+* **arr-suite:** Arr file state axes ([#74](https://github.com/germainlefebvre4/stalkerr/issues/74)) ([9cda047](https://github.com/germainlefebvre4/stalkerr/commit/9cda0470eb94d079bf08339692c33a28fe226bc5))
+* **downloads:** Downloads hide cancelled and search ([f918ca7](https://github.com/germainlefebvre4/stalkerr/commit/f918ca799bdb7026c5f7732ddef04dcae1a74907))
+* **errors:** Surface duplicate downloads ([da7d43e](https://github.com/germainlefebvre4/stalkerr/commit/da7d43e1e01cb055708ad71e78a1ba0d3c4c40e6))
+* **local-dev:** Frontend port makefile override ([3539730](https://github.com/germainlefebvre4/stalkerr/commit/353973023e95ff34f88e13d50c09fb901ad7564a))
+* **local-dev:** Frontend port makefile override ([e865e22](https://github.com/germainlefebvre4/stalkerr/commit/e865e2278c25a02816c4a981e91ff2c02dcd7187))
+
+
+### Bug Fixes
+
+* **arr-suite:** Raise arr-list timeouts ([#72](https://github.com/germainlefebvre4/stalkerr/issues/72)) ([7505429](https://github.com/germainlefebvre4/stalkerr/commit/75054290b6300a1ecc541e87afb9a366289e17a0))
+* **cli:** Fix cli settings overrides ([2474879](https://github.com/germainlefebvre4/stalkerr/commit/2474879f670513f3c9118719dd20c336684c6906))
+* **download:** Keep one duplicate download ([43723da](https://github.com/germainlefebvre4/stalkerr/commit/43723dad9b05a80c8b55d615e05d49579469eeba))
+
 ## [1.4.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.3.0...v1.4.0) (2026-09-17)
 
 
