@@ -351,7 +351,7 @@ func (rh *ResumeHelper) buildBaseDestPath(cfg *config.Config, line *models.Proce
 	// suffix exists to prevent. Recomputation is only a fallback for a download
 	// that never got far enough to have a path recorded yet.
 	if download.DownloadPath != nil && *download.DownloadPath != "" {
-		return strings.TrimSuffix(*download.DownloadPath, filepath.Ext(*download.DownloadPath)), filepath.Base(*download.DownloadPath), nil
+		return NormalizeRecordedDestPath(*download.DownloadPath), filepath.Base(*download.DownloadPath), nil
 	}
 
 	if line.ContentType == models.ContentTypeMovies {

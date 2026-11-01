@@ -555,6 +555,7 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 
 	var extra []*Stream
 	touchedSeasons := make(map[tvdbSeasonKey]bool)
+	keptForced := selectForcedPerItem(incomplete)
 
 	for i := range incomplete {
 		download := &incomplete[i]
@@ -562,6 +563,11 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 			continue
 		}
 		line := &download.ProcessedLines[0]
+		if download.IsForced && !keptForced[download.ID] {
+			// Another forced download targets the same movie/episode and is
+			// older: it is processed this run, this one on a later run.
+			continue
+		}
 
 		switch line.ContentType {
 		case models.ContentTypeMovies:
@@ -573,7 +579,7 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				// whether or not a tier-1 stream already exists for it.
 				continue
 			}
-			downloadedLine, err := findDownloadedLine(deps.DB, "movie_id", line.Movie.ID)
+			downloadedLine, err := findDownloadedLineUnlessForced(deps.DB, "movie_id", line.Movie.ID, download)
 			if err != nil {
 				return nil, err
 			}
@@ -620,7 +626,7 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 				// of this series' incomplete episodes.
 				continue
 			}
-			downloadedLine, err := findDownloadedLine(deps.DB, "tv_show_id", show.ID)
+			downloadedLine, err := findDownloadedLineUnlessForced(deps.DB, "tv_show_id", show.ID, download)
 			if err != nil {
 				return nil, err
 			}
@@ -697,6 +703,64 @@ func mergeIncompleteDownloads(ctx context.Context, deps BuildDeps, movieByID map
 	return extra, nil
 }
 
+// findDownloadedLineUnlessForced is findDownloadedLine, except that a forced
+// download is exempt from the "already downloaded elsewhere" cancellation: it
+// always returns nil for it, since forcing a sibling of already-downloaded
+// media is the purpose of the force-download capability.
+func findDownloadedLineUnlessForced(db *gorm.DB, column string, id uint, download *models.DownloadInfo) (*models.ProcessedLine, error) {
+	if download.IsForced {
+		return nil, nil
+	}
+	return findDownloadedLine(db, column, id)
+}
+
+// forcedItemKey identifies the movie or TV episode a download's occurrence
+// belongs to, or "" when it cannot be determined.
+func forcedItemKey(download *models.DownloadInfo) string {
+	if len(download.ProcessedLines) == 0 {
+		return ""
+	}
+	line := &download.ProcessedLines[0]
+	switch line.ContentType {
+	case models.ContentTypeMovies:
+		if line.Movie != nil {
+			return fmt.Sprintf("movie:%d", line.Movie.ID)
+		}
+	case models.ContentTypeTVShows:
+		if show := line.TVShow; show != nil && show.TVDBID != nil && show.Season != nil && show.Episode != nil {
+			return fmt.Sprintf("episode:%d:%d:%d", *show.TVDBID, *show.Season, *show.Episode)
+		}
+	}
+	return ""
+}
+
+// selectForcedPerItem returns the IDs of the forced downloads to process this
+// run: at most one per movie/episode, the oldest (CreatedAt, then ID). Other
+// forced downloads for the same item are left untouched (pending) for a later run.
+func selectForcedPerItem(incomplete []models.DownloadInfo) map[uint]bool {
+	best := make(map[string]*models.DownloadInfo)
+	kept := make(map[uint]bool)
+	for i := range incomplete {
+		d := &incomplete[i]
+		if !d.IsForced {
+			continue
+		}
+		key := forcedItemKey(d)
+		if key == "" {
+			kept[d.ID] = true
+			continue
+		}
+		cur, ok := best[key]
+		if !ok || d.CreatedAt.Before(cur.CreatedAt) || (d.CreatedAt.Equal(cur.CreatedAt) && d.ID < cur.ID) {
+			best[key] = d
+		}
+	}
+	for _, d := range best {
+		kept[d.ID] = true
+	}
+	return kept
+}
+
 // cancelSkippedIncompleteDownload transitions downloadID to
 // DownloadStatusCancelled and marks its ProcessedLines cancelled, mirroring
 // the existing cancel-download-occurrence capability's transaction (see
@@ -724,7 +788,21 @@ func cancelSkippedIncompleteDownload(db *gorm.DB, downloadID uint) error {
 // filter, so without this it could otherwise be resumed-marked but have
 // nothing to actually attempt.
 func attachResume(item *Item, line *models.ProcessedLine, download *models.DownloadInfo) {
+	if item.ForcedLine != nil && !download.IsForced {
+		// The item is already pinned to a forced occurrence.
+		return
+	}
 	item.ResumeInfo = download
+	if download.IsForced {
+		// A forced download pins the item to exactly the forced occurrence,
+		// regardless of the quality ranking of its siblings.
+		item.ForcedLine = line
+		item.Candidates = []models.ProcessedLine{*line}
+		if download.DownloadPath != nil && *download.DownloadPath != "" {
+			item.ForcedDestPath = downloader.NormalizeRecordedDestPath(*download.DownloadPath)
+		}
+		return
+	}
 	for _, c := range item.Candidates {
 		if c.ID == line.ID {
 			return

@@ -560,7 +560,13 @@ const (
 func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Config, item *scheduler.Item, verbose bool) (itemOutcome, string) {
 	db := database.Get()
 
-	for j, candidate := range item.Candidates {
+	candidates := item.Candidates
+	if item.ForcedLine != nil {
+		// A forced item attempts only the forced occurrence: no fallback to siblings.
+		candidates = []models.ProcessedLine{*item.ForcedLine}
+	}
+
+	for j, candidate := range candidates {
 		if candidate.LineURL == nil || *candidate.LineURL == "" {
 			continue
 		}
@@ -574,10 +580,13 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 		fmt.Printf("Downloading: %s\n", item.DisplayName)
 
 		if verbose {
-			fmt.Printf("[%s] attempt %d/%d: %s\n", item.DisplayName, j+1, len(item.Candidates), *candidate.LineURL)
+			fmt.Printf("[%s] attempt %d/%d: %s\n", item.DisplayName, j+1, len(candidates), *candidate.LineURL)
 		}
 
 		destPath := item.BaseDestDir + downloader.QualityTags(candidate.Resolution, candidate.Language, candidate.FrenchVariant)
+		if item.ForcedDestPath != "" {
+			destPath = item.ForcedDestPath
+		}
 
 		result, err := dl.Download(ctx, downloader.DownloadOptions{
 			URL:             *candidate.LineURL,
@@ -589,14 +598,14 @@ func downloadItem(ctx context.Context, dl *downloader.Downloader, cfg *config.Co
 		if err != nil {
 			if errors.Is(err, policy.ErrStoppedByPolicy) {
 				if verbose {
-					fmt.Printf("[%s] attempt %d/%d aborted by download policy\n", item.DisplayName, j+1, len(item.Candidates))
+					fmt.Printf("[%s] attempt %d/%d aborted by download policy\n", item.DisplayName, j+1, len(candidates))
 				}
 				return itemPolicyStopped, ""
 			}
 
 			db.Model(&models.ProcessedLine{}).Where("id = ?", candidate.ID).Update("state", models.StateFailed)
 			if verbose {
-				fmt.Printf("[%s] attempt %d/%d failed: %v\n", item.DisplayName, j+1, len(item.Candidates), err)
+				fmt.Printf("[%s] attempt %d/%d failed: %v\n", item.DisplayName, j+1, len(candidates), err)
 			}
 			continue
 		}
