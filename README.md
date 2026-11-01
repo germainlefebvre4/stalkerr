@@ -564,7 +564,7 @@ GET  /api/v1/items/:id                # Get item by ID
 PUT  /api/v1/items/:id                # Update item
 POST /api/v1/items/search             # Search items
 POST /api/v1/items/:id/override       # Manually override an item's match
-POST /api/v1/items/:id/force-download # Force (re-)download an item
+POST /api/v1/items/:id/force-download # Force (re-)download an item (202 = queued; the transfer runs at the next scheduled `download` run, and re-forcing a cancelled occurrence reactivates it)
 ```
 
 ### Movies

@@ -192,12 +192,30 @@ func (s *Server) resolveForceDownloadEpisodePath(ctx context.Context, cfg *confi
 // buildBaseDestPath and design Decision 4).
 func (s *Server) persistForceDownloadPath(db *gorm.DB, item *models.ProcessedLine, baseDestPath string) error {
 	if item.DownloadInfoID != nil {
-		return db.Model(&models.DownloadInfo{}).
-			Where("id = ?", *item.DownloadInfoID).
-			Updates(map[string]interface{}{
-				"download_path": baseDestPath,
-				"is_forced":     true,
-			}).Error
+		// Re-forcing reactivates a cancelled/failed occurrence: the explicit
+		// force expresses the user's new intent, so the record returns to
+		// pending with its retry budget, error and lock cleared.
+		return db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&models.DownloadInfo{}).
+				Where("id = ?", *item.DownloadInfoID).
+				Updates(map[string]interface{}{
+					"download_path": baseDestPath,
+					"is_forced":     true,
+					"status":        string(models.DownloadStatusPending),
+					"retry_count":   0,
+					"error_message": nil,
+					"locked_at":     nil,
+					"locked_by":     nil,
+				}).Error; err != nil {
+				return err
+			}
+			return tx.Model(&models.ProcessedLine{}).
+				Where("id = ? AND state IN ?", item.ID, []string{
+					string(models.StateCancelled),
+					string(models.StateFailed),
+				}).
+				Update("state", string(models.StateProcessed)).Error
+		})
 	}
 
 	downloadInfo := models.DownloadInfo{

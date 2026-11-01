@@ -30,6 +30,13 @@ type Item struct {
 	// ResumeInfo is set when this item has an existing, incomplete DownloadInfo
 	// record that should be resumed rather than started fresh.
 	ResumeInfo *models.DownloadInfo
+	// ForcedLine is the single occurrence a forced download (DownloadInfo.IsForced)
+	// pins this item to. When set, Candidates contains only this line.
+	ForcedLine *models.ProcessedLine
+	// ForcedDestPath is the extension-less destination recorded on the forced
+	// DownloadInfo when the force request was accepted (resolution/language/
+	// variant suffixes included). It replaces BaseDestDir + QualityTags.
+	ForcedDestPath string
 	// Episode is the episode number, used to order items within a season stream.
 	// Always 0 for movie items.
 	Episode int
