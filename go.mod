@@ -1,9 +1,9 @@
 module github.com/glefebvre/stalkeer
 
-go 1.26.0
+go 1.26.10
 
 require (
-	github.com/gin-contrib/cors v1.7.8
+	github.com/gin-contrib/cors v1.7.10
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.25.0
@@ -67,7 +67,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/arch v0.29.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
