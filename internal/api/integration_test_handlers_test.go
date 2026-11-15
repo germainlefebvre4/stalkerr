@@ -177,12 +177,13 @@ func TestTestIntegrationConnectivity_SonarrOK(t *testing.T) {
 func TestTestIntegrationConnectivity_JellyfinOK(t *testing.T) {
 	server := newIntegrationTestServer(t)
 
-	var gotToken string
+	var gotAuth, gotLegacy string
 	jellyfinServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/System/Info" {
 			t.Errorf("expected jellyfin path /System/Info, got %s", r.URL.Path)
 		}
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotAuth = r.Header.Get("Authorization")
+		gotLegacy = r.Header.Get("X-Emby-Token")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{}`))
 	}))
@@ -193,8 +194,11 @@ func TestTestIntegrationConnectivity_JellyfinOK(t *testing.T) {
 	if result.Status != statusOK {
 		t.Errorf("expected ok, got %+v", result)
 	}
-	if gotToken != "jf-key" {
-		t.Errorf("expected X-Emby-Token 'jf-key', got %q", gotToken)
+	if gotAuth != `MediaBrowser Token="jf-key"` {
+		t.Errorf("expected MediaBrowser Authorization header, got %q", gotAuth)
+	}
+	if gotLegacy != "" {
+		t.Errorf("expected no X-Emby-Token header, got %q", gotLegacy)
 	}
 }
 

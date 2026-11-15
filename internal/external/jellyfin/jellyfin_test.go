@@ -32,13 +32,14 @@ func TestNew(t *testing.T) {
 }
 
 func TestNotifyPathsUpdated(t *testing.T) {
-	var gotMethod, gotPath, gotToken string
+	var gotMethod, gotPath, gotAuth, gotLegacy string
 	var gotBody mediaUpdatedRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotAuth = r.Header.Get("Authorization")
+		gotLegacy = r.Header.Get("X-Emby-Token")
 		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
@@ -66,8 +67,11 @@ func TestNotifyPathsUpdated(t *testing.T) {
 	if gotPath != "/Library/Media/Updated" {
 		t.Errorf("expected path /Library/Media/Updated, got %s", gotPath)
 	}
-	if gotToken != "test-key" {
-		t.Errorf("expected X-Emby-Token header 'test-key', got %q", gotToken)
+	if gotAuth != `MediaBrowser Token="test-key"` {
+		t.Errorf("expected MediaBrowser Authorization header, got %q", gotAuth)
+	}
+	if gotLegacy != "" {
+		t.Errorf("expected no X-Emby-Token header, got %q", gotLegacy)
 	}
 	if len(gotBody.Updates) != 2 {
 		t.Fatalf("expected 2 updates, got %d", len(gotBody.Updates))
@@ -145,11 +149,12 @@ func TestNotifyPathsUpdatedNetworkError(t *testing.T) {
 }
 
 func TestSystemStatusOK(t *testing.T) {
-	var gotPath, gotToken string
+	var gotPath, gotAuth, gotLegacy string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		gotToken = r.Header.Get("X-Emby-Token")
+		gotAuth = r.Header.Get("Authorization")
+		gotLegacy = r.Header.Get("X-Emby-Token")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"Version":"10.8.0"}`))
 	}))
@@ -170,8 +175,11 @@ func TestSystemStatusOK(t *testing.T) {
 	if gotPath != "/System/Info" {
 		t.Errorf("expected path /System/Info, got %s", gotPath)
 	}
-	if gotToken != "test-key" {
-		t.Errorf("expected X-Emby-Token header 'test-key', got %q", gotToken)
+	if gotAuth != `MediaBrowser Token="test-key"` {
+		t.Errorf("expected MediaBrowser Authorization header, got %q", gotAuth)
+	}
+	if gotLegacy != "" {
+		t.Errorf("expected no X-Emby-Token header, got %q", gotLegacy)
 	}
 }
 
@@ -205,6 +213,39 @@ func TestSystemStatusUnauthorized(t *testing.T) {
 	}
 }
 
+func TestSystemStatusEmptyKeyStillSentAndUnauthorizedSurfaces(t *testing.T) {
+	var gotAuth string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	err := client.SystemStatus(context.Background())
+
+	if gotAuth != `MediaBrowser Token=""` {
+		t.Errorf("expected request to be sent with an empty MediaBrowser token, got %q", gotAuth)
+	}
+
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("expected *StatusError for 401, got %T: %v", err, err)
+	}
+	if statusErr.StatusCode() != http.StatusUnauthorized {
+		t.Errorf("expected status code %d, got %d", http.StatusUnauthorized, statusErr.StatusCode())
+	}
+}
+
 func TestSystemStatusConnectionFailure(t *testing.T) {
 	client := New(Config{
 		BaseURL: "http://127.0.0.1:1",
@@ -231,8 +272,11 @@ func TestSessionsDecodesIdlePausedAndPlayingSessions(t *testing.T) {
 		if r.URL.Path != "/Sessions" {
 			t.Errorf("expected path /Sessions, got %s", r.URL.Path)
 		}
-		if r.Header.Get("X-Emby-Token") != "test-key" {
-			t.Errorf("expected X-Emby-Token header 'test-key', got %q", r.Header.Get("X-Emby-Token"))
+		if got := r.Header.Get("Authorization"); got != `MediaBrowser Token="test-key"` {
+			t.Errorf("expected MediaBrowser Authorization header, got %q", got)
+		}
+		if got := r.Header.Get("X-Emby-Token"); got != "" {
+			t.Errorf("expected no X-Emby-Token header, got %q", got)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`[
