@@ -131,8 +131,8 @@ func (e *StatusError) StatusCode() int {
 
 // SystemStatus performs a lightweight, unretried reachability-and-auth check
 // against Jellyfin's /System/Info endpoint, which (unlike the unauthenticated
-// /System/Info/Public) requires the X-Emby-Token header and returns 401 on an
-// invalid key. Unlike NotifyPathsUpdated, it does not go through retry.Do: a
+// /System/Info/Public) requires the MediaBrowser Authorization header and
+// returns 401 on an invalid key. Unlike NotifyPathsUpdated, it does not go through retry.Do: a
 // diagnostic check must fail fast under the caller's ctx deadline rather than
 // retry like a real data fetch.
 func (c *Client) SystemStatus(ctx context.Context) error {
@@ -243,7 +243,9 @@ func (c *Client) newRequest(ctx context.Context, method, endpoint string, body i
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("X-Emby-Token", c.apiKey)
+	// Jellyfin 12.x rejects the legacy X-Emby-Token header with a 401 even for
+	// a valid key; the MediaBrowser Authorization scheme is accepted everywhere.
+	req.Header.Set("Authorization", fmt.Sprintf(`MediaBrowser Token="%s"`, c.apiKey))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 

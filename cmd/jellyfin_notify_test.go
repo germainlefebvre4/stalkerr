@@ -125,7 +125,8 @@ func TestNotifyJellyfin_SendsSingleNotificationWithDedupedPaths(t *testing.T) {
 		requestCount++
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "/Library/Media/Updated", r.URL.Path)
-		require.Equal(t, "test-key", r.Header.Get("X-Emby-Token"))
+		require.Equal(t, `MediaBrowser Token="test-key"`, r.Header.Get("Authorization"))
+		require.Empty(t, r.Header.Get("X-Emby-Token"))
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&gotBody))
 		w.WriteHeader(http.StatusNoContent)
 	}))
