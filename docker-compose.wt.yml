@@ -1,0 +1,30 @@
+# Per-worktree development database (used by scripts/wt.sh, `make wt-up`).
+# Postgres only: the API and the Vite dev server run as host processes.
+# No fixed container_name / host port so several worktrees can run side by side.
+# Credentials are throwaway local-dev values; the port is bound to loopback only.
+name: stalkeer-wt
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    # Default bridge: no per-project network (avoids exhausting Docker address pools)
+    network_mode: bridge
+    environment:
+      POSTGRES_DB: stalkeer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1::5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    labels:
+      stalkeer.wt.path: "${WT_PATH:-unknown}"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d stalkeer"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
+volumes:
+  pgdata:

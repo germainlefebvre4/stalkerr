@@ -460,7 +460,7 @@ VALUES (
     NOW() - INTERVAL '4 days' + INTERVAL '1 hour'
 );
 
-INSERT INTO processed_lines (line_content, line_url, line_hash, tvg_name, group_title, processed_at, content_type, movie_id, download_info_id, state, created_at, updated_at)
+INSERT INTO processed_lines (line_content, line_url, line_hash, tvg_name, group_title, processed_at, content_type, movie_id, download_info_id, state, created_at, updated_at, resolution)
 VALUES (
     '#EXTINF:-1 tvg-name="Forrest Gump" group-title="VOD Classic Movies"',
     'https://provider.com/stream/forrest-gump.m3u8',

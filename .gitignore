@@ -85,3 +85,6 @@ webserver/html/
 # Helm Charts
 charts/stalkeer/charts
 charts/stalkeer/values.*.yaml
+
+# Per-worktree dev instance runtime state (make wt-up)
+.wt/
