@@ -6,6 +6,19 @@
 
 * **settings:** Command-line jobs (`download`, `process`, `m3u`, ...) now apply stored settings overrides, such as API keys corrected from the interface, instead of silently using the file/environment values. `settings.Effective()` now logs a warning when overrides cannot be read. Deployments whose stored overrides differ from their file/environment values will see jobs switch to the stored values.
 
+## [1.6.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.5.0...v1.6.0) (2026-11-17)
+
+
+### Features
+
+* **dev:** add isolated per-worktree dev instances (make wt-up/down) ([#89](https://github.com/germainlefebvre4/stalkerr/issues/89)) ([cc0ef23](https://github.com/germainlefebvre4/stalkerr/commit/cc0ef234fd3d8ad892c82574ceb735fda0052a28))
+
+
+### Bug Fixes
+
+* **downloads:** Fix force download recovery ([#78](https://github.com/germainlefebvre4/stalkerr/issues/78)) ([bee51f7](https://github.com/germainlefebvre4/stalkerr/commit/bee51f7c485193db60130033b4896c83efeaeeb3))
+* **integrations:** Update jellyfin auth header ([#82](https://github.com/germainlefebvre4/stalkerr/issues/82)) ([17b8933](https://github.com/germainlefebvre4/stalkerr/commit/17b8933cf6412514338dbfd7baef810e0f96d95a))
+
 ## [1.5.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.4.0...v1.5.0) (2026-10-23)
 
 
