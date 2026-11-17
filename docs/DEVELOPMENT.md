@@ -175,6 +175,29 @@ Run with Air:
 air
 ```
 
+### Isolated instance per git worktree
+
+To validate several features in parallel with `git worktree`, each worktree can run its own complete instance (dedicated PostgreSQL + Go API + Vite dev server), in the background, without touching the other worktrees or the standard `make dev` stack:
+
+```bash
+make wt-up                                # dynamic API and frontend ports
+make wt-up FRONT_PORT=3000                # pin the frontend port (alias: FRONTEND_PORT=3000), API stays dynamic
+make wt-up API_PORT=8080                  # pin the API port, frontend stays dynamic
+make wt-up FRONT_PORT=3000 API_PORT=8080  # pin both
+make wt-status                            # URLs, database port, health of each component
+make wt-logs                              # follow the API and frontend logs
+make wt-down                              # stop everything and DESTROY the database and its data
+```
+
+*   Without a pin, ports are picked deterministically from the worktree path (range 20000-29999): the same worktree gets the same ports whenever they are free. A pinned port that is busy makes the command fail; it is never silently replaced.
+*   The database is a dedicated container (`docker-compose.wt.yml`, loopback-only dynamic host port), seeded with `scripts/seed-test-data.sql` on every `wt-up`. Use `make wt-up WT_SEED=0` to skip the seed.
+*   **`make wt-down` destroys the instance data**: the next `wt-up` starts from a fresh, re-seeded database.
+*   No `config.yml` is needed or generated: the backend is configured only through environment variables, so no secret is copied between worktrees.
+*   Runtime state (ports, PIDs, logs) lives in the git-ignored `.wt/` directory. `wt-down` works even if it was deleted.
+*   Prerequisites: Docker with the `docker compose` v2 plugin, `go`, `node`/`npm`, `curl`. Frontend dependencies are installed (`npm ci`) on first use.
+*   If a worktree is deleted without running `wt-down`, remove its leftovers manually: `docker compose ls` (projects named `stalkeer-wt-*`), then `docker compose -p <project> down -v`.
+*   `scripts/wt-smoke.sh` runs an end-to-end check of these behaviors in the current worktree.
+
 ## Project Structure
 
 ```

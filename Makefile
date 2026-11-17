@@ -1,6 +1,6 @@
 # Makefile for Stalkerr
 
-.PHONY: all build test clean run lint fmt help front-install front-dev front-build front-lint dev
+.PHONY: all build test clean run lint fmt help front-install front-dev front-build front-lint dev wt-up wt-down wt-status wt-logs
 
 # Variables
 BINARY_NAME=stalkeer
@@ -175,6 +175,31 @@ dev-backend: build
 	@echo "Starting stalkeer development environment (Backend)..."
 	@echo "API server: http://localhost:$(API_PORT)"
 	(trap 'kill 0' SIGINT; ./bin/$(BINARY_NAME) server)
+
+# Worktree instances: a port counts as "pinned" only when the caller provided it
+# (command line, environment or override). The `?= 8080` / `?= 5173` defaults above
+# have origin "file" and therefore leave the port dynamic.
+WT_PIN_ORIGINS := command line environment override
+WT_API_PIN := $(if $(filter $(WT_PIN_ORIGINS),$(origin API_PORT)),$(API_PORT))
+WT_FRONT_PIN := $(if $(filter $(WT_PIN_ORIGINS),$(origin FRONTEND_PORT)),$(FRONTEND_PORT))
+WT_FRONT_ALIAS_PIN := $(if $(filter $(WT_PIN_ORIGINS),$(origin FRONT_PORT)),$(FRONT_PORT))
+WT_ENV = WT_API_PIN='$(WT_API_PIN)' WT_FRONT_PIN='$(WT_FRONT_PIN)' WT_FRONT_ALIAS_PIN='$(WT_FRONT_ALIAS_PIN)'
+
+## wt-up: Start an isolated instance (Postgres+API+frontend, background) for this worktree [API_PORT= FRONTEND_PORT=|FRONT_PORT= WT_SEED=0]
+wt-up:
+	@$(WT_ENV) ./scripts/wt.sh up
+
+## wt-down: Stop this worktree's instance and DESTROY its database and data
+wt-down:
+	@./scripts/wt.sh down
+
+## wt-status: Show URLs, database port and health of this worktree's instance
+wt-status:
+	@./scripts/wt.sh status
+
+## wt-logs: Show (and follow) the API and frontend logs of this worktree's instance
+wt-logs:
+	@./scripts/wt.sh logs
 
 ## docker-build: Docker build (if needed later)
 docker-build:
