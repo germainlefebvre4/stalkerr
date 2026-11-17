@@ -6,6 +6,13 @@
 
 * **settings:** Command-line jobs (`download`, `process`, `m3u`, ...) now apply stored settings overrides, such as API keys corrected from the interface, instead of silently using the file/environment values. `settings.Effective()` now logs a warning when overrides cannot be read. Deployments whose stored overrides differ from their file/environment values will see jobs switch to the stored values.
 
+## [1.6.1](https://github.com/germainlefebvre4/stalkerr/compare/v1.6.0...v1.6.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **docker:** use floating golang 1.26 image to satisfy go.mod toolchain ([#94](https://github.com/germainlefebvre4/stalkerr/issues/94)) ([a9891f1](https://github.com/germainlefebvre4/stalkerr/commit/a9891f1892e7a04649dcaf1fc9a0a0dc90f5e835))
+
 ## [1.6.0](https://github.com/germainlefebvre4/stalkerr/compare/v1.5.0...v1.6.0) (2026-11-17)
 
 
